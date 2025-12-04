@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nesta Signal Scout Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        /* Glassmorphism Effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col items-center justify-center font-sans">
+
+    <div class="w-full max-w-md h-[85vh] glass shadow-2xl rounded-2xl flex flex-col overflow-hidden border border-slate-200">
+        
+        <div class="bg-indigo-600 p-4 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">✨</span>
+                <h1 class="font-bold text-lg tracking-wide">Signal Scout</h1>
+                <span class="bg-indigo-500 text-xs px-2 py-0.5 rounded-full border border-indigo-400">PRO</span>
+            </div>
+            <div class="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+        </div>
+
+        <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
+            <div class="flex gap-2">
+                <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm text-slate-700 max-w-[85%]">
+                    Hello! I scout for innovation signals. Ask me to "find weak signals in AI" or "identify risks in ed-tech".
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white border-t border-slate-100">
+            <form id="chat-form" class="relative">
+                <input type="text" id="user-input" 
+                    class="w-full bg-slate-100 text-slate-700 text-sm rounded-full pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    placeholder="Search for signals..." autocomplete="off">
+                <button type="submit" 
+                    class="absolute right-2 top-2 bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-full transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // ⚠️ REPLACE THIS WITH YOUR RENDER URL (Must end in /api/chat)
+        const API_URL = "https://nesta-signal-backend.onrender.com/api/chat"; 
+
+        const form = document.getElementById('chat-form');
+        const input = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+
+        // Helper: Add Message to UI
+        function addMessage(content, type = 'user') {
+            const div = document.createElement('div');
+            div.className = `flex gap-2 ${type === 'user' ? 'justify-end' : ''}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = type === 'user' 
+                ? 'bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none shadow-md text-sm max-w-[85%]'
+                : 'bg-white text-slate-700 p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm max-w-[85%]';
+            
+            bubble.innerHTML = content; // Allows HTML inside
+            div.appendChild(bubble);
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Helper: Render Signal Card
+        function addSignalCard(data) {
+            const scoreColor = data.score > 80 ? 'bg-green-100 text-green-700' : (data.score > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600');
+            
+            const cardHTML = `
+                <div class="flex flex-col gap-3 min-w-[280px]">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">${data.archetype || 'SIGNAL'}</span>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${scoreColor}">Score: ${data.score}</span>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 leading-tight">${data.title}</h3>
+                        <p class="text-xs text-slate-500 mt-1">${data.hook}</p>
+                    </div>
+                    <div class="flex gap-2 mt-1">
+                        <button onclick="saveSignal('${data.title}')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1">
+                            <span>🔖</span> Save
+                        </button>
+                        <a href="${data.final_url}" target="_blank" class="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium py-2 rounded-lg transition-colors text-center">
+                            Source ↗
+                        </a>
+                    </div>
+                </div>
+            `;
+            addMessage(cardHTML, 'bot');
+        }
+
+        // Action: Save Signal (Simulation)
+        window.saveSignal = (title) => {
+            addMessage(`<i>Saving "${title}" to database...</i>`, 'bot');
+            setTimeout(() => addMessage(`✅ <b>${title}</b> saved successfully!`, 'bot'), 800);
+        };
+
+        // Main Submit Handler
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 1. Show User Message
+            addMessage(text, 'user');
+            input.value = '';
+
+            // 2. Show Loading State
+            const loadingId = 'loading-' + Date.now();
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = loadingId;
+            loadingDiv.className = 'flex gap-2';
+            loadingDiv.innerHTML = `<div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm text-slate-400 italic">Scouting signals...</div>`;
+            chatBox.appendChild(loadingDiv);
+
+            try {
+                // 3. Call Backend
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                
+                const data = await response.json();
+                
+                // 4. Remove Loading
+                document.getElementById(loadingId).remove();
+
+                // 5. Render Response
+                if (data.ui_type === 'signal_card') {
+                    addSignalCard(data);
+                } else {
+                    addMessage(data.content, 'bot');
+                }
+
+            } catch (err) {
+                document.getElementById(loadingId).remove();
+                addMessage("❌ Error connecting to Signal Scout backend.", 'bot');
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+</html>
