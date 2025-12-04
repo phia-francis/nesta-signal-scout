@@ -6,154 +6,240 @@
     <title>Nesta Signal Scout Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        /* Glassmorphism Effect */
-        .glass {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .btn-check:checked + label { background-color: #4f46e5; color: white; border-color: #4f46e5; }
     </style>
 </head>
-<body class="bg-slate-50 h-screen flex flex-col items-center justify-center font-sans">
+<body class="bg-slate-100 h-screen font-sans overflow-hidden">
 
-    <div class="w-full max-w-md h-[85vh] glass shadow-2xl rounded-2xl flex flex-col overflow-hidden border border-slate-200">
+    <div class="flex h-full max-w-7xl mx-auto p-4 gap-4">
         
-        <div class="bg-indigo-600 p-4 text-white flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <span class="text-xl">✨</span>
-                <h1 class="font-bold text-lg tracking-wide">Signal Scout</h1>
-                <span class="bg-indigo-500 text-xs px-2 py-0.5 rounded-full border border-indigo-400">PRO</span>
-            </div>
-            <div class="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-        </div>
+        <div class="flex-1 flex flex-col gap-4">
+            
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-slate-700 flex items-center gap-2">
+                        <span class="text-xl">🎛️</span> Scout Controls
+                    </h2>
+                    <span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-mono">Mode: Auto-Scan</span>
+                </div>
 
-        <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
-            <div class="flex gap-2">
-                <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm text-slate-700 max-w-[85%]">
-                    Hello! I scout for innovation signals. Ask me to "find weak signals in AI" or "identify risks in ed-tech".
+                <div class="space-y-3">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Sector</span>
+                        <div class="flex flex-wrap gap-2 mt-2" id="sector-filters">
+                            </div>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Lens</span>
+                        <div class="flex flex-wrap gap-2 mt-2" id="lens-filters">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex gap-3">
+                    <input type="text" id="manual-input" placeholder="Optional: Type custom context..." 
+                        class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button onclick="runScan()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-indigo-200 transition-all flex items-center gap-2">
+                        <span>🚀</span> Launch Scan
+                    </button>
+                </div>
+            </div>
+
+            <div id="chat-box" class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 overflow-y-auto space-y-4 relative">
+                <div class="text-center text-slate-400 mt-10">
+                    <p class="text-4xl mb-2">📡</p>
+                    <p>Select filters above and click <b>Launch Scan</b>.</p>
                 </div>
             </div>
         </div>
 
-        <div class="p-4 bg-white border-t border-slate-100">
-            <form id="chat-form" class="relative">
-                <input type="text" id="user-input" 
-                    class="w-full bg-slate-100 text-slate-700 text-sm rounded-full pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                    placeholder="Search for signals..." autocomplete="off">
-                <button type="submit" 
-                    class="absolute right-2 top-2 bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-full transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                </button>
-            </form>
+        <div class="w-96 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col overflow-hidden shadow-inner">
+            <div class="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-bold text-slate-700">💾 Signal Vault</h3>
+                <button onclick="refreshDatabase()" class="text-xs text-slate-500 hover:text-indigo-600">Refresh</button>
+            </div>
+            <div id="db-list" class="flex-1 overflow-y-auto p-3 space-y-3">
+                </div>
         </div>
+
     </div>
 
     <script>
         // --- CONFIGURATION ---
-        // ⚠️ REPLACE THIS WITH YOUR RENDER URL (Must end in /api/chat)
-        const API_URL = "https://nesta-signal-backend.onrender.com/api/chat"; 
+        const API_BASE = "https://nesta-signal-backend.onrender.com"; // e.g. https://nesta-backend.onrender.com
+        
+        // --- DATA FOR BUTTONS ---
+        const SECTORS = ["AI & Tech", "Climate", "Education", "Health", "Democracy"];
+        const LENSES = ["Weak Signal", "Risks", "Black Market", "Weird/Outlier"];
 
-        const form = document.getElementById('chat-form');
-        const input = document.getElementById('user-input');
-        const chatBox = document.getElementById('chat-box');
+        // --- INIT ---
+        window.onload = () => {
+            renderFilters();
+            refreshDatabase();
+        };
 
-        // Helper: Add Message to UI
-        function addMessage(content, type = 'user') {
-            const div = document.createElement('div');
-            div.className = `flex gap-2 ${type === 'user' ? 'justify-end' : ''}`;
+        // 1. Render Control Buttons
+        function renderFilters() {
+            const createBtn = (id, text, group) => `
+                <input type="radio" name="${group}" id="${id}" value="${text}" class="hidden btn-check peer">
+                <label for="${id}" class="cursor-pointer px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors select-none">
+                    ${text}
+                </label>
+            `;
+
+            document.getElementById('sector-filters').innerHTML = SECTORS.map((s, i) => createBtn(`s-${i}`, s, 'sector')).join('');
+            document.getElementById('lens-filters').innerHTML = LENSES.map((l, i) => createBtn(`l-${i}`, l, 'lens')).join('');
+        }
+
+        // 2. Run Scan Logic
+        async function runScan() {
+            const chatBox = document.getElementById('chat-box');
+            const manualText = document.getElementById('manual-input').value;
             
-            const bubble = document.createElement('div');
-            bubble.className = type === 'user' 
-                ? 'bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none shadow-md text-sm max-w-[85%]'
-                : 'bg-white text-slate-700 p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm max-w-[85%]';
-            
-            bubble.innerHTML = content; // Allows HTML inside
-            div.appendChild(bubble);
-            chatBox.appendChild(div);
+            // Get selected buttons
+            const sector = document.querySelector('input[name="sector"]:checked')?.value;
+            const lens = document.querySelector('input[name="lens"]:checked')?.value;
+
+            // Construct Prompt
+            let prompt = "";
+            if (manualText) {
+                prompt = manualText;
+            } else if (sector || lens) {
+                prompt = `Find innovation signals regarding ${sector || 'general topics'} using the ${lens || 'general'} lens.`;
+            } else {
+                alert("Please select a filter or type a request!");
+                return;
+            }
+
+            // User UI Feedback
+            chatBox.innerHTML += `
+                <div class="flex justify-end animate-fade-in">
+                    <div class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-2xl rounded-tr-none text-sm mb-2 max-w-[85%]">
+                        Searching: <b>${sector || 'Custom'}</b> + <b>${lens || 'General'}</b><br>
+                        <span class="text-xs opacity-70">"${prompt}"</span>
+                    </div>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Loading State
+            const loaderId = `load-${Date.now()}`;
+            chatBox.innerHTML += `<div id="${loaderId}" class="text-slate-400 text-sm italic ml-2">Scanning horizon...</div>`;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/chat`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: prompt })
+                });
+                const data = await res.json();
+                
+                document.getElementById(loaderId).remove();
+
+                if (data.ui_type === 'signal_card') {
+                    renderCard(data);
+                } else {
+                    renderText(data.content);
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById(loaderId).innerText = "Error connecting to backend.";
+            }
+        }
+
+        // 3. Render Functions
+        function renderText(text) {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML += `<div class="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm max-w-[85%]">${text}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Helper: Render Signal Card
-        function addSignalCard(data) {
-            const scoreColor = data.score > 80 ? 'bg-green-100 text-green-700' : (data.score > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600');
+        function renderCard(data) {
+            const chatBox = document.getElementById('chat-box');
+            // Store data in a way button can access it (simple JSON stringify trick)
+            const dataStr = JSON.stringify(data).replace(/"/g, '&quot;');
             
             const cardHTML = `
-                <div class="flex flex-col gap-3 min-w-[280px]">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">${data.archetype || 'SIGNAL'}</span>
-                        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${scoreColor}">Score: ${data.score}</span>
+                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-md max-w-sm hover:shadow-lg transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">${data.archetype}</span>
+                        <span class="font-mono text-xs font-bold text-slate-400">${data.score}/100</span>
                     </div>
-                    <div>
-                        <h3 class="font-bold text-slate-800 leading-tight">${data.title}</h3>
-                        <p class="text-xs text-slate-500 mt-1">${data.hook}</p>
-                    </div>
-                    <div class="flex gap-2 mt-1">
-                        <button onclick="saveSignal('${data.title}')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1">
-                            <span>🔖</span> Save
+                    <h3 class="font-bold text-slate-800 text-lg leading-tight mb-1">${data.title}</h3>
+                    <p class="text-sm text-slate-500 mb-4">${data.hook}</p>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="saveToDB(${dataStr})" class="bg-slate-900 text-white text-xs font-bold py-2 rounded hover:bg-slate-700 transition-colors flex items-center justify-center gap-1">
+                            <span>💾</span> Save
                         </button>
-                        <a href="${data.final_url}" target="_blank" class="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium py-2 rounded-lg transition-colors text-center">
+                        <a href="${data.final_url}" target="_blank" class="border border-slate-300 text-slate-600 text-xs font-bold py-2 rounded text-center hover:bg-slate-50">
                             Source ↗
                         </a>
                     </div>
                 </div>
             `;
-            addMessage(cardHTML, 'bot');
+            chatBox.innerHTML += cardHTML;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Action: Save Signal (Simulation)
-        window.saveSignal = (title) => {
-            addMessage(`<i>Saving "${title}" to database...</i>`, 'bot');
-            setTimeout(() => addMessage(`✅ <b>${title}</b> saved successfully!`, 'bot'), 800);
-        };
-
-        // Main Submit Handler
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = input.value.trim();
-            if (!text) return;
-
-            // 1. Show User Message
-            addMessage(text, 'user');
-            input.value = '';
-
-            // 2. Show Loading State
-            const loadingId = 'loading-' + Date.now();
-            const loadingDiv = document.createElement('div');
-            loadingDiv.id = loadingId;
-            loadingDiv.className = 'flex gap-2';
-            loadingDiv.innerHTML = `<div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-sm text-slate-400 italic">Scouting signals...</div>`;
-            chatBox.appendChild(loadingDiv);
-
+        // 4. Database Interactions
+        async function saveToDB(data) {
             try {
-                // 3. Call Backend
-                const response = await fetch(API_URL, {
+                const res = await fetch(`${API_BASE}/api/save`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: data.title,
+                        score: data.score,
+                        archetype: data.archetype,
+                        hook: data.hook,
+                        url: data.final_url
+                    })
                 });
-                
-                const data = await response.json();
-                
-                // 4. Remove Loading
-                document.getElementById(loadingId).remove();
+                const result = await res.json();
+                refreshDatabase(); // Update sidebar immediately
+                alert("Saved to Vault!");
+            } catch (err) {
+                alert("Failed to save.");
+            }
+        }
 
-                // 5. Render Response
-                if (data.ui_type === 'signal_card') {
-                    addSignalCard(data);
-                } else {
-                    addMessage(data.content, 'bot');
+        async function refreshDatabase() {
+            try {
+                const res = await fetch(`${API_BASE}/api/saved`);
+                const items = await res.json();
+                const list = document.getElementById('db-list');
+                
+                if(items.length === 0) {
+                    list.innerHTML = `<div class="text-center text-xs text-slate-400 mt-10">Vault is empty.</div>`;
+                    return;
                 }
 
+                list.innerHTML = items.map(item => `
+                    <div class="bg-white p-3 rounded border border-slate-100 shadow-sm relative group">
+                        <div class="text-[10px] text-slate-400 font-bold mb-0.5 flex justify-between">
+                            <span>${item.archetype}</span>
+                            <span class="text-indigo-500">${item.score}</span>
+                        </div>
+                        <div class="font-bold text-slate-700 text-sm leading-snug hover:text-indigo-600">
+                            <a href="${item.url}" target="_blank">${item.title}</a>
+                        </div>
+                        <button onclick="deleteSignal(${item.id})" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs">✖</button>
+                    </div>
+                `).join('');
             } catch (err) {
-                document.getElementById(loadingId).remove();
-                addMessage("❌ Error connecting to Signal Scout backend.", 'bot');
-                console.error(err);
+                console.error("DB Error", err);
             }
-        });
+        }
+
+        async function deleteSignal(id) {
+            if(!confirm("Remove from vault?")) return;
+            await fetch(`${API_BASE}/api/saved/${id}`, { method: 'DELETE' });
+            refreshDatabase();
+        }
     </script>
 </body>
 </html>
