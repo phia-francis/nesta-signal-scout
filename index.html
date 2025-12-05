@@ -6,23 +6,17 @@
     <title>Nesta Signal Scout Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
-        /* Slider Styling */
         .range-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
             width: 18px; height: 18px; background: #4f46e5; cursor: pointer; border-radius: 50%;
             transition: background 0.2s;
         }
         .range-slider::-webkit-slider-thumb:hover { background: #4338ca; }
-        
-        /* Animations */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        
         @keyframes pulse-subtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .animate-pulse-subtle { animation: pulse-subtle 2s infinite; }
     </style>
@@ -30,19 +24,14 @@
 <body class="bg-slate-100 h-screen font-sans overflow-hidden text-slate-800">
 
     <div class="flex h-full max-w-7xl mx-auto p-4 gap-4">
-        
         <div class="flex-1 flex flex-col gap-4">
-            
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                 <div class="flex justify-between items-center mb-5">
                     <h2 class="font-bold text-slate-700 flex items-center gap-2 select-none">
-                        <span class="text-2xl">🔭</span> 
-                        <span class="tracking-tight">Signal Scout <span class="text-indigo-600">Pro</span></span>
+                        <span class="text-2xl">🔭</span> <span class="tracking-tight">Signal Scout <span class="text-indigo-600">Pro</span></span>
                     </h2>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
-                    
                     <div>
                         <div class="flex justify-between mb-2">
                             <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Signal Count</label>
@@ -55,7 +44,6 @@
                             <span>1</span><span>5</span><span>10</span>
                         </div>
                     </div>
-
                     <div>
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mission Focus</label>
                         <div class="relative">
@@ -65,17 +53,12 @@
                                 <option value="A Healthy Life">❤️‍🩹 A Healthy Life</option>
                                 <option value="A Sustainable Future">🌳 A Sustainable Future</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                            </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="flex gap-3">
                     <input type="text" id="manual-input" placeholder="Optional: Specific topic (e.g., 'Generative AI in Schools')" 
                         class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400">
-                    
                     <button onclick="runScan()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-lg font-bold shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95 group">
                         <span class="group-hover:rotate-12 transition-transform">🚀</span> Launch
                     </button>
@@ -92,62 +75,45 @@
 
         <div class="w-80 md:w-96 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col overflow-hidden shadow-inner h-full">
             <div class="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
-                <h3 class="font-bold text-slate-700 flex items-center gap-2">
-                    <span>💾</span> Vault
-                </h3>
+                <h3 class="font-bold text-slate-700 flex items-center gap-2"><span>💾</span> Vault</h3>
                 <button onclick="refreshDatabase()" class="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
                     Refresh <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
                 </button>
             </div>
             <div id="db-list" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
-                <div class="flex flex-col items-center justify-center h-40 text-slate-400">
-                    <span class="text-sm">Loading...</span>
-                </div>
+                <div class="flex flex-col items-center justify-center h-40 text-slate-400"><span class="text-sm">Loading...</span></div>
             </div>
         </div>
-
     </div>
 
     <script>
-        // ==========================================
-        // ⚠️ CONFIGURATION (EDIT THIS LINE ONLY)
-        // ==========================================
-        // Paste your Render URL here. NO trailing slash.
+        // ✅ YOUR RENDER URL
         const API_BASE = "https://nesta-signal-backend.onrender.com"; 
-        // Example: const API_BASE = "https://nesta-scout-backend.onrender.com";
-        // ==========================================
 
+        // Store signals in memory
+        let currentSignals = [];
 
-        // --- INIT ---
         window.onload = refreshDatabase;
 
-        // --- MAIN SCAN FUNCTION ---
         async function runScan() {
             const chatBox = document.getElementById('chat-box');
             const topic = document.getElementById('manual-input').value.trim();
             const count = document.getElementById('signal-count').value;
             const mission = document.getElementById('mission-select').value;
 
-            // Clear placeholder if present
             if(chatBox.innerText.includes("Configure parameters")) chatBox.innerHTML = "";
 
-            // 1. Construct the Prompt
             let prompt = `Find ${count} distinct innovation signals`;
             if (topic) prompt += ` related to '${topic}'`;
             else prompt += ` (perform a broad horizon scan)`;
-            
             if (mission !== "All Missions") prompt += ` with a specific focus on the '${mission}' mission`;
             else prompt += ` across any relevant mission`;
-
             prompt += ". Use the display_signal_card tool for each one.";
 
-            // 2. User Bubble (UI Feedback)
+            // UI Feedback
             chatBox.innerHTML += `
                 <div class="flex justify-end animate-fade-in">
                     <div class="bg-indigo-600 text-white px-5 py-3 rounded-2xl rounded-tr-none text-sm shadow-md max-w-[85%]">
-                        <div class="flex items-center gap-2 mb-1 border-b border-indigo-500/30 pb-1">
-                            <span class="font-bold text-[10px] uppercase tracking-wider opacity-80">Request Parameters</span>
-                        </div>
                         <div class="space-y-0.5">
                             <div>🎯 <b>Target:</b> ${count} Signals</div>
                             <div>🏛️ <b>Mission:</b> ${mission}</div>
@@ -157,7 +123,7 @@
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // 3. Loading Indicator
+            // Loading
             const loaderId = `load-${Date.now()}`;
             chatBox.innerHTML += `
                 <div id="${loaderId}" class="flex gap-3 items-center text-slate-500 text-sm ml-2 mt-2 animate-pulse-subtle">
@@ -167,8 +133,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
-                // 4. API Call
-                // Note: We append /api/chat here automatically
                 const res = await fetch(`${API_BASE}/api/chat`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -176,61 +140,54 @@
                 });
                 
                 if (!res.ok) throw new Error(`Server Error: ${res.status}`);
-                
                 const data = await res.json();
                 
-                // Remove loader
-                const loader = document.getElementById(loaderId);
-                if (loader) loader.remove();
+                document.getElementById(loaderId).remove();
 
-                // 5. Handle Response Types
                 if (data.ui_type === 'signal_list') {
-                    // Case A: Multiple Signals
                     data.items.forEach(signal => renderCard(signal));
                     renderSystemMessage(`✅ <b>Scan Complete:</b> Found ${data.items.length} signals.`);
-                } 
-                else if (data.ui_type === 'signal_card') {
-                    // Case B: Single Signal
+                } else if (data.ui_type === 'signal_card') {
                     renderCard(data);
-                } 
-                else {
-                    // Case C: Plain Text / Error
+                } else {
                     renderSystemMessage(data.content);
                 }
 
             } catch (err) {
                 console.error(err);
                 const loader = document.getElementById(loaderId);
-                if (loader) {
-                    loader.className = "flex gap-2 items-center text-red-500 text-sm ml-2 mt-2 bg-red-50 p-3 rounded-lg border border-red-100";
-                    loader.innerHTML = `<span>⚠️ <b>Connection Failed.</b><br>Check your API URL in index.html (Line 156).<br>Error: ${err.message}</span>`;
-                }
+                if(loader) loader.innerHTML = `<span class="text-red-500">⚠️ Error: ${err.message}</span>`;
             }
         }
 
-        // --- RENDER FUNCTIONS ---
-        
-        function renderSystemMessage(htmlContent) {
+        function renderSystemMessage(html) {
             const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML += `
-                <div class="flex animate-fade-in">
-                    <div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none text-sm text-slate-600 shadow-sm max-w-[85%] prose prose-sm">
-                        ${htmlContent}
-                    </div>
-                </div>`;
+            chatBox.innerHTML += `<div class="flex animate-fade-in"><div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none text-sm text-slate-600 shadow-sm max-w-[85%]">${html}</div></div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function renderCard(data) {
+            currentSignals.push(data);
+            const idx = currentSignals.length - 1;
+
             const chatBox = document.getElementById('chat-box');
-            
-            // JSON stringify logic to pass object to onclick safely
-            const dataStr = JSON.stringify(data).replace(/"/g, '&quot;');
-            
-            // Score Badge Logic
             let scoreColor = "bg-slate-100 text-slate-600";
             if(data.score >= 80) scoreColor = "bg-emerald-100 text-emerald-700 border-emerald-200";
             else if(data.score >= 60) scoreColor = "bg-amber-100 text-amber-700 border-amber-200";
+
+            // --- BADGE RENDERING LOGIC ---
+            // 1. Mission Badge
+            const missionHtml = data.mission 
+                ? `<span class="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] px-2 py-1 rounded-md font-bold flex items-center gap-1">${data.mission}</span>` 
+                : '';
+
+            // 2. Lenses Badges (Split by comma if multiple)
+            let lensesHtml = '';
+            if (data.lenses) {
+                lensesHtml = data.lenses.split(',').map(tag => 
+                    `<span class="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] px-1.5 py-0.5 rounded-md flex items-center">${tag.trim()}</span>`
+                ).join('');
+            }
 
             const cardHTML = `
                 <div class="animate-fade-in group">
@@ -238,38 +195,36 @@
                         
                         <div class="flex justify-between items-start mb-3">
                             <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">${data.archetype || 'SIGNAL'}</span>
-                            <span class="font-mono text-xs font-bold ${scoreColor} border px-2 py-1 rounded flex items-center gap-1">
-                                <span>⚡</span> ${data.score}/100
-                            </span>
+                            <span class="font-mono text-xs font-bold ${scoreColor} border px-2 py-1 rounded flex items-center gap-1"><span>⚡</span> ${data.score}/100</span>
+                        </div>
+                        
+                        <h3 class="font-bold text-slate-800 text-lg leading-tight mb-2 group-hover:text-indigo-700 transition-colors">${data.title}</h3>
+                        <p class="text-sm text-slate-600 mb-3 leading-relaxed">${data.hook}</p>
+
+                        <div class="flex flex-wrap gap-2 mb-5">
+                            ${missionHtml}
+                            ${lensesHtml}
                         </div>
 
-                        <h3 class="font-bold text-slate-800 text-lg leading-tight mb-2 group-hover:text-indigo-700 transition-colors">${data.title}</h3>
-                        <p class="text-sm text-slate-600 mb-5 leading-relaxed">${data.hook}</p>
-                        
                         <div class="grid grid-cols-2 gap-3">
-                            <button onclick="saveToDB(${dataStr}, this)" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95">
+                            <button onclick="saveSignalByIndex(${idx}, this)" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 active:scale-95">
                                 <span>🔖</span> Save Signal
                             </button>
-                            <a href="${data.final_url}" target="_blank" class="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold py-2.5 rounded-lg text-center transition-all flex items-center justify-center gap-1">
-                                Source <span class="text-[10px] opacity-60">↗</span>
-                            </a>
+                            <a href="${data.final_url}" target="_blank" class="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-bold py-2.5 rounded-lg text-center transition-all flex items-center justify-center gap-1">Source ↗</a>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
             chatBox.innerHTML += cardHTML;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // --- DATABASE FUNCTIONS ---
-
-        async function saveToDB(data, btnElement) {
-            // Visual Feedback on Button
-            const originalContent = btnElement.innerHTML;
-            btnElement.innerHTML = `<div class="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
+        async function saveSignalByIndex(idx, btn) {
+            const data = currentSignals[idx];
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<div class="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
             
             try {
-                // Note: /api/save is appended
+                // Pass Mission and Lenses to Backend
                 const res = await fetch(`${API_BASE}/api/save`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -278,76 +233,59 @@
                         score: data.score,
                         archetype: data.archetype,
                         hook: data.hook,
-                        url: data.final_url
+                        url: data.final_url,
+                        mission: data.mission || "",  // Pass Mission
+                        lenses: data.lenses || ""     // Pass Lenses
                     })
                 });
                 
                 if(res.ok) {
-                    // Success State
-                    btnElement.className = "bg-emerald-600 text-white text-xs font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 cursor-default";
-                    btnElement.innerHTML = `<span>✓</span> Saved`;
-                    btnElement.removeAttribute("onclick"); // Prevent double save
-                    refreshDatabase(); // Update sidebar
+                    btn.className = "bg-emerald-600 text-white text-xs font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 cursor-default";
+                    btn.innerHTML = `<span>✓</span> Saved`;
+                    btn.removeAttribute("onclick");
+                    refreshDatabase();
                 } else {
                     throw new Error("Save failed");
                 }
             } catch (err) {
-                alert("Failed to save signal to database.");
-                btnElement.innerHTML = originalContent; // Revert
+                alert("Failed to save. " + err.message);
+                btn.innerHTML = originalContent;
             }
         }
 
         async function refreshDatabase() {
             const list = document.getElementById('db-list');
-            
             try {
                 const res = await fetch(`${API_BASE}/api/saved`);
-                if(!res.ok) throw new Error("DB unreachable");
-                
                 const items = await res.json();
                 
                 if(items.length === 0) {
-                    list.innerHTML = `
-                        <div class="flex flex-col items-center justify-center h-40 text-slate-400">
-                            <span class="text-2xl mb-2 opacity-30">📭</span>
-                            <span class="text-xs">Vault is empty</span>
-                        </div>`;
+                    list.innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-slate-400"><span class="text-2xl mb-2 opacity-30">📭</span><span class="text-xs">Vault is empty</span></div>`;
                     return;
                 }
-
                 list.innerHTML = items.map(item => `
                     <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm relative group hover:border-indigo-300 transition-colors animate-fade-in">
                         <div class="flex justify-between items-center mb-1.5">
                             <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate max-w-[60%]">${item.archetype}</span>
                             <span class="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-bold">${item.score}</span>
                         </div>
-                        <div class="font-bold text-slate-700 text-sm leading-snug pr-6 mb-1">
-                            <a href="${item.url}" target="_blank" class="hover:text-indigo-600 transition-colors line-clamp-2">${item.title}</a>
-                        </div>
+                        <div class="font-bold text-slate-700 text-sm leading-snug pr-6 mb-1"><a href="${item.url}" target="_blank" class="hover:text-indigo-600 transition-colors line-clamp-2">${item.title}</a></div>
                         
-                        <button onclick="deleteSignal(${item.id})" class="absolute top-2 right-2 p-1.5 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" title="Delete Signal">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
-                    </div>
-                `).join('');
+                        <div class="flex gap-1 mt-1 opacity-60">
+                            ${item.mission ? `<span class="text-[9px] bg-slate-100 px-1 rounded">${item.mission.substring(0,15)}...</span>` : ''}
+                        </div>
+
+                        <button onclick="deleteSignal(${item.id})" class="absolute top-2 right-2 p-1.5 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" title="Delete Signal">✖</button>
+                    </div>`).join('');
             } catch (err) {
                 console.error("DB Error", err);
-                // If it's the first load, don't show scary errors, just leave blank/loading
-                if(list.innerText.includes("Loading")) {
-                   list.innerHTML = `<div class="p-4 text-xs text-red-400 text-center">Cannot connect to Vault.</div>`;
-                }
             }
         }
 
         async function deleteSignal(id) {
-            if(!confirm("Remove this signal from your vault?")) return;
-            
-            try {
-                await fetch(`${API_BASE}/api/saved/${id}`, { method: 'DELETE' });
-                refreshDatabase();
-            } catch(e) {
-                alert("Could not delete item.");
-            }
+            if(!confirm("Remove from vault?")) return;
+            await fetch(`${API_BASE}/api/saved/${id}`, { method: 'DELETE' });
+            refreshDatabase();
         }
     </script>
 </body>
