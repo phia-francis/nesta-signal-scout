@@ -16,7 +16,6 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
-# Enable CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,11 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- DATABASE SETUP (SQLite) ---
+# --- DATABASE SETUP ---
 DB_FILE = "signals.db"
 
 def init_db():
-    """Creates the database table if it doesn't exist."""
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS saved_signals (
@@ -42,8 +40,7 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-init_db()  # Run on startup
+init_db()
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -56,9 +53,9 @@ class SaveSignalRequest(BaseModel):
     hook: str
     url: str
 
-# --- HELPER FUNCTIONS ---
+# --- HELPER ---
 def craft_widget_response(tool_args):
-    """Prepares the AI response for the UI."""
+    """Prepares a single signal card."""
     url = tool_args.get("sourceURL") or tool_args.get("url")
     if not url:
         query = tool_args.get("title", "").replace(" ", "+")
@@ -69,10 +66,8 @@ def craft_widget_response(tool_args):
     return tool_args
 
 # --- ENDPOINTS ---
-
 @app.get("/api/saved")
 def get_saved_signals():
-    """Fetch all saved signals from the DB."""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
@@ -83,20 +78,18 @@ def get_saved_signals():
 
 @app.post("/api/save")
 def save_signal(signal: SaveSignalRequest):
-    """Save a specific signal to the DB."""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.execute(
                 "INSERT INTO saved_signals (title, score, archetype, hook, url) VALUES (?, ?, ?, ?, ?)",
                 (signal.title, signal.score, signal.archetype, signal.hook, signal.url)
             )
-        return {"status": "success", "message": f"Saved {signal.title}"}
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/saved/{signal_id}")
 def delete_signal(signal_id: int):
-    """Remove a signal from the DB."""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.execute("DELETE FROM saved_signals WHERE id = ?", (signal_id,))
@@ -106,7 +99,6 @@ def delete_signal(signal_id: int):
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
-    """Interact with OpenAI Assistant."""
     try:
         print(f"User Query: {req.message}")
         
@@ -123,10 +115,18 @@ async def chat_endpoint(req: ChatRequest):
 
             if run_status.status == 'requires_action':
                 tool_calls = run_status.required_action.submit_tool_outputs.tool_calls
+                
+                # COLLECT ALL SIGNALS (Fix for slider)
+                signals_found = []
                 for tool in tool_calls:
                     if tool.function.name == "display_signal_card":
                         args = json.loads(tool.function.arguments)
-                        return craft_widget_response(args)
+                        processed_card = craft_widget_response(args)
+                        signals_found.append(processed_card)
+                
+                # Return list of signals
+                if signals_found:
+                    return {"ui_type": "signal_list", "items": signals_found}
                         
             if run_status.status == 'completed':
                 messages = await asyncio.to_thread(
@@ -136,7 +136,7 @@ async def chat_endpoint(req: ChatRequest):
                 return {"ui_type": "text", "content": text}
             
             if run_status.status in ['failed', 'cancelled', 'expired']:
-                return {"ui_type": "text", "content": "I encountered an error processing that signal."}
+                return {"ui_type": "text", "content": "Error: Run failed."}
 
             await asyncio.sleep(1)
 
