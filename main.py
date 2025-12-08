@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 import asyncio
-import random  # ✅ NEW: For randomness
+import random
 from contextlib import closing
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -34,9 +34,9 @@ app.add_middleware(
 DB_FILE = "signals.db"
 
 def init_db():
-    """Initialize DB and perform auto-migration if columns are missing."""
     with closing(sqlite3.connect(DB_FILE)) as conn:
         with conn:
+            # Create Base Table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS saved_signals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,19 +47,31 @@ def init_db():
                     url TEXT,
                     mission TEXT,
                     lenses TEXT,
+                    score_evocativeness INTEGER DEFAULT 0,
+                    score_novelty INTEGER DEFAULT 0,
+                    score_evidence INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Auto-Migrate columns
+            # Auto-Migrate: Add columns if they don't exist
             cursor = conn.cursor()
             cursor.execute("PRAGMA table_info(saved_signals)")
             columns = [info[1] for info in cursor.fetchall()]
             
-            if "mission" not in columns:
-                conn.execute("ALTER TABLE saved_signals ADD COLUMN mission TEXT")
-            if "lenses" not in columns:
-                conn.execute("ALTER TABLE saved_signals ADD COLUMN lenses TEXT")
+            # Migration Logic
+            new_cols = {
+                "mission": "TEXT",
+                "lenses": "TEXT",
+                "score_evocativeness": "INTEGER DEFAULT 0",
+                "score_novelty": "INTEGER DEFAULT 0",
+                "score_evidence": "INTEGER DEFAULT 0"
+            }
+            
+            for col, dtype in new_cols.items():
+                if col not in columns:
+                    print(f"Migrating DB: Adding '{col}'...")
+                    conn.execute(f"ALTER TABLE saved_signals ADD COLUMN {col} {dtype}")
 
 init_db()
 
@@ -75,6 +87,10 @@ class SaveSignalRequest(BaseModel):
     url: str
     mission: Optional[str] = ""
     lenses: Optional[str] = ""
+    # ✅ NEW: Breakdown fields
+    score_evocativeness: Optional[int] = 0
+    score_novelty: Optional[int] = 0
+    score_evidence: Optional[int] = 0
 
 # --- HELPER ---
 def craft_widget_response(tool_args):
@@ -106,9 +122,12 @@ def save_signal(signal: SaveSignalRequest):
             with conn:
                 conn.execute(
                     """INSERT INTO saved_signals 
-                       (title, score, archetype, hook, url, mission, lenses) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (signal.title, signal.score, signal.archetype, signal.hook, signal.url, signal.mission, signal.lenses)
+                       (title, score, archetype, hook, url, mission, lenses, 
+                        score_evocativeness, score_novelty, score_evidence) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (signal.title, signal.score, signal.archetype, signal.hook, signal.url, 
+                     signal.mission, signal.lenses, 
+                     signal.score_evocativeness, signal.score_novelty, signal.score_evidence)
                 )
         return {"status": "success"}
     except Exception as e:
@@ -130,31 +149,19 @@ async def chat_endpoint(req: ChatRequest):
     try:
         print(f"User Query: {req.message}")
         
-        # ---------------------------------------------------------
-        # ✅ NEW: Fetch existing titles to prevent duplicates
-        # ---------------------------------------------------------
+        # Deduping Logic
         existing_titles = []
         try:
             with closing(sqlite3.connect(DB_FILE)) as conn:
-                # Fetch last 50 titles to avoid overwhelming the prompt
                 cursor = conn.execute("SELECT title FROM saved_signals ORDER BY id DESC LIMIT 50")
                 existing_titles = [row[0] for row in cursor.fetchall()]
-        except Exception:
-            pass # Ignore DB errors here, just proceed without filtering
+        except Exception: pass
 
-        # ✅ NEW: Inject "Negative Constraints" + Random Seed into prompt
         enhanced_prompt = req.message
-        
-        # Add Random Salt (Forces the LLM to traverse a slightly different probability path)
         enhanced_prompt += f"\n\n[System Note: Random Seed {random.randint(1000, 9999)}]"
-
-        # Add Blocklist
         if existing_titles:
             blocklist_str = ", ".join([f'"{t}"' for t in existing_titles])
-            enhanced_prompt += f"\n\nIMPORTANT: The user has ALREADY saved the following signals. Do NOT return these. Find fresh, different examples:\n{blocklist_str}"
-
-        print(f"Enhanced Prompt: {enhanced_prompt}")
-        # ---------------------------------------------------------
+            enhanced_prompt += f"\n\nIMPORTANT: Do NOT return these titles: {blocklist_str}"
 
         run = await asyncio.to_thread(
             client.beta.threads.create_and_run,
