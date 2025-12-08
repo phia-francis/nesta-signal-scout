@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import asyncio
+import random  # ✅ NEW: For randomness
 from contextlib import closing
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -36,7 +37,6 @@ def init_db():
     """Initialize DB and perform auto-migration if columns are missing."""
     with closing(sqlite3.connect(DB_FILE)) as conn:
         with conn:
-            # 1. Create Base Table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS saved_signals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,17 +51,14 @@ def init_db():
                 )
             """)
             
-            # 2. Auto-Migrate: Add columns if they don't exist (Safe for existing DBs)
+            # Auto-Migrate columns
             cursor = conn.cursor()
             cursor.execute("PRAGMA table_info(saved_signals)")
             columns = [info[1] for info in cursor.fetchall()]
             
             if "mission" not in columns:
-                print("Migrating DB: Adding 'mission' column...")
                 conn.execute("ALTER TABLE saved_signals ADD COLUMN mission TEXT")
-            
             if "lenses" not in columns:
-                print("Migrating DB: Adding 'lenses' column...")
                 conn.execute("ALTER TABLE saved_signals ADD COLUMN lenses TEXT")
 
 init_db()
@@ -133,10 +130,36 @@ async def chat_endpoint(req: ChatRequest):
     try:
         print(f"User Query: {req.message}")
         
+        # ---------------------------------------------------------
+        # ✅ NEW: Fetch existing titles to prevent duplicates
+        # ---------------------------------------------------------
+        existing_titles = []
+        try:
+            with closing(sqlite3.connect(DB_FILE)) as conn:
+                # Fetch last 50 titles to avoid overwhelming the prompt
+                cursor = conn.execute("SELECT title FROM saved_signals ORDER BY id DESC LIMIT 50")
+                existing_titles = [row[0] for row in cursor.fetchall()]
+        except Exception:
+            pass # Ignore DB errors here, just proceed without filtering
+
+        # ✅ NEW: Inject "Negative Constraints" + Random Seed into prompt
+        enhanced_prompt = req.message
+        
+        # Add Random Salt (Forces the LLM to traverse a slightly different probability path)
+        enhanced_prompt += f"\n\n[System Note: Random Seed {random.randint(1000, 9999)}]"
+
+        # Add Blocklist
+        if existing_titles:
+            blocklist_str = ", ".join([f'"{t}"' for t in existing_titles])
+            enhanced_prompt += f"\n\nIMPORTANT: The user has ALREADY saved the following signals. Do NOT return these. Find fresh, different examples:\n{blocklist_str}"
+
+        print(f"Enhanced Prompt: {enhanced_prompt}")
+        # ---------------------------------------------------------
+
         run = await asyncio.to_thread(
             client.beta.threads.create_and_run,
             assistant_id=ASSISTANT_ID,
-            thread={"messages": [{"role": "user", "content": req.message}]}
+            thread={"messages": [{"role": "user", "content": enhanced_prompt}]}
         )
 
         while True:
