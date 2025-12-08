@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import random
+import httpx # ✅ NEW: For Google Search requests
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,29 +14,56 @@ from google.oauth2.service_account import Credentials
 
 # --- SETUP ---
 load_dotenv()
-ASSISTANT_ID = os.getenv("ASSISTANT_ID", "asst_6AnFZkW7f6Jhns774D9GNWXr")
+ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 SHEET_ID = os.getenv("SHEET_ID")
 SHEET_URL = os.getenv("SHEET_URL", "#")
+# ✅ NEW: Search Credentials
+GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_API_KEY")
+GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
 
-# --- GOOGLE AUTH HELPER ---
+# --- GOOGLE AUTH HELPER (SHEETS) ---
 def get_google_sheet():
-    """Authenticates with Google and returns the Sheet object."""
     try:
         if not os.getenv("GOOGLE_CREDENTIALS") or not SHEET_ID:
-            print("⚠️ Missing Google Credentials or Sheet ID")
             return None
-            
         json_creds = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(json_creds, scopes=scopes)
         client = gspread.authorize(creds)
         return client.open_by_key(SHEET_ID).sheet1
     except Exception as e:
         print(f"Google Auth Error: {e}")
         return None
+
+# --- NEW: GOOGLE SEARCH HELPER ---
+async def perform_google_search(query):
+    """Performs a real Google Search to validate signals."""
+    if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX:
+        return "Error: Search functionality not configured on server."
+    
+    url = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "key": GOOGLE_SEARCH_KEY,
+        "cx": GOOGLE_SEARCH_CX,
+        "q": query,
+        "num": 3  # Fetch top 3 results to save quota
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, params=params)
+            data = resp.json()
+            
+            if "items" not in data:
+                return "No results found."
+            
+            # Format results for the AI
+            results = []
+            for item in data["items"]:
+                results.append(f"Title: {item['title']}\nLink: {item['link']}\nSnippet: {item['snippet']}")
+            return "\n\n".join(results)
+        except Exception as e:
+            return f"Search Error: {str(e)}"
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
@@ -86,106 +114,58 @@ def craft_widget_response(tool_args):
 
 @app.get("/api/config")
 def get_config():
-    """Returns public config like the Sheet URL."""
     return {"sheet_url": SHEET_URL}
 
 @app.get("/api/saved")
 def get_saved_signals():
-    """Fetches saved signals from Google Sheets for the Vault UI."""
     try:
         sheet = get_google_sheet()
         if not sheet: return []
-        
-        # Get all records
         records = sheet.get_all_records()
-        return records[::-1] # Newest first
-    except Exception as e:
-        print(f"Read Error: {e}")
-        return [] 
+        return records[::-1]
+    except Exception: return [] 
 
 @app.post("/api/save")
 def save_signal(signal: SaveSignalRequest):
-    """Saves a signal to the Google Sheet."""
     try:
         sheet = get_google_sheet()
-        if not sheet:
-            raise HTTPException(status_code=500, detail="Could not connect to Google Sheets")
-        
-        # Row format must match your Sheet headers
+        if not sheet: raise HTTPException(status_code=500, detail="No Sheet Connection")
         row = [
-            signal.title,
-            signal.score,
-            signal.archetype,
-            signal.hook,
-            signal.url,
-            signal.mission,
-            signal.lenses,
-            signal.score_evocativeness,
-            signal.score_novelty,
-            signal.score_evidence
+            signal.title, signal.score, signal.archetype, signal.hook, signal.url,
+            signal.mission, signal.lenses, signal.score_evocativeness,
+            signal.score_novelty, signal.score_evidence
         ]
-        
         sheet.append_row(row)
         return {"status": "success"}
-    except Exception as e:
-        print(f"Save Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/saved/{signal_id}")
 def delete_signal(signal_id: int):
-    return {"status": "ignored", "message": "Please delete directly from Google Sheets"}
+    return {"status": "ignored", "message": "Delete from Google Sheets directly"}
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
     try:
-        print(f"Query: {req.message} | Mode: {req.tech_mode}")
+        print(f"Query: {req.message}")
         
-        # ---------------------------------------------------------
-        # ✅ 1. DEDUPLICATION LOGIC (Check Google Sheets)
-        # ---------------------------------------------------------
+        # 1. Deduping
         existing_titles = []
         try:
             sheet = get_google_sheet()
-            if sheet:
-                # Fetch Column A (Titles)
-                # We limit to the last 100 to keep the prompt size manageable
-                titles_col = sheet.col_values(1)
-                existing_titles = titles_col[-100:] 
-        except Exception as e:
-            print(f"Dedup Warning: Could not fetch existing titles. {e}")
+            if sheet: existing_titles = sheet.col_values(1)[-50:]
+        except Exception: pass
 
-        # ---------------------------------------------------------
-        # ✅ 2. PROMPT CONSTRUCTION
-        # ---------------------------------------------------------
+        # 2. Prompt Construction
         prompt = req.message
-        
-        # A. Mode & Constraints
-        if req.tech_mode:
-            prompt += "\n\nCONSTRAINT: This is a TECHNICAL HORIZON SCAN. Focus ONLY on hard tech (hardware, biotech, materials, code). Ignore policy or social trends."
-        
-        if req.source_types:
-            sources_str = ", ".join(req.source_types)
-            prompt += f"\n\nCONSTRAINT: Prioritize findings from these sources: {sources_str}."
-
-        prompt += f"\n\nCONSTRAINT: Time Horizon is '{req.time_filter}'."
-
-        # B. Randomness (Salt)
-        # Forces the LLM to traverse a different probability path
+        if req.tech_mode: prompt += "\n\nCONSTRAINT: TECHNICAL HORIZON SCAN ONLY (Hardware, Biotech, Code)."
+        if req.source_types: prompt += f"\n\nCONSTRAINT: Prioritize sources: {', '.join(req.source_types)}."
+        prompt += f"\n\nCONSTRAINT: Time Horizon '{req.time_filter}'."
         prompt += f"\n\n[System Note: Random Seed {random.randint(1000, 9999)}]"
         
-        # C. The Blocklist (The "Novelty" Filter)
-        if existing_titles:
-            # Clean up the list (remove header 'Title')
-            clean_titles = [t for t in existing_titles if t.lower() != "title" and t.strip() != ""]
-            
-            if clean_titles:
-                # Join titles into a string for the prompt
-                blocklist_str = ", ".join([f'"{t}"' for t in clean_titles])
-                prompt += f"\n\nCRITICAL INSTRUCTION: The user has ALREADY saved the following signals. Do NOT generate cards for these again. You must find *novel* alternatives:\n{blocklist_str}"
+        clean_titles = [t for t in existing_titles if t.lower() != "title"]
+        if clean_titles: prompt += f"\n\nBLOCKLIST: Do NOT return these: {', '.join(clean_titles)}"
 
-        # ---------------------------------------------------------
-        # 3. RUN ASSISTANT
-        # ---------------------------------------------------------
+        # 3. Run Assistant
         run = await asyncio.to_thread(
             client.beta.threads.create_and_run,
             assistant_id=ASSISTANT_ID,
@@ -203,7 +183,21 @@ async def chat_endpoint(req: ChatRequest):
                 tool_outputs = []
 
                 for tool in tool_calls:
-                    if tool.function.name == "display_signal_card":
+                    # ✅ NEW: Handle Search Tool
+                    if tool.function.name == "perform_web_search":
+                        args = json.loads(tool.function.arguments)
+                        search_query = args.get("query")
+                        print(f"🔎 Searching Google for: {search_query}")
+                        
+                        search_result = await perform_google_search(search_query)
+                        
+                        tool_outputs.append({
+                            "tool_call_id": tool.id,
+                            "output": search_result
+                        })
+
+                    # Handle Card Display
+                    elif tool.function.name == "display_signal_card":
                         args = json.loads(tool.function.arguments)
                         processed_card = craft_widget_response(args)
                         signals_found.append(processed_card)
@@ -220,6 +214,8 @@ async def chat_endpoint(req: ChatRequest):
                         tool_outputs=tool_outputs
                     )
                 
+                # Only return to UI if we actually found cards.
+                # If we only performed a search, the loop continues so the AI can read the results.
                 if signals_found:
                     return {"ui_type": "signal_list", "items": signals_found}
                         
@@ -227,14 +223,15 @@ async def chat_endpoint(req: ChatRequest):
                 messages = await asyncio.to_thread(
                     client.beta.threads.messages.list, thread_id=run.thread_id
                 )
-                text = messages.data[0].content[0].text.value
-                return {"ui_type": "text", "content": text}
+                if messages.data:
+                    return {"ui_type": "text", "content": messages.data[0].content[0].text.value}
+                return {"ui_type": "text", "content": "Scan complete."}
             
             if run_status.status in ['failed', 'cancelled', 'expired']:
-                return {"ui_type": "text", "content": "I encountered an error processing that signal."}
+                return {"ui_type": "text", "content": "I encountered an error."}
 
             await asyncio.sleep(1)
 
     except Exception as e:
-        print(f"Critical Error: {e}")
+        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
