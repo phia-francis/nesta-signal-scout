@@ -19,12 +19,10 @@ load_dotenv()
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# GOOGLE SHEETS CONFIG
+# GOOGLE CONFIG
 SHEET_ID = os.getenv("SHEET_ID")
 SHEET_URL = os.getenv("SHEET_URL", "#")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
-
-# GOOGLE SEARCH CONFIG (UPDATED TO MATCH YOUR RENDER VARIABLES)
 GOOGLE_SEARCH_KEY = os.getenv("Google_Search_API_KEY") 
 GOOGLE_SEARCH_CX = os.getenv("Google_Search_CX")
 
@@ -66,10 +64,7 @@ def get_google_sheet():
         return None
 
 def get_learning_examples():
-    """
-    Fetches high-quality examples (Accepted or 4+ Stars) from the Sheet
-    to train the AI on what 'Good' looks like via In-Context Learning.
-    """
+    """Fetches high-quality examples (Accepted or 4+ Stars)."""
     try:
         sheet = get_google_sheet()
         if not sheet: return ""
@@ -77,14 +72,10 @@ def get_learning_examples():
         records = sheet.get_all_records()
         if not records: return ""
         
-        # Filter for "Good" signals (Accepted OR Rating >= 4)
         good_signals = []
         for r in records:
             try:
-                # Check User_Status (Accepted/Rejected)
                 status = str(r.get('User_Status', '')).lower()
-                
-                # Check User_Rating (Handle empty strings safely)
                 raw_rating = r.get('User_Rating', 0)
                 rating = int(raw_rating) if raw_rating != "" else 0
                 
@@ -93,10 +84,8 @@ def get_learning_examples():
             except ValueError:
                 continue 
         
-        if not good_signals:
-            return ""
+        if not good_signals: return ""
 
-        # Pick 3 random examples to keep prompt fresh
         examples = random.sample(good_signals, k=min(3, len(good_signals)))
         
         example_str = "### USER'S GOLD STANDARD EXAMPLES (EMULATE THESE):\n"
@@ -106,8 +95,7 @@ def get_learning_examples():
             comment = ex.get('User_Comment', '')
             
             example_str += f"{i}. Title: {title}\n   Hook: {hook}\n"
-            if comment:
-                example_str += f"   User Note: {comment}\n"
+            if comment: example_str += f"   User Note: {comment}\n"
             example_str += "\n"
             
         return example_str
@@ -116,45 +104,56 @@ def get_learning_examples():
         print(f"Learning Error: {e}")
         return ""
 
-async def perform_google_search(query):
-    """Performs a real web search using Google Custom Search API."""
+def get_date_restrict(filter_text):
+    """Maps UI 'Time Horizon' text to Google API 'dateRestrict' values."""
+    mapping = {
+        "Past Month": "m1",
+        "Past 3 Months": "m3",
+        "Past 6 Months": "m6",
+        "Past Year": "y1"
+    }
+    # Default to 1 year if unknown
+    return mapping.get(filter_text, "y1")
+
+async def perform_google_search(query, date_restrict="y1"):
+    """
+    Performs a real web search using Google Custom Search API.
+    ✅ NOW ENFORCES DATE RESTRICTION.
+    """
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX:
-        print("❌ CONFIG ERROR: Missing Google Search Keys (Check casing in Render)")
-        return "System Error: Search is not configured. Proceed with internal knowledge but flag as unverified."
+        print("❌ CONFIG ERROR: Missing Google Search Keys")
+        return "System Error: Search is not configured."
     
-    print(f"🔍 Searching Google for: '{query}'...")
+    print(f"🔍 Searching Google for: '{query}' (Filter: {date_restrict})...")
     
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "key": GOOGLE_SEARCH_KEY,
         "cx": GOOGLE_SEARCH_CX,
         "q": query,
-        "num": 3 # Fetch top 3 results to save quota
+        "num": 3,
+        "dateRestrict": date_restrict # ✅ Forces results to be recent
     }
     
     async with httpx.AsyncClient() as http_client:
         try:
             resp = await http_client.get(url, params=params)
             
-            # Handle non-200 responses without crashing
             if resp.status_code != 200:
                 print(f"❌ Google API Error: {resp.text}")
-                return f"Search Failed: {resp.status_code}. Proceed with best estimate."
+                return f"Search Failed: {resp.status_code}."
 
             data = resp.json()
             
             if "items" not in data:
-                print("⚠️ No results found.")
                 return "No search results found. Try a different query."
             
-            # Format results for the AI
             results = []
             for item in data["items"]:
+                # Include snippet and link so AI can verify date context
                 results.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nSnippet: {item.get('snippet', '')}")
             
-            output = "\n\n".join(results)
-            print("✅ Search Successful.")
-            return output
+            return "\n\n".join(results)
 
         except Exception as e:
             print(f"❌ Exception during search: {e}")
@@ -190,55 +189,39 @@ class SaveSignalRequest(BaseModel):
     score_evocativeness: Optional[int] = 0
     score_novelty: Optional[int] = 0
     score_evidence: Optional[int] = 0
-    # Feedback Fields
     user_rating: Optional[int] = 0
     user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
 
-# --- API ENDPOINTS ---
+# --- ENDPOINTS ---
 
 @app.get("/api/config")
 def get_config():
-    """Returns public config like the Sheet URL."""
     return {"sheet_url": SHEET_URL}
 
 @app.get("/api/saved")
 def get_saved_signals():
-    """Fetches saved signals from Google Sheets."""
     try:
         sheet = get_google_sheet()
         if not sheet: return []
-        
-        # Get all records
         records = sheet.get_all_records()
-        return records[::-1] # Newest first
+        return records[::-1]
     except Exception as e:
         print(f"Read Error: {e}")
         return [] 
 
 @app.post("/api/save")
 def save_signal(signal: SaveSignalRequest):
-    """Saves a signal to Google Sheets."""
     try:
         sheet = get_google_sheet()
         if not sheet:
             raise HTTPException(status_code=500, detail="Could not connect to Google Sheets")
         
-        # Row format matches updated Sheet Headers (Underscores)
         row = [
-            signal.title,
-            signal.score,
-            signal.archetype,
-            signal.hook,
-            signal.url,
-            signal.mission,
-            signal.lenses,
-            signal.score_evocativeness,
-            signal.score_novelty,
-            signal.score_evidence,
-            signal.user_rating,
-            signal.user_status,
-            signal.user_comment
+            signal.title, signal.score, signal.archetype, signal.hook, signal.url,
+            signal.mission, signal.lenses, signal.score_evocativeness,
+            signal.score_novelty, signal.score_evidence,
+            signal.user_rating, signal.user_status, signal.user_comment
         ]
         
         sheet.append_row(row)
@@ -249,7 +232,6 @@ def save_signal(signal: SaveSignalRequest):
 
 @app.delete("/api/saved/{signal_id}")
 def delete_signal(signal_id: int):
-    # We do not delete by index via API to prevent data corruption.
     return {"status": "ignored", "message": "Please delete directly from Google Sheets"}
 
 @app.post("/api/chat")
@@ -257,17 +239,15 @@ async def chat_endpoint(req: ChatRequest):
     try:
         print(f"Incoming Query: {req.message} | Filters: {req.time_filter}, TechMode: {req.tech_mode}")
         
-        # 1. FETCH CONTEXT (Dedup + Learning)
+        # 1. FETCH CONTEXT
         existing_titles = []
         learning_prompt = ""
         
         try:
             sheet = get_google_sheet()
             if sheet:
-                # Fetch titles for deduplication
                 col_values = sheet.col_values(1)
                 existing_titles = col_values[-50:] 
-                # Fetch learning examples
                 learning_prompt = get_learning_examples()
         except Exception as e:
             print(f"Context Fetch Warning: {e}")
@@ -321,7 +301,9 @@ async def chat_endpoint(req: ChatRequest):
                         args = json.loads(tool.function.arguments)
                         search_query = args.get("query")
                         
-                        search_result = await perform_google_search(search_query)
+                        # ✅ PASS TIME FILTER TO SEARCH FUNCTION
+                        date_code = get_date_restrict(req.time_filter)
+                        search_result = await perform_google_search(search_query, date_code)
                         
                         tool_outputs.append({
                             "tool_call_id": tool.id,
@@ -331,9 +313,7 @@ async def chat_endpoint(req: ChatRequest):
                     elif tool.function.name == "display_signal_card":
                         args = json.loads(tool.function.arguments)
                         processed_card = craft_widget_response(args)
-                        
                         accumulated_signals.append(processed_card)
-                        
                         tool_outputs.append({
                             "tool_call_id": tool.id,
                             "output": json.dumps({"status": "displayed"})
