@@ -19,12 +19,14 @@ load_dotenv()
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# GOOGLE CONFIG
+# GOOGLE SHEETS CONFIG
 SHEET_ID = os.getenv("SHEET_ID")
 SHEET_URL = os.getenv("SHEET_URL", "#")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
-GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_API_KEY")
-GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
+
+# GOOGLE SEARCH CONFIG (UPDATED TO MATCH YOUR RENDER VARIABLES)
+GOOGLE_SEARCH_KEY = os.getenv("Google_Search_API_KEY") 
+GOOGLE_SEARCH_CX = os.getenv("Google_Search_CX")
 
 # --- CLIENT INIT ---
 client = OpenAI(
@@ -65,8 +67,8 @@ def get_google_sheet():
 
 def get_learning_examples():
     """
-    Fetches high-quality examples (Accepted or 4+ Stars) from the Sheet.
-    Uses underscores in keys to avoid variable name issues.
+    Fetches high-quality examples (Accepted or 4+ Stars) from the Sheet
+    to train the AI on what 'Good' looks like via In-Context Learning.
     """
     try:
         sheet = get_google_sheet()
@@ -75,24 +77,26 @@ def get_learning_examples():
         records = sheet.get_all_records()
         if not records: return ""
         
+        # Filter for "Good" signals (Accepted OR Rating >= 4)
         good_signals = []
         for r in records:
-            # Handle empty strings from sheet safely
             try:
+                # Check User_Status (Accepted/Rejected)
                 status = str(r.get('User_Status', '')).lower()
-                # Handle cases where rating might be an empty string
+                
+                # Check User_Rating (Handle empty strings safely)
                 raw_rating = r.get('User_Rating', 0)
                 rating = int(raw_rating) if raw_rating != "" else 0
                 
                 if status == "accepted" or rating >= 4:
                     good_signals.append(r)
             except ValueError:
-                continue # Skip rows with bad data
-
+                continue 
+        
         if not good_signals:
             return ""
 
-        # Pick 3 random examples
+        # Pick 3 random examples to keep prompt fresh
         examples = random.sample(good_signals, k=min(3, len(good_signals)))
         
         example_str = "### USER'S GOLD STANDARD EXAMPLES (EMULATE THESE):\n"
@@ -115,7 +119,7 @@ def get_learning_examples():
 async def perform_google_search(query):
     """Performs a real web search using Google Custom Search API."""
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX:
-        print("❌ CONFIG ERROR: Missing Google Search Keys")
+        print("❌ CONFIG ERROR: Missing Google Search Keys (Check casing in Render)")
         return "System Error: Search is not configured. Proceed with internal knowledge but flag as unverified."
     
     print(f"🔍 Searching Google for: '{query}'...")
@@ -125,13 +129,14 @@ async def perform_google_search(query):
         "key": GOOGLE_SEARCH_KEY,
         "cx": GOOGLE_SEARCH_CX,
         "q": query,
-        "num": 3
+        "num": 3 # Fetch top 3 results to save quota
     }
     
     async with httpx.AsyncClient() as http_client:
         try:
             resp = await http_client.get(url, params=params)
             
+            # Handle non-200 responses without crashing
             if resp.status_code != 200:
                 print(f"❌ Google API Error: {resp.text}")
                 return f"Search Failed: {resp.status_code}. Proceed with best estimate."
@@ -142,6 +147,7 @@ async def perform_google_search(query):
                 print("⚠️ No results found.")
                 return "No search results found. Try a different query."
             
+            # Format results for the AI
             results = []
             for item in data["items"]:
                 results.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nSnippet: {item.get('snippet', '')}")
@@ -189,18 +195,21 @@ class SaveSignalRequest(BaseModel):
     user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
 
-# --- ENDPOINTS ---
+# --- API ENDPOINTS ---
 
 @app.get("/api/config")
 def get_config():
+    """Returns public config like the Sheet URL."""
     return {"sheet_url": SHEET_URL}
 
 @app.get("/api/saved")
 def get_saved_signals():
+    """Fetches saved signals from Google Sheets."""
     try:
         sheet = get_google_sheet()
         if not sheet: return []
         
+        # Get all records
         records = sheet.get_all_records()
         return records[::-1] # Newest first
     except Exception as e:
@@ -215,8 +224,7 @@ def save_signal(signal: SaveSignalRequest):
         if not sheet:
             raise HTTPException(status_code=500, detail="Could not connect to Google Sheets")
         
-        # Row format must match your Sheet Headers EXACTLY
-        # 13 Columns total
+        # Row format matches updated Sheet Headers (Underscores)
         row = [
             signal.title,
             signal.score,
@@ -241,6 +249,7 @@ def save_signal(signal: SaveSignalRequest):
 
 @app.delete("/api/saved/{signal_id}")
 def delete_signal(signal_id: int):
+    # We do not delete by index via API to prevent data corruption.
     return {"status": "ignored", "message": "Please delete directly from Google Sheets"}
 
 @app.post("/api/chat")
@@ -255,8 +264,10 @@ async def chat_endpoint(req: ChatRequest):
         try:
             sheet = get_google_sheet()
             if sheet:
+                # Fetch titles for deduplication
                 col_values = sheet.col_values(1)
                 existing_titles = col_values[-50:] 
+                # Fetch learning examples
                 learning_prompt = get_learning_examples()
         except Exception as e:
             print(f"Context Fetch Warning: {e}")
@@ -285,7 +296,6 @@ async def chat_endpoint(req: ChatRequest):
             blocklist_str = ", ".join([f'"{t}"' for t in clean_titles])
             prompt += f"\n\nIMPORTANT: Do NOT return these titles (user already has them): {blocklist_str}"
 
-        # Count Enforcement
         prompt += "\n\nCRITICAL INSTRUCTION: If the user asked for a specific number of signals (e.g. 'Find 5'), you MUST perform enough searches to find exactly that many verified examples. Do not stop early."
 
         # 3. RUN ASSISTANT
@@ -310,7 +320,9 @@ async def chat_endpoint(req: ChatRequest):
                     if tool.function.name == "perform_web_search":
                         args = json.loads(tool.function.arguments)
                         search_query = args.get("query")
+                        
                         search_result = await perform_google_search(search_query)
+                        
                         tool_outputs.append({
                             "tool_call_id": tool.id,
                             "output": search_result
@@ -320,7 +332,6 @@ async def chat_endpoint(req: ChatRequest):
                         args = json.loads(tool.function.arguments)
                         processed_card = craft_widget_response(args)
                         
-                        # Store signal, do NOT return yet (wait for full batch)
                         accumulated_signals.append(processed_card)
                         
                         tool_outputs.append({
@@ -328,15 +339,13 @@ async def chat_endpoint(req: ChatRequest):
                             "output": json.dumps({"status": "displayed"})
                         })
 
-                # Submit all tool outputs
                 await asyncio.to_thread(
                     client.beta.threads.runs.submit_tool_outputs,
                     thread_id=run.thread_id,
                     run_id=run.id,
                     tool_outputs=tool_outputs
                 )
-                # Loop continues to let AI find more signals
-                        
+                
             if run_status.status == 'completed':
                 if accumulated_signals:
                     return {"ui_type": "signal_list", "items": accumulated_signals}
