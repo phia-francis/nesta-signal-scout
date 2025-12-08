@@ -339,9 +339,21 @@ async def chat_endpoint(req: ChatRequest):
                 else:
                     return {"ui_type": "text", "content": "Scan complete."}
             
-            if run_status.status in ['failed', 'cancelled', 'expired']:
+            if run_status.status == 'failed':
+                # ✅ NEW: Fetch the actual error reason from OpenAI
+                error_message = run_status.last_error.message if run_status.last_error else "Unknown error"
+                error_code = run_status.last_error.code if run_status.last_error else "unknown_code"
+                
+                print(f"❌ OPENAI RUN FAILED: {error_code} - {error_message}")
+                
+                return {
+                    "ui_type": "text", 
+                    "content": f"I encountered an error. Debug Info: {error_message}"
+                }
+            
+            if run_status.status in ['cancelled', 'expired']:
                 print(f"Run Status: {run_status.status}")
-                return {"ui_type": "text", "content": "I encountered an error processing that signal."}
+                return {"ui_type": "text", "content": "The request timed out or was cancelled."}
 
             await asyncio.sleep(1)
 
