@@ -21,21 +21,13 @@
             color: var(--nesta-black);
         }
 
-        /* Checkbox Styling */
         .nesta-checkbox {
-            appearance: none;
-            width: 16px; height: 16px;
-            border: 2px solid var(--nesta-black);
-            cursor: pointer;
-            display: inline-block;
-            vertical-align: middle;
-            margin-right: 6px;
+            appearance: none; width: 16px; height: 16px;
+            border: 2px solid var(--nesta-black); cursor: pointer;
+            display: inline-block; vertical-align: middle; margin-right: 6px;
         }
-        .nesta-checkbox:checked {
-            background-color: var(--nesta-green);
-        }
+        .nesta-checkbox:checked { background-color: var(--nesta-green); }
 
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 10px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: var(--nesta-navy); }
@@ -44,9 +36,8 @@
         .range-slider { -webkit-appearance: none; background: transparent; }
         .range-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
-            width: 24px; height: 24px; 
-            background: var(--nesta-purple); 
-            cursor: pointer; border: none; border-radius: 0%; margin-top: -10px;
+            width: 24px; height: 24px; background: var(--nesta-purple); 
+            cursor: pointer; border: none; margin-top: -10px;
         }
         .range-slider::-webkit-slider-runnable-track {
             width: 100%; height: 4px; background: #ddd; border: none;
@@ -62,7 +53,6 @@
     <div class="flex h-full max-w-[1400px] mx-auto p-6 gap-6">
         
         <div class="flex-1 flex flex-col gap-6">
-            
             <div class="bg-white border-nesta p-8 relative">
                 <div class="absolute top-0 left-0 w-full h-3 bg-[#97D9E3]"></div>
 
@@ -94,16 +84,12 @@
                                 <option value="A Healthy Life">❤️‍🩹 A Healthy Life</option>
                                 <option value="A Sustainable Future">🌳 A Sustainable Future</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-black border-l-2 border-black bg-[#f2f2f2]">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-gray-50 border-2 border-black p-4 mb-6 text-sm">
                     <div class="flex flex-wrap gap-6 items-center">
-                        
                         <div class="flex flex-col gap-1">
                             <label class="font-bold text-[10px] uppercase text-[#0F294A] tracking-wider">Time Horizon</label>
                             <select id="time-filter" class="bg-white border border-black px-2 py-1 text-xs font-bold cursor-pointer hover:bg-[#97D9E3]">
@@ -116,38 +102,21 @@
 
                         <div class="flex items-center gap-2 border-l border-gray-300 pl-6">
                             <input type="checkbox" id="tech-mode" class="nesta-checkbox">
-                            <label for="tech-mode" class="font-bold text-xs uppercase cursor-pointer select-none hover:text-[#9A1BBE]">
-                                Emerging Tech Only
-                            </label>
+                            <label for="tech-mode" class="font-bold text-xs uppercase cursor-pointer select-none hover:text-[#9A1BBE]">Emerging Tech Only</label>
                         </div>
 
                         <div class="flex gap-4 border-l border-gray-300 pl-6 flex-1">
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]">
-                                <input type="checkbox" name="source" value="Academia" class="nesta-checkbox"> 
-                                <span class="text-[10px] font-bold uppercase">Academia</span>
-                            </label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]">
-                                <input type="checkbox" name="source" value="Industry News" class="nesta-checkbox"> 
-                                <span class="text-[10px] font-bold uppercase">Industry News</span>
-                            </label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]">
-                                <input type="checkbox" name="source" value="Startups" class="nesta-checkbox"> 
-                                <span class="text-[10px] font-bold uppercase">Startups/VC</span>
-                            </label>
-                             <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]">
-                                <input type="checkbox" name="source" value="Substacks" class="nesta-checkbox"> 
-                                <span class="text-[10px] font-bold uppercase">Substacks</span>
-                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Academia" class="nesta-checkbox"><span class="text-[10px] font-bold uppercase">Academia</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Industry News" class="nesta-checkbox"><span class="text-[10px] font-bold uppercase">Industry News</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox"><span class="text-[10px] font-bold uppercase">Startups/VC</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Substacks" class="nesta-checkbox"><span class="text-[10px] font-bold uppercase">Substacks</span></label>
                         </div>
                     </div>
                 </div>
 
                 <div class="flex gap-0 border-nesta">
-                    <input type="text" id="manual-input" placeholder="Topic (e.g., 'Generative AI')" 
-                        class="flex-1 bg-white px-5 py-4 text-base font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none rounded-none text-black">
-                    <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-10 py-4 font-bold uppercase tracking-wider transition-colors rounded-none whitespace-nowrap">
-                        Launch Scan
-                    </button>
+                    <input type="text" id="manual-input" placeholder="Topic (e.g., 'Generative AI')" class="flex-1 bg-white px-5 py-4 text-base font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none rounded-none text-black">
+                    <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-10 py-4 font-bold uppercase tracking-wider transition-colors rounded-none whitespace-nowrap">Launch Scan</button>
                 </div>
             </div>
 
@@ -160,10 +129,14 @@
         </div>
 
         <div class="w-80 md:w-96 bg-white border-nesta flex flex-col overflow-hidden h-full z-10">
-            <div class="bg-[#0F294A] text-white p-5 flex justify-between items-center">
-                <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-sm">💾 Signal Vault</h3>
-                <button onclick="refreshDatabase()" class="text-[10px] font-bold uppercase hover:text-[#97D9E3] transition-colors border border-white px-2 py-1">Refresh</button>
+            <div class="bg-[#0F294A] text-white p-5 flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-sm">💾 Signal Vault</h3>
+                    <button onclick="refreshDatabase()" class="text-[10px] font-bold uppercase hover:text-[#97D9E3] transition-colors border border-white px-2 py-1">Refresh</button>
+                </div>
+                <a id="sheet-link" href="#" target="_blank" class="text-[10px] text-[#97D9E3] hover:text-white underline text-right truncate">View Full Sheet ↗</a>
             </div>
+            
             <div id="db-list" class="flex-1 overflow-y-auto p-5 space-y-4 bg-white">
                 <div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-xs uppercase font-bold tracking-widest">Vault Empty</span></div>
             </div>
@@ -173,15 +146,21 @@
     <script>
         const API_BASE = "https://nesta-signal-backend.onrender.com"; 
         let currentSignals = [];
-        window.onload = refreshDatabase;
+
+        window.onload = async () => {
+            // Get Sheet URL on load
+            try {
+                const cfg = await fetch(`${API_BASE}/api/config`).then(r => r.json());
+                if(cfg.sheet_url) document.getElementById('sheet-link').href = cfg.sheet_url;
+            } catch(e) {}
+            refreshDatabase();
+        };
 
         async function runScan() {
             const chatBox = document.getElementById('chat-box');
             const topic = document.getElementById('manual-input').value.trim();
             const count = document.getElementById('signal-count').value;
             const mission = document.getElementById('mission-select').value;
-            
-            // ✅ NEW: Gather Filter Data
             const timeFilter = document.getElementById('time-filter').value;
             const techMode = document.getElementById('tech-mode').checked;
             const sources = Array.from(document.querySelectorAll('input[name="source"]:checked')).map(cb => cb.value);
@@ -192,14 +171,8 @@
             if (topic) prompt += ` related to '${topic}'`;
             else prompt += ` (perform a broad horizon scan)`;
             
-            // Note: We don't add the filter text to the 'message' here directly, 
-            // we send it as separate fields to the backend to keep things clean.
-            if (mission !== "All Missions") prompt += ` with a specific focus on the '${mission}' mission`;
-            else prompt += ` across any relevant mission`;
-
             prompt += ". Use the display_signal_card tool for each one.";
 
-            // UI Feedback
             chatBox.innerHTML += `
                 <div class="flex justify-end animate-fade-in mb-8">
                     <div class="bg-[#0F294A] text-white p-6 border-l-8 border-[#97D9E3] max-w-[80%]">
@@ -220,7 +193,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
-                // ✅ SEND NEW FIELDS TO BACKEND
                 const res = await fetch(`${API_BASE}/api/chat`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -270,7 +242,6 @@
             const missionHtml = data.mission ? `<span class="bg-[#0F294A] text-white text-[10px] px-2 py-1 font-bold uppercase tracking-widest">${data.mission}</span>` : '';
             const lensesHtml = data.lenses ? data.lenses.split(',').map(tag => `<span class="border border-black text-black text-[10px] px-2 py-1 font-bold uppercase hover:bg-[#97D9E3] transition-colors">${tag.trim()}</span>`).join('') : '';
 
-            // Scores
             const sEvo = data.score_evocativeness || 0;
             const sNov = data.score_novelty || 0;
             const sEvi = data.score_evidence || 0;
@@ -280,7 +251,6 @@
                     <div class="bg-white border-2 border-black p-8 relative hover:border-[#9A1BBE] transition-colors">
                         <div class="flex justify-between items-start mb-5 border-b border-gray-200 pb-4">
                             <span class="text-[#9A1BBE] font-bold text-xs uppercase tracking-widest">${data.archetype || 'SIGNAL'}</span>
-                            
                             <div class="relative group/score cursor-help">
                                 <div class="font-mono text-sm font-bold ${scoreClass} px-3 py-1">⚡ ${data.score}/100</div>
                                 <div class="absolute bottom-full right-0 mb-2 w-48 bg-[#0F294A] text-white p-3 text-[10px] uppercase font-bold tracking-widest hidden group-hover/score:block border-2 border-[#97D9E3] z-50 shadow-lg">
@@ -345,20 +315,19 @@
                     list.innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-xs uppercase font-bold tracking-widest">Vault Empty</span></div>`;
                     return;
                 }
+                // Mapping Google Sheet Rows (Keys match row order)
                 list.innerHTML = items.map(item => `
                     <div class="bg-white p-4 border border-black relative group hover:border-[#9A1BBE] transition-colors animate-fade-in">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[60%]">${item.archetype}</span>
-                            <span class="text-[10px] font-bold text-white bg-[#9A1BBE] px-1">${item.score}</span>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[60%]">${item['Archetype'] || item['archetype'] || 'SIGNAL'}</span>
+                            <span class="text-[10px] font-bold text-white bg-[#9A1BBE] px-1">${item['Score'] || item['score'] || 0}</span>
                         </div>
                         <div class="font-bold text-black text-xs leading-snug pr-6 mb-2">
-                            <a href="${item.url}" target="_blank" class="hover:text-[#18A48C] transition-colors line-clamp-2">${item.title}</a>
+                            <a href="${item['URL'] || item['url']}" target="_blank" class="hover:text-[#18A48C] transition-colors line-clamp-2">${item['Title'] || item['title']}</a>
                         </div>
-                        <button onclick="deleteSignal(${item.id})" class="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-gray-300 hover:text-[#EB003B] transition-colors opacity-0 group-hover:opacity-100" title="Delete">✖</button>
                     </div>`).join('');
             } catch (err) { console.error("DB Error", err); }
         }
-        async function deleteSignal(id) { if(!confirm("DELETE SIGNAL?")) return; await fetch(`${API_BASE}/api/saved/${id}`, { method: 'DELETE' }); refreshDatabase(); }
     </script>
 </body>
 </html>
