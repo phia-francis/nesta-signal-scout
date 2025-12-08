@@ -29,11 +29,20 @@
         }
         .nesta-checkbox:checked { background-color: var(--nesta-green); }
 
+        /* Star Rating */
+        .star-rating { direction: rtl; display: inline-flex; }
+        .star-rating input { display: none; }
+        .star-rating label { font-size: 1rem; color: #ddd; cursor: pointer; transition: color 0.2s; }
+        .star-rating input:checked ~ label, .star-rating label:hover, .star-rating label:hover ~ label {
+            color: var(--nesta-purple);
+        }
+
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: var(--nesta-navy); }
         ::-webkit-scrollbar-thumb:hover { background: var(--nesta-purple); }
         
+        /* Slider */
         .range-slider { -webkit-appearance: none; background: transparent; }
         .range-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
@@ -52,32 +61,32 @@
         .collapsible-content.open { max-height: 500px; opacity: 1; }
     </style>
 </head>
-<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black flex flex-col">
+<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black flex flex-col p-4 bg-[#f2f2f2]">
 
-    <div class="flex-1 flex h-full max-w-[1800px] mx-auto p-4 gap-4">
+    <div class="flex-1 flex h-full max-w-[1800px] mx-auto gap-4 w-full">
         
         <div class="flex-1 flex flex-col h-full min-h-0 gap-4">
             
-            <div class="bg-white border-nesta p-4 relative shrink-0 z-20">
+            <div class="bg-white border-nesta p-3 relative shrink-0 z-20 shadow-sm">
                 <div class="absolute top-0 left-0 w-full h-2 bg-[#97D9E3]"></div>
 
-                <div class="flex justify-between items-center mb-4 mt-2 border-b-2 border-black pb-2">
-                    <h2 class="font-bold text-2xl tracking-tight text-black leading-none flex items-center gap-2">
+                <div class="flex justify-between items-center mb-2 mt-1 border-b-2 border-black pb-2">
+                    <h2 class="font-bold text-xl tracking-tight text-black leading-none flex items-center gap-2">
                         <span class="text-[#9A1BBE]">nesta</span> Signal Scout
                     </h2>
-                    <div class="flex gap-4 items-center">
-                        <div class="text-[10px] uppercase font-bold tracking-widest text-gray-500 hidden md:block">
-                            Mode: <span id="mode-display" class="text-[#0F294A]">Broad Horizon</span>
+                    <div class="flex gap-3 items-center">
+                        <div class="text-[10px] uppercase font-bold tracking-widest text-gray-500 hidden md:block truncate max-w-[200px]">
+                            <span id="mode-display" class="text-[#0F294A]">Broad Horizon</span>
                         </div>
-                        <button onclick="toggleFilters()" class="text-[10px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 bg-gray-50 px-2 py-1 border border-transparent hover:border-black transition-colors">
-                            <span id="filter-arrow">▶</span> Filters
+                        <button onclick="toggleFilters()" class="text-[9px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 bg-gray-50 px-2 py-1 border border-gray-200 hover:border-black transition-all">
+                            <span id="filter-arrow">▶</span> Advanced Filters
                         </button>
                     </div>
                 </div>
 
-                <div id="filter-section" class="collapsible-content bg-gray-50 border-b-2 border-black mb-4 -mx-4 px-4 pb-2 text-xs">
-                    <div class="flex flex-wrap gap-6 items-center py-2">
-                        <div class="flex flex-col gap-1">
+                <div id="filter-section" class="collapsible-content bg-gray-50 border-b-2 border-black mb-2 -mx-3 px-3 pb-2 text-xs">
+                    <div class="flex flex-wrap gap-4 items-center py-2">
+                        <div class="flex flex-col gap-0.5">
                             <label class="font-bold text-[9px] uppercase text-[#0F294A]">Time Horizon</label>
                             <select id="time-filter" onchange="updateModeDisplay()" class="bg-white border border-black px-1 py-0.5 text-[10px] font-bold cursor-pointer">
                                 <option value="Past Year">Past Year</option>
@@ -85,44 +94,38 @@
                                 <option value="Past Month">Past Month</option>
                             </select>
                         </div>
-                        <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                        <div class="flex items-center gap-1 border-l border-gray-300 pl-3">
                             <input type="checkbox" id="tech-mode" class="nesta-checkbox" onchange="updateModeDisplay()">
-                            <label for="tech-mode" class="font-bold text-[10px] uppercase cursor-pointer hover:text-[#9A1BBE]">Emerging Tech Only</label>
+                            <label for="tech-mode" class="font-bold text-[9px] uppercase cursor-pointer hover:text-[#9A1BBE]">Emerging Tech Only</label>
                         </div>
-                        <div class="flex gap-3 border-l border-gray-300 pl-4 flex-1">
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Academia" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Academia</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Industry News" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Industry News</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Startups</span></label>
+                        <div class="flex gap-2 border-l border-gray-300 pl-3 flex-1">
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Academia" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">Academia</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Industry News" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">News</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">VC</span></label>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col md:flex-row gap-4 items-end">
-                    <div class="flex gap-4 flex-1 w-full md:w-auto">
-                        <div class="w-24 shrink-0">
-                            <div class="flex justify-between mb-1">
-                                <label class="text-[9px] font-bold uppercase text-[#0F294A]">Count</label>
-                                <span id="slider-val" class="text-xs font-bold text-[#9A1BBE]">3</span>
-                            </div>
-                            <input type="range" id="signal-count" min="1" max="10" value="3" class="range-slider w-full">
+                <div class="flex gap-3 items-end h-8">
+                    <div class="w-16 shrink-0 flex flex-col justify-end">
+                        <div class="flex justify-between mb-0.5">
+                            <label class="text-[8px] font-bold uppercase text-[#0F294A]">Count</label>
+                            <span id="slider-val" class="text-[9px] font-bold text-[#9A1BBE]">3</span>
                         </div>
-                        <div class="flex-1">
-                            <label class="block text-[9px] font-bold uppercase text-[#0F294A] mb-1">Mission Focus</label>
-                            <select id="mission-select" class="w-full bg-white border border-black text-black font-bold text-xs h-8 px-2 focus:outline-none focus:border-[#9A1BBE]">
-                                <option value="All Missions">✨ Auto: All Missions</option>
-                                <option value="A Fairer Start">📚 A Fairer Start</option>
-                                <option value="A Healthy Life">❤️‍🩹 A Healthy Life</option>
-                                <option value="A Sustainable Future">🌳 A Sustainable Future</option>
-                            </select>
-                        </div>
+                        <input type="range" id="signal-count" min="1" max="10" value="3" class="range-slider w-full" 
+                            oninput="document.getElementById('slider-val').innerText = this.value">
                     </div>
-
-                    <div class="flex flex-1 w-full md:w-auto gap-0 border-nesta h-10">
-                        <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" 
-                            class="flex-1 bg-white px-3 text-sm font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none text-black">
-                        <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-6 font-bold uppercase tracking-wider text-xs whitespace-nowrap transition-colors">
-                            Launch
-                        </button>
+                    <div class="w-32 shrink-0">
+                        <select id="mission-select" class="w-full bg-white border border-black text-black font-bold text-[10px] h-8 px-1 focus:outline-none focus:border-[#9A1BBE]">
+                            <option value="All Missions">✨ All Missions</option>
+                            <option value="A Fairer Start">📚 Fairer Start</option>
+                            <option value="A Healthy Life">❤️‍🩹 Healthy Life</option>
+                            <option value="A Sustainable Future">🌳 Sustainable Future</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-1 gap-0 border-nesta h-8">
+                        <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" class="flex-1 bg-white px-3 text-xs font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none text-black">
+                        <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-4 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap transition-colors flex items-center">Launch</button>
                     </div>
                 </div>
             </div>
@@ -135,7 +138,7 @@
             </div>
         </div>
 
-        <div class="w-72 bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
+        <div class="w-64 bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
             <div class="bg-[#0F294A] text-white p-3 flex flex-col gap-1 shrink-0">
                 <div class="flex justify-between items-center">
                     <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-xs">💾 Vault</h3>
@@ -174,7 +177,7 @@
             const sources = Array.from(document.querySelectorAll('input[name="source"]:checked'));
             let parts = [];
             if (tech) parts.push("Emerging Tech"); else parts.push("Broad Horizon");
-            if (sources.length > 0) parts.push(`${sources.length} Source Types`);
+            if (sources.length > 0) parts.push(`${sources.length} Sources`);
             parts.push(time);
             document.getElementById('mode-display').innerText = parts.join(" • ");
         }
@@ -195,7 +198,19 @@
             else prompt += ` (perform a broad horizon scan)`;
             prompt += ". Use the display_signal_card tool for each one.";
 
-            // Compact Loading Indicator
+            chatBox.innerHTML += `
+                <div class="flex justify-end animate-fade-in mb-4">
+                    <div class="bg-[#0F294A] text-white p-4 border-l-4 border-[#97D9E3] max-w-[80%] text-xs shadow-md">
+                        <div class="font-bold text-[#97D9E3] mb-1 uppercase tracking-widest border-b border-gray-600 pb-1">Scouting In Progress</div>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-1">
+                            <div><span class="opacity-60">TARGET:</span> ${count} Signals</div>
+                            <div><span class="opacity-60">MISSION:</span> ${mission}</div>
+                            ${techMode ? `<div class="text-[#97D9E3] font-bold col-span-2">MODE: Emerging Tech Only</div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+
             const loaderId = `load-${Date.now()}`;
             chatBox.innerHTML += `
                 <div id="${loaderId}" class="flex gap-3 items-center text-[#9A1BBE] text-xs ml-1 mt-2 font-bold uppercase animate-pulse mb-6">
@@ -256,6 +271,7 @@
             const cardHTML = `
                 <div class="animate-fade-in group mb-6">
                     <div class="bg-white border-2 border-black p-6 relative hover:border-[#9A1BBE] transition-colors">
+                        
                         <div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
                             <span class="text-[#9A1BBE] font-bold text-[10px] uppercase tracking-widest">${data.archetype || 'SIGNAL'}</span>
                             <div class="relative group/score cursor-help">
@@ -267,9 +283,38 @@
                                 </div>
                             </div>
                         </div>
+
                         <h3 class="font-bold text-black text-xl leading-tight mb-3 group-hover:text-[#9A1BBE] transition-colors"><a href="${data.final_url}" target="_blank" class="hover:underline">${data.title}</a></h3>
                         <p class="text-sm text-gray-800 mb-5 leading-relaxed font-medium">${data.hook}</p>
                         <div class="flex flex-wrap gap-2 mb-6">${missionHtml}${lensesHtml}</div>
+
+                        <div class="bg-gray-50 border-2 border-gray-200 p-3 mb-4 text-xs">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-bold uppercase text-gray-500 text-[9px] tracking-widest">Training Feedback</span>
+                                <div class="flex gap-2">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="status-${idx}" value="Accepted" class="peer hidden" checked>
+                                        <span class="text-[9px] font-bold uppercase text-gray-400 peer-checked:text-[#18A48C] hover:text-[#18A48C]">Accept</span>
+                                    </label>
+                                    <span class="text-gray-300">|</span>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="status-${idx}" value="Rejected" class="peer hidden">
+                                        <span class="text-[9px] font-bold uppercase text-gray-400 peer-checked:text-[#EB003B] hover:text-[#EB003B]">Reject</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="star-rating">
+                                    <input type="radio" id="star5-${idx}" name="rating-${idx}" value="5"><label for="star5-${idx}">★</label>
+                                    <input type="radio" id="star4-${idx}" name="rating-${idx}" value="4"><label for="star4-${idx}">★</label>
+                                    <input type="radio" id="star3-${idx}" name="rating-${idx}" value="3" checked><label for="star3-${idx}">★</label>
+                                    <input type="radio" id="star2-${idx}" name="rating-${idx}" value="2"><label for="star2-${idx}">★</label>
+                                    <input type="radio" id="star1-${idx}" name="rating-${idx}" value="1"><label for="star1-${idx}">★</label>
+                                </div>
+                            </div>
+                            <textarea id="comment-${idx}" placeholder="Optional: Why is this a good/bad signal?" class="w-full mt-2 p-2 border border-gray-300 bg-white text-[10px] focus:outline-none focus:border-[#9A1BBE]" rows="1"></textarea>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-0 border-2 border-black h-10">
                             <button onclick="saveSignalByIndex(${idx}, this)" class="bg-black text-white text-[10px] font-bold hover:bg-[#9A1BBE] transition-colors uppercase tracking-widest border-r border-gray-700">Save Signal</button>
                             <a href="${data.final_url}" target="_blank" class="bg-white text-black text-[10px] font-bold text-center uppercase tracking-widest hover:bg-[#97D9E3] transition-colors flex items-center justify-center">Source ↗</a>
@@ -284,6 +329,12 @@
             const data = currentSignals[idx];
             const originalContent = btn.innerHTML;
             btn.innerHTML = `SAVING...`;
+
+            // Collect feedback
+            const status = document.querySelector(`input[name="status-${idx}"]:checked`).value;
+            const rating = document.querySelector(`input[name="rating-${idx}"]:checked`)?.value || 3;
+            const comment = document.getElementById(`comment-${idx}`).value;
+
             try {
                 const res = await fetch(`${API_BASE}/api/save`, {
                     method: 'POST',
@@ -291,7 +342,8 @@
                     body: JSON.stringify({
                         title: data.title, score: data.score, archetype: data.archetype, hook: data.hook, url: data.final_url,
                         mission: data.mission || "", lenses: data.lenses || "",
-                        score_evocativeness: data.score_evocativeness || 0, score_novelty: data.score_novelty || 0, score_evidence: data.score_evidence || 0
+                        score_evocativeness: data.score_evocativeness || 0, score_novelty: data.score_novelty || 0, score_evidence: data.score_evidence || 0,
+                        user_rating: parseInt(rating), user_status: status, user_comment: comment
                     })
                 });
                 if(res.ok) {
