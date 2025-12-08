@@ -255,6 +255,16 @@ async def chat_endpoint(req: ChatRequest):
         # 2. PROMPT CONSTRUCTION
         prompt = req.message
         
+        # ✅ NEW: STRICT ANTI-HALLUCINATION INJECTION
+        prompt += """
+        
+        SYSTEM PROTOCOL:
+        1. You are in 'Research Mode'. You have NO internal memory of URLs.
+        2. You MUST use 'perform_web_search' to find real signals.
+        3. COPY THE URL EXACTLY from the search results. Do not type it out from memory.
+        4. If the search returns no valid links, return text saying 'No verified signals found' instead of hallucinating a fake card.
+        """
+        
         if learning_prompt:
             prompt += f"\n\n{learning_prompt}"
             prompt += "\nINSTRUCTION: Analyze the 'User Notes' and style of the examples above. Adjust your search strategy to match this taste profile."
