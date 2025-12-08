@@ -23,13 +23,13 @@
         }
 
         .nesta-checkbox {
-            appearance: none; width: 16px; height: 16px;
+            appearance: none; width: 14px; height: 14px;
             border: 2px solid var(--nesta-black); cursor: pointer;
-            display: inline-block; vertical-align: middle; margin-right: 6px;
+            display: inline-block; vertical-align: middle; margin-right: 4px;
         }
         .nesta-checkbox:checked { background-color: var(--nesta-green); }
 
-        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: var(--nesta-navy); }
         ::-webkit-scrollbar-thumb:hover { background: var(--nesta-purple); }
@@ -37,8 +37,8 @@
         .range-slider { -webkit-appearance: none; background: transparent; }
         .range-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
-            width: 24px; height: 24px; background: var(--nesta-purple); 
-            cursor: pointer; border: none; margin-top: -10px;
+            width: 16px; height: 16px; background: var(--nesta-purple); 
+            cursor: pointer; border: none; margin-top: -6px;
         }
         .range-slider::-webkit-slider-runnable-track {
             width: 100%; height: 4px; background: #ddd; border: none;
@@ -48,43 +48,67 @@
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
         .border-nesta { border: 3px solid var(--nesta-black); }
         
-        /* Collapsible Transition */
         .collapsible-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; max-height: 0; opacity: 0; }
         .collapsible-content.open { max-height: 500px; opacity: 1; }
     </style>
 </head>
-<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black">
+<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black flex flex-col">
 
-    <div class="flex h-full max-w-[1600px] mx-auto p-4 gap-4">
+    <div class="flex-1 flex h-full max-w-[1800px] mx-auto p-4 gap-4">
         
-        <div class="flex-1 flex flex-col gap-4 min-h-0 h-full">
+        <div class="flex-1 flex flex-col h-full min-h-0 gap-4">
             
-            <div class="bg-white border-nesta p-5 relative shrink-0">
-                <div class="absolute top-0 left-0 w-full h-3 bg-[#97D9E3]"></div>
+            <div class="bg-white border-nesta p-4 relative shrink-0 z-20">
+                <div class="absolute top-0 left-0 w-full h-2 bg-[#97D9E3]"></div>
 
-                <div class="flex justify-between items-end mb-4 border-b-2 border-black pb-2 mt-2">
-                    <h2 class="font-bold text-3xl tracking-tight text-black leading-none">
-                        <span class="text-[#9A1BBE]">nesta</span><br>Signal Scout
+                <div class="flex justify-between items-center mb-4 mt-2 border-b-2 border-black pb-2">
+                    <h2 class="font-bold text-2xl tracking-tight text-black leading-none flex items-center gap-2">
+                        <span class="text-[#9A1BBE]">nesta</span> Signal Scout
                     </h2>
-                    <span class="bg-[#0F294A] text-white px-2 py-1 text-xs font-bold uppercase tracking-widest">Discovery Hub</span>
+                    <div class="flex gap-4 items-center">
+                        <div class="text-[10px] uppercase font-bold tracking-widest text-gray-500 hidden md:block">
+                            Mode: <span id="mode-display" class="text-[#0F294A]">Broad Horizon</span>
+                        </div>
+                        <button onclick="toggleFilters()" class="text-[10px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 bg-gray-50 px-2 py-1 border border-transparent hover:border-black transition-colors">
+                            <span id="filter-arrow">▶</span> Filters
+                        </button>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                    <div>
-                        <div class="flex justify-between mb-2 items-center">
-                            <label class="text-xs font-bold uppercase tracking-widest text-[#0F294A]">Signal Volume</label>
-                            <span id="slider-val" class="text-xl font-bold text-[#9A1BBE]">3</span>
+                <div id="filter-section" class="collapsible-content bg-gray-50 border-b-2 border-black mb-4 -mx-4 px-4 pb-2 text-xs">
+                    <div class="flex flex-wrap gap-6 items-center py-2">
+                        <div class="flex flex-col gap-1">
+                            <label class="font-bold text-[9px] uppercase text-[#0F294A]">Time Horizon</label>
+                            <select id="time-filter" onchange="updateModeDisplay()" class="bg-white border border-black px-1 py-0.5 text-[10px] font-bold cursor-pointer">
+                                <option value="Past Year">Past Year</option>
+                                <option value="Past 6 Months">Past 6 Months</option>
+                                <option value="Past Month">Past Month</option>
+                            </select>
                         </div>
-                        <input type="range" id="signal-count" min="1" max="10" value="3" 
-                            class="range-slider w-full focus:outline-none"
-                            oninput="document.getElementById('slider-val').innerText = this.value">
-                        <div class="flex justify-between text-[10px] font-bold mt-1 text-gray-400"><span>1</span><span>10</span></div>
+                        <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                            <input type="checkbox" id="tech-mode" class="nesta-checkbox" onchange="updateModeDisplay()">
+                            <label for="tech-mode" class="font-bold text-[10px] uppercase cursor-pointer hover:text-[#9A1BBE]">Emerging Tech Only</label>
+                        </div>
+                        <div class="flex gap-3 border-l border-gray-300 pl-4 flex-1">
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Academia" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Academia</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Industry News" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Industry News</span></label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[10px] font-bold uppercase">Startups</span></label>
+                        </div>
                     </div>
+                </div>
 
-                    <div>
-                        <label class="block text-xs font-bold uppercase tracking-widest text-[#0F294A] mb-2">Strategic Mission</label>
-                        <div class="relative">
-                            <select id="mission-select" class="w-full bg-white border-2 border-black text-black font-bold text-xs focus:outline-none focus:border-[#9A1BBE] block p-2 appearance-none cursor-pointer rounded-none hover:bg-[#97D9E3] transition-colors">
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="flex gap-4 flex-1 w-full md:w-auto">
+                        <div class="w-24 shrink-0">
+                            <div class="flex justify-between mb-1">
+                                <label class="text-[9px] font-bold uppercase text-[#0F294A]">Count</label>
+                                <span id="slider-val" class="text-xs font-bold text-[#9A1BBE]">3</span>
+                            </div>
+                            <input type="range" id="signal-count" min="1" max="10" value="3" class="range-slider w-full">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[9px] font-bold uppercase text-[#0F294A] mb-1">Mission Focus</label>
+                            <select id="mission-select" class="w-full bg-white border border-black text-black font-bold text-xs h-8 px-2 focus:outline-none focus:border-[#9A1BBE]">
                                 <option value="All Missions">✨ Auto: All Missions</option>
                                 <option value="A Fairer Start">📚 A Fairer Start</option>
                                 <option value="A Healthy Life">❤️‍🩹 A Healthy Life</option>
@@ -92,67 +116,35 @@
                             </select>
                         </div>
                     </div>
-                </div>
 
-                <div class="flex justify-between items-center mb-2 border-b border-gray-200 pb-2">
-                    <div class="text-[10px] uppercase font-bold tracking-widest text-gray-500 truncate max-w-[60%]">
-                        Active Mode: <span id="mode-display" class="text-[#0F294A]">Broad Horizon Scan • All Sources • Past Year</span>
+                    <div class="flex flex-1 w-full md:w-auto gap-0 border-nesta h-10">
+                        <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" 
+                            class="flex-1 bg-white px-3 text-sm font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none text-black">
+                        <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-6 font-bold uppercase tracking-wider text-xs whitespace-nowrap transition-colors">
+                            Launch
+                        </button>
                     </div>
-                    <button onclick="toggleFilters()" class="text-[10px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 whitespace-nowrap">
-                        <span id="filter-arrow">▶</span> Advanced Filters
-                    </button>
-                </div>
-
-                <div id="filter-section" class="collapsible-content bg-gray-50 border-2 border-black p-3 mb-4 text-xs">
-                    <div class="flex flex-wrap gap-4 items-center">
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-[9px] uppercase text-[#0F294A] tracking-wider">Time Horizon</label>
-                            <select id="time-filter" onchange="updateModeDisplay()" class="bg-white border border-black px-2 py-1 text-[10px] font-bold cursor-pointer hover:bg-[#97D9E3]">
-                                <option value="Past Year">Past Year</option>
-                                <option value="Past 6 Months">Past 6 Months</option>
-                                <option value="Past 3 Months">Past 3 Months</option>
-                                <option value="Past Month">Past Month</option>
-                            </select>
-                        </div>
-
-                        <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                            <input type="checkbox" id="tech-mode" class="nesta-checkbox" onchange="updateModeDisplay()">
-                            <label for="tech-mode" class="font-bold text-[10px] uppercase cursor-pointer select-none hover:text-[#9A1BBE]">Emerging Tech Only</label>
-                        </div>
-
-                        <div class="flex gap-3 border-l border-gray-300 pl-4 flex-1 flex-wrap">
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Academia" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">Academia</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Industry News" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">Industry News</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">Startups/VC</span></label>
-                            <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Substacks" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">Substacks</span></label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex gap-0 border-nesta">
-                    <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" class="flex-1 bg-white px-4 py-3 text-sm font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none rounded-none text-black">
-                    <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-8 py-3 font-bold uppercase tracking-wider transition-colors rounded-none whitespace-nowrap text-sm">Launch Scan</button>
                 </div>
             </div>
 
-            <div id="chat-box" class="flex-1 bg-[#f9fafb] border-nesta p-6 overflow-y-auto space-y-6 relative scroll-smooth min-h-0">
+            <div id="chat-box" class="flex-1 bg-[#f9fafb] border-nesta p-6 overflow-y-auto space-y-6 relative scroll-smooth min-h-0 shadow-inner">
                 <div class="flex flex-col items-center justify-center h-full text-gray-300 select-none">
-                    <p class="text-7xl mb-4 grayscale opacity-20">📡</p>
-                    <p class="font-bold text-sm text-[#0F294A] tracking-widest uppercase">Ready to Scout</p>
+                    <p class="text-6xl mb-4 grayscale opacity-20">📡</p>
+                    <p class="font-bold text-xs text-[#0F294A] tracking-widest uppercase">Ready to Scout</p>
                 </div>
             </div>
         </div>
 
-        <div class="w-80 md:w-96 bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
-            <div class="bg-[#0F294A] text-white p-4 flex flex-col gap-2 shrink-0">
+        <div class="w-72 bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
+            <div class="bg-[#0F294A] text-white p-3 flex flex-col gap-1 shrink-0">
                 <div class="flex justify-between items-center">
-                    <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-sm">💾 Signal Vault</h3>
-                    <button onclick="refreshDatabase()" class="text-[10px] font-bold uppercase hover:text-[#97D9E3] transition-colors border border-white px-2 py-1">Refresh</button>
+                    <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-xs">💾 Vault</h3>
+                    <button onclick="refreshDatabase()" class="text-[9px] font-bold uppercase hover:text-[#97D9E3] transition-colors border border-white px-1.5 py-0.5">Refresh</button>
                 </div>
-                <a id="sheet-link" href="#" target="_blank" class="text-[10px] text-[#97D9E3] hover:text-white underline text-right truncate">View Full Sheet ↗</a>
+                <a id="sheet-link" href="#" target="_blank" class="text-[9px] text-[#97D9E3] hover:text-white underline text-right truncate">View Google Sheet ↗</a>
             </div>
-            <div id="db-list" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white min-h-0">
-                <div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-xs uppercase font-bold tracking-widest">Vault Empty</span></div>
+            <div id="db-list" class="flex-1 overflow-y-auto p-3 space-y-3 bg-white min-h-0">
+                <div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-[10px] uppercase font-bold tracking-widest">Empty</span></div>
             </div>
         </div>
     </div>
@@ -182,11 +174,9 @@
             const sources = Array.from(document.querySelectorAll('input[name="source"]:checked'));
             let parts = [];
             if (tech) parts.push("Emerging Tech"); else parts.push("Broad Horizon");
-            if (sources.length > 0) parts.push(`${sources.length} Source Types`); else parts.push("All Sources");
+            if (sources.length > 0) parts.push(`${sources.length} Source Types`);
             parts.push(time);
             document.getElementById('mode-display').innerText = parts.join(" • ");
-            const isDefault = !tech && sources.length === 0 && time === "Past Year";
-            document.getElementById('mode-display').className = isDefault ? "text-[#0F294A]" : "text-[#18A48C] font-bold";
         }
 
         async function runScan() {
@@ -205,23 +195,12 @@
             else prompt += ` (perform a broad horizon scan)`;
             prompt += ". Use the display_signal_card tool for each one.";
 
-            chatBox.innerHTML += `
-                <div class="flex justify-end animate-fade-in mb-8">
-                    <div class="bg-[#0F294A] text-white p-6 border-l-8 border-[#97D9E3] max-w-[80%]">
-                        <div class="font-bold text-xs text-[#97D9E3] mb-3 uppercase tracking-widest border-b border-gray-600 pb-2">Scan Parameters</div>
-                        <div class="space-y-1 text-sm font-medium">
-                            <div class="flex justify-between"><span class="opacity-70">TARGET:</span> <span>${count} Signals</span></div>
-                            <div class="flex justify-between"><span class="opacity-70">MISSION:</span> <span>${mission}</span></div>
-                            ${techMode ? `<div class="flex justify-between text-[#18A48C]"><span class="opacity-70">MODE:</span> <span>Emerging Tech Only</span></div>` : ''}
-                            ${sources.length ? `<div class="flex justify-between"><span class="opacity-70">SOURCES:</span> <span class="text-xs">${sources.join(', ')}</span></div>` : ''}
-                            <div class="flex justify-between"><span class="opacity-70">TIMELINE:</span> <span>${timeFilter}</span></div>
-                        </div>
-                    </div>
-                </div>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-
+            // Compact Loading Indicator
             const loaderId = `load-${Date.now()}`;
-            chatBox.innerHTML += `<div id="${loaderId}" class="flex gap-4 items-center text-[#9A1BBE] text-sm ml-2 mt-4 font-bold uppercase animate-pulse"><div class="w-4 h-4 bg-[#9A1BBE]"></div> Scouting horizon...</div>`;
+            chatBox.innerHTML += `
+                <div id="${loaderId}" class="flex gap-3 items-center text-[#9A1BBE] text-xs ml-1 mt-2 font-bold uppercase animate-pulse mb-6">
+                    <div class="w-3 h-3 bg-[#9A1BBE]"></div> Scouting...
+                </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
@@ -235,13 +214,14 @@
                         tech_mode: techMode
                     })
                 });
+                
                 if (!res.ok) throw new Error(`Server Error: ${res.status}`);
                 const data = await res.json();
                 document.getElementById(loaderId).remove();
 
                 if (data.ui_type === 'signal_list') {
                     data.items.forEach(signal => renderCard(signal));
-                    renderSystemMessage(`SCAN COMPLETE. ${data.items.length} SIGNALS IDENTIFIED.`);
+                    renderSystemMessage(`SCAN COMPLETE. ${data.items.length} SIGNALS FOUND.`);
                 } else if (data.ui_type === 'signal_card') {
                     renderCard(data);
                 } else {
@@ -250,13 +230,13 @@
             } catch (err) {
                 console.error(err);
                 const loader = document.getElementById(loaderId);
-                if(loader) loader.innerHTML = `<div class="bg-[#EB003B] text-white p-4 font-bold">⚠️ ERROR: ${err.message}</div>`;
+                if(loader) loader.innerHTML = `<div class="bg-[#EB003B] text-white p-2 text-xs font-bold">⚠️ ERROR: ${err.message}</div>`;
             }
         }
 
         function renderSystemMessage(html) {
             const chatBox = document.getElementById('chat-box');
-            chatBox.innerHTML += `<div class="flex animate-fade-in mb-6"><div class="bg-[#D2C9C0] p-4 text-sm font-bold text-black max-w-[90%] uppercase tracking-wide border-l-4 border-black">${html}</div></div>`;
+            chatBox.innerHTML += `<div class="flex animate-fade-in mb-6"><div class="bg-[#D2C9C0] p-3 text-xs font-bold text-black max-w-[90%] uppercase tracking-wide border-l-4 border-black">${html}</div></div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
@@ -269,32 +249,30 @@
             if(data.score >= 80) scoreClass = "bg-[#18A48C] text-white"; 
             else if(data.score >= 60) scoreClass = "bg-[#97D9E3] text-black";
 
-            const missionHtml = data.mission ? `<span class="bg-[#0F294A] text-white text-[10px] px-2 py-1 font-bold uppercase tracking-widest">${data.mission}</span>` : '';
-            const lensesHtml = data.lenses ? data.lenses.split(',').map(tag => `<span class="border border-black text-black text-[10px] px-2 py-1 font-bold uppercase hover:bg-[#97D9E3] transition-colors">${tag.trim()}</span>`).join('') : '';
-            const sEvo = data.score_evocativeness || 0;
-            const sNov = data.score_novelty || 0;
-            const sEvi = data.score_evidence || 0;
+            const missionHtml = data.mission ? `<span class="bg-[#0F294A] text-white text-[9px] px-1.5 py-0.5 font-bold uppercase tracking-widest">${data.mission}</span>` : '';
+            const lensesHtml = data.lenses ? data.lenses.split(',').map(tag => `<span class="border border-black text-black text-[9px] px-1.5 py-0.5 font-bold uppercase hover:bg-[#97D9E3] transition-colors">${tag.trim()}</span>`).join('') : '';
+            const sEvo = data.score_evocativeness || 0; const sNov = data.score_novelty || 0; const sEvi = data.score_evidence || 0;
 
             const cardHTML = `
-                <div class="animate-fade-in group mb-8">
-                    <div class="bg-white border-2 border-black p-8 relative hover:border-[#9A1BBE] transition-colors">
-                        <div class="flex justify-between items-start mb-5 border-b border-gray-200 pb-4">
-                            <span class="text-[#9A1BBE] font-bold text-xs uppercase tracking-widest">${data.archetype || 'SIGNAL'}</span>
+                <div class="animate-fade-in group mb-6">
+                    <div class="bg-white border-2 border-black p-6 relative hover:border-[#9A1BBE] transition-colors">
+                        <div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
+                            <span class="text-[#9A1BBE] font-bold text-[10px] uppercase tracking-widest">${data.archetype || 'SIGNAL'}</span>
                             <div class="relative group/score cursor-help">
-                                <div class="font-mono text-sm font-bold ${scoreClass} px-3 py-1">⚡ ${data.score}/100</div>
-                                <div class="absolute bottom-full right-0 mb-2 w-48 bg-[#0F294A] text-white p-3 text-[10px] uppercase font-bold tracking-widest hidden group-hover/score:block border-2 border-[#97D9E3] z-50 shadow-lg">
+                                <div class="font-mono text-xs font-bold ${scoreClass} px-2 py-1">⚡ ${data.score}/100</div>
+                                <div class="absolute bottom-full right-0 mb-2 w-40 bg-[#0F294A] text-white p-2 text-[9px] uppercase font-bold tracking-widest hidden group-hover/score:block border-2 border-[#97D9E3] z-50 shadow-lg">
                                     <div class="flex justify-between mb-1"><span class="text-[#97D9E3]">Evocative</span> <span>${sEvo}/10</span></div>
                                     <div class="flex justify-between mb-1"><span class="text-[#97D9E3]">Novelty</span> <span>${sNov}/10</span></div>
                                     <div class="flex justify-between"><span class="text-[#97D9E3]">Evidence</span> <span>${sEvi}/10</span></div>
                                 </div>
                             </div>
                         </div>
-                        <h3 class="font-bold text-black text-2xl leading-tight mb-4 group-hover:text-[#9A1BBE] transition-colors">${data.title}</h3>
-                        <p class="text-sm text-gray-800 mb-6 leading-relaxed font-medium">${data.hook}</p>
-                        <div class="flex flex-wrap gap-2 mb-8">${missionHtml}${lensesHtml}</div>
-                        <div class="grid grid-cols-2 gap-0 border-2 border-black">
-                            <button onclick="saveSignalByIndex(${idx}, this)" class="bg-black text-white text-xs font-bold py-4 hover:bg-[#9A1BBE] transition-colors uppercase tracking-widest border-r border-gray-700">Save Signal</button>
-                            <a href="${data.final_url}" target="_blank" class="bg-white text-black text-xs font-bold py-4 text-center uppercase tracking-widest hover:bg-[#97D9E3] transition-colors">Source ↗</a>
+                        <h3 class="font-bold text-black text-xl leading-tight mb-3 group-hover:text-[#9A1BBE] transition-colors"><a href="${data.final_url}" target="_blank" class="hover:underline">${data.title}</a></h3>
+                        <p class="text-sm text-gray-800 mb-5 leading-relaxed font-medium">${data.hook}</p>
+                        <div class="flex flex-wrap gap-2 mb-6">${missionHtml}${lensesHtml}</div>
+                        <div class="grid grid-cols-2 gap-0 border-2 border-black h-10">
+                            <button onclick="saveSignalByIndex(${idx}, this)" class="bg-black text-white text-[10px] font-bold hover:bg-[#9A1BBE] transition-colors uppercase tracking-widest border-r border-gray-700">Save Signal</button>
+                            <a href="${data.final_url}" target="_blank" class="bg-white text-black text-[10px] font-bold text-center uppercase tracking-widest hover:bg-[#97D9E3] transition-colors flex items-center justify-center">Source ↗</a>
                         </div>
                     </div>
                 </div>`;
@@ -317,7 +295,7 @@
                     })
                 });
                 if(res.ok) {
-                    btn.className = "bg-[#18A48C] text-white text-xs font-bold py-4 cursor-default uppercase tracking-widest border-r border-gray-700";
+                    btn.className = "bg-[#18A48C] text-white text-[10px] font-bold cursor-default uppercase tracking-widest border-r border-gray-700";
                     btn.innerHTML = `SAVED`;
                     btn.removeAttribute("onclick");
                     refreshDatabase();
@@ -331,16 +309,16 @@
                 const res = await fetch(`${API_BASE}/api/saved`);
                 const items = await res.json();
                 if(items.length === 0) {
-                    list.innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-xs uppercase font-bold tracking-widest">Vault Empty</span></div>`;
+                    list.innerHTML = `<div class="flex flex-col items-center justify-center h-40 text-gray-400"><span class="text-[10px] uppercase font-bold tracking-widest">Empty</span></div>`;
                     return;
                 }
                 list.innerHTML = items.map(item => `
-                    <div class="bg-white p-4 border border-black relative group hover:border-[#9A1BBE] transition-colors animate-fade-in">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[60%]">${item['Archetype'] || item['archetype'] || 'SIGNAL'}</span>
-                            <span class="text-[10px] font-bold text-white bg-[#9A1BBE] px-1">${item['Score'] || item['score'] || 0}</span>
+                    <div class="bg-white p-3 border border-black relative group hover:border-[#9A1BBE] transition-colors animate-fade-in">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[8px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[60%]">${item['Archetype'] || item['archetype'] || 'SIGNAL'}</span>
+                            <span class="text-[9px] font-bold text-white bg-[#9A1BBE] px-1">${item['Score'] || item['score'] || 0}</span>
                         </div>
-                        <div class="font-bold text-black text-xs leading-snug pr-6 mb-2">
+                        <div class="font-bold text-black text-[10px] leading-snug pr-4 mb-1">
                             <a href="${item['URL'] || item['url']}" target="_blank" class="hover:text-[#18A48C] transition-colors line-clamp-2">${item['Title'] || item['title']}</a>
                         </div>
                     </div>`).join('');
