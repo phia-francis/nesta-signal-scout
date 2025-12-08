@@ -19,12 +19,10 @@ load_dotenv()
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# GOOGLE SHEETS CONFIG
+# GOOGLE CONFIG
 SHEET_ID = os.getenv("SHEET_ID")
 SHEET_URL = os.getenv("SHEET_URL", "#")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
-
-# GOOGLE SEARCH CONFIG
 GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_API_KEY")
 GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
 
@@ -67,8 +65,8 @@ def get_google_sheet():
 
 def get_learning_examples():
     """
-    Fetches high-quality examples (Accepted or 4+ Stars) from the Sheet
-    to train the AI on what 'Good' looks like via In-Context Learning.
+    Fetches high-quality examples (Accepted or 4+ Stars) from the Sheet.
+    Uses underscores in keys to avoid variable name issues.
     """
     try:
         sheet = get_google_sheet()
@@ -77,24 +75,31 @@ def get_learning_examples():
         records = sheet.get_all_records()
         if not records: return ""
         
-        # Filter for "Good" signals (Accepted OR Rating >= 4)
-        good_signals = [
-            r for r in records 
-            if str(r.get('Status', r.get('user_status', ''))).lower() == "accepted" 
-            or int(r.get('User Rating', r.get('user_rating', 0)) or 0) >= 4
-        ]
-        
+        good_signals = []
+        for r in records:
+            # Handle empty strings from sheet safely
+            try:
+                status = str(r.get('User_Status', '')).lower()
+                # Handle cases where rating might be an empty string
+                raw_rating = r.get('User_Rating', 0)
+                rating = int(raw_rating) if raw_rating != "" else 0
+                
+                if status == "accepted" or rating >= 4:
+                    good_signals.append(r)
+            except ValueError:
+                continue # Skip rows with bad data
+
         if not good_signals:
             return ""
 
-        # Pick 3 random examples to keep prompt fresh
+        # Pick 3 random examples
         examples = random.sample(good_signals, k=min(3, len(good_signals)))
         
         example_str = "### USER'S GOLD STANDARD EXAMPLES (EMULATE THESE):\n"
         for i, ex in enumerate(examples, 1):
-            title = ex.get('Title') or ex.get('title')
-            hook = ex.get('Hook') or ex.get('hook')
-            comment = ex.get('Comment') or ex.get('user_comment') or ""
+            title = ex.get('Title', 'Untitled')
+            hook = ex.get('Hook', '')
+            comment = ex.get('User_Comment', '')
             
             example_str += f"{i}. Title: {title}\n   Hook: {hook}\n"
             if comment:
@@ -120,14 +125,13 @@ async def perform_google_search(query):
         "key": GOOGLE_SEARCH_KEY,
         "cx": GOOGLE_SEARCH_CX,
         "q": query,
-        "num": 3 # Fetch top 3 results to save quota
+        "num": 3
     }
     
     async with httpx.AsyncClient() as http_client:
         try:
             resp = await http_client.get(url, params=params)
             
-            # Handle non-200 responses without crashing
             if resp.status_code != 200:
                 print(f"❌ Google API Error: {resp.text}")
                 return f"Search Failed: {resp.status_code}. Proceed with best estimate."
@@ -138,7 +142,6 @@ async def perform_google_search(query):
                 print("⚠️ No results found.")
                 return "No search results found. Try a different query."
             
-            # Format results for the AI
             results = []
             for item in data["items"]:
                 results.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nSnippet: {item.get('snippet', '')}")
@@ -186,21 +189,18 @@ class SaveSignalRequest(BaseModel):
     user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
 
-# --- API ENDPOINTS ---
+# --- ENDPOINTS ---
 
 @app.get("/api/config")
 def get_config():
-    """Returns public config like the Sheet URL."""
     return {"sheet_url": SHEET_URL}
 
 @app.get("/api/saved")
 def get_saved_signals():
-    """Fetches saved signals from Google Sheets."""
     try:
         sheet = get_google_sheet()
         if not sheet: return []
         
-        # Get all records
         records = sheet.get_all_records()
         return records[::-1] # Newest first
     except Exception as e:
@@ -216,7 +216,7 @@ def save_signal(signal: SaveSignalRequest):
             raise HTTPException(status_code=500, detail="Could not connect to Google Sheets")
         
         # Row format must match your Sheet Headers EXACTLY
-        # Title, Score, Archetype, Hook, URL, Mission, Lenses, Evo, Nov, Evi, Rating, Status, Comment
+        # 13 Columns total
         row = [
             signal.title,
             signal.score,
@@ -241,7 +241,6 @@ def save_signal(signal: SaveSignalRequest):
 
 @app.delete("/api/saved/{signal_id}")
 def delete_signal(signal_id: int):
-    # We do not delete by index via API to prevent data corruption.
     return {"status": "ignored", "message": "Please delete directly from Google Sheets"}
 
 @app.post("/api/chat")
@@ -257,7 +256,7 @@ async def chat_endpoint(req: ChatRequest):
             sheet = get_google_sheet()
             if sheet:
                 col_values = sheet.col_values(1)
-                existing_titles = col_values[-50:] # Last 50 titles
+                existing_titles = col_values[-50:] 
                 learning_prompt = get_learning_examples()
         except Exception as e:
             print(f"Context Fetch Warning: {e}")
@@ -265,25 +264,20 @@ async def chat_endpoint(req: ChatRequest):
         # 2. PROMPT CONSTRUCTION
         prompt = req.message
         
-        # A. Inject Learning Data
         if learning_prompt:
             prompt += f"\n\n{learning_prompt}"
             prompt += "\nINSTRUCTION: Analyze the 'User Notes' and style of the examples above. Adjust your search strategy to match this taste profile."
 
-        # B. Inject "Search First" Behavior
         prompt += "\n\nSYSTEM INSTRUCTION: You currently have 0 verified signals. You MUST use the 'perform_web_search' tool to find real articles before generating any cards. Do not generate cards from memory."
 
-        # C. Apply User Filters
         if req.tech_mode:
-            prompt += "\n\nCONSTRAINT: This is a TECHNICAL HORIZON SCAN. Search ONLY for Hard Tech (Hardware, Biotech, Materials, Code). Ignore policy/social trends."
+            prompt += "\n\nCONSTRAINT: This is a TECHNICAL HORIZON SCAN. Search ONLY for Hard Tech (Hardware, Biotech, Materials, Code)."
         
         if req.source_types:
             sources_str = ", ".join(req.source_types)
             prompt += f"\n\nCONSTRAINT: Prioritize findings from these source types: {sources_str}."
 
         prompt += f"\n\nCONSTRAINT: Time Horizon is '{req.time_filter}'. Ensure signals are recent."
-        
-        # D. Salt & Blocklist
         prompt += f"\n\n[System Note: Random Seed {random.randint(1000, 9999)}]"
         
         clean_titles = [t for t in existing_titles if t.lower() != "title" and t.strip() != ""]
@@ -291,7 +285,7 @@ async def chat_endpoint(req: ChatRequest):
             blocklist_str = ", ".join([f'"{t}"' for t in clean_titles])
             prompt += f"\n\nIMPORTANT: Do NOT return these titles (user already has them): {blocklist_str}"
 
-        # E. Count Enforcement
+        # Count Enforcement
         prompt += "\n\nCRITICAL INSTRUCTION: If the user asked for a specific number of signals (e.g. 'Find 5'), you MUST perform enough searches to find exactly that many verified examples. Do not stop early."
 
         # 3. RUN ASSISTANT
@@ -313,19 +307,15 @@ async def chat_endpoint(req: ChatRequest):
                 tool_outputs = []
 
                 for tool in tool_calls:
-                    # Tool A: Search
                     if tool.function.name == "perform_web_search":
                         args = json.loads(tool.function.arguments)
                         search_query = args.get("query")
-                        
                         search_result = await perform_google_search(search_query)
-                        
                         tool_outputs.append({
                             "tool_call_id": tool.id,
                             "output": search_result
                         })
 
-                    # Tool B: Display Card
                     elif tool.function.name == "display_signal_card":
                         args = json.loads(tool.function.arguments)
                         processed_card = craft_widget_response(args)
@@ -338,19 +328,16 @@ async def chat_endpoint(req: ChatRequest):
                             "output": json.dumps({"status": "displayed"})
                         })
 
-                # Submit all tool outputs back to AI
-                if tool_outputs:
-                    await asyncio.to_thread(
-                        client.beta.threads.runs.submit_tool_outputs,
-                        thread_id=run.thread_id,
-                        run_id=run.id,
-                        tool_outputs=tool_outputs
-                    )
-                
-                # Loop continues...
+                # Submit all tool outputs
+                await asyncio.to_thread(
+                    client.beta.threads.runs.submit_tool_outputs,
+                    thread_id=run.thread_id,
+                    run_id=run.id,
+                    tool_outputs=tool_outputs
+                )
+                # Loop continues to let AI find more signals
                         
             if run_status.status == 'completed':
-                # ✅ RETURN EVERYTHING AT THE END
                 if accumulated_signals:
                     return {"ui_type": "signal_list", "items": accumulated_signals}
                 
