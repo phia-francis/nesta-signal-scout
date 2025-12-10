@@ -16,10 +16,13 @@
             --nesta-white: #FFFFFF;
         }
 
-        body { 
+        body {
             font-family: 'Century Gothic', CenturyGothic, AppleGothic, sans-serif;
-            background-color: var(--nesta-white);
+            background: radial-gradient(circle at 20% 20%, rgba(151, 217, 227, 0.25), transparent 30%),
+                        radial-gradient(circle at 80% 0%, rgba(154, 27, 190, 0.08), transparent 35%),
+                        linear-gradient(135deg, #f9fafb 0%, #eef2f7 100%);
             color: var(--nesta-black);
+            min-height: 100vh;
         }
 
         .nesta-checkbox {
@@ -37,9 +40,9 @@
             color: var(--nesta-purple);
         }
 
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: var(--nesta-navy); }
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.7); border-radius: 999px; }
+        ::-webkit-scrollbar-thumb { background: var(--nesta-navy); border-radius: 999px; border: 2px solid rgba(255,255,255,0.8); }
         ::-webkit-scrollbar-thumb:hover { background: var(--nesta-purple); }
         
         /* Slider */
@@ -55,36 +58,46 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        .border-nesta { border: 3px solid var(--nesta-black); }
+        .border-nesta { border: 3px solid var(--nesta-black); border-radius: 14px; box-shadow: 0 14px 28px rgba(15,41,74,0.1); }
         
         .collapsible-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; max-height: 0; opacity: 0; }
         .collapsible-content.open { max-height: 500px; opacity: 1; }
+        .glass-panel { background: rgba(255,255,255,0.92); backdrop-filter: blur(10px); }
+        .pill { border-radius: 999px; border: 1px solid var(--nesta-black); padding: 2px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+        .pill-ghost { background: rgba(151,217,227,0.2); }
+        .glow-button { box-shadow: 0 10px 25px rgba(154,27,190,0.25); position: relative; overflow: hidden; }
+        .glow-button::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent); transform: translateX(-100%); transition: transform 0.6s ease; }
+        .glow-button:hover::after { transform: translateX(100%); }
+        .metric-chip { background: rgba(15,41,74,0.05); border: 1px solid rgba(15,41,74,0.15); border-radius: 10px; padding: 4px 8px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; color: var(--nesta-navy); }
     </style>
 </head>
-<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black flex flex-col p-4 bg-[#f2f2f2]">
+<body class="h-screen overflow-hidden selection:bg-[#97D9E3] selection:text-black flex flex-col p-6">
 
     <div class="flex-1 flex h-full max-w-[1800px] mx-auto gap-4 w-full">
         
         <div class="flex-1 flex flex-col h-full min-h-0 gap-4">
             
-            <div class="bg-white border-nesta p-3 relative shrink-0 z-20 shadow-sm">
-                <div class="absolute top-0 left-0 w-full h-2 bg-[#97D9E3]"></div>
+            <div class="glass-panel border-nesta p-4 relative shrink-0 z-20 shadow-lg">
+                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#97D9E3] via-[#9A1BBE] to-[#0F294A]"></div>
 
-                <div class="flex justify-between items-center mb-2 mt-1 border-b-2 border-black pb-2">
-                    <h2 class="font-bold text-xl tracking-tight text-black leading-none flex items-center gap-2">
-                        <span class="text-[#9A1BBE]">nesta</span> Signal Scout
-                    </h2>
-                    <div class="flex gap-3 items-center">
-                        <div class="text-[10px] uppercase font-bold tracking-widest text-gray-500 hidden md:block truncate max-w-[200px]">
-                            <span id="mode-display" class="text-[#0F294A]">Broad Horizon</span>
+                <div class="flex justify-between items-center mb-3 mt-1 border-b-2 border-black pb-2">
+                    <div class="flex items-center gap-3">
+                        <h2 class="font-bold text-xl tracking-tight text-black leading-none flex items-center gap-2">
+                            <span class="text-[#9A1BBE]">nesta</span> Signal Scout
+                        </h2>
+                        <div class="hidden md:flex gap-2 items-center">
+                            <span class="pill pill-ghost" id="mode-display">Broad Horizon</span>
+                            <span class="pill">Trusted Scan</span>
                         </div>
-                        <button onclick="toggleFilters()" class="text-[9px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 bg-gray-50 px-2 py-1 border border-gray-200 hover:border-black transition-all">
-                            <span id="filter-arrow">▶</span> Advanced Filters
+                    </div>
+                    <div class="flex gap-3 items-center">
+                        <button onclick="toggleFilters()" class="text-[9px] font-bold uppercase text-[#9A1BBE] hover:text-[#0F294A] flex items-center gap-1 bg-white px-3 py-1 border border-black hover:shadow-md transition-all rounded-full">
+                            <span id="filter-arrow">▶</span> Filters
                         </button>
                     </div>
                 </div>
 
-                <div id="filter-section" class="collapsible-content bg-gray-50 border-b-2 border-black mb-2 -mx-3 px-3 pb-2 text-xs">
+                <div id="filter-section" class="collapsible-content bg-gray-50 border-b-2 border-black mb-2 -mx-3 px-3 pb-2 text-xs rounded-b-xl">
                     <div class="flex flex-wrap gap-4 items-center py-2">
                         <div class="flex flex-col gap-0.5">
                             <label class="font-bold text-[9px] uppercase text-[#0F294A]">Time Horizon</label>
@@ -104,33 +117,38 @@
                             <label class="flex items-center gap-1 cursor-pointer hover:text-[#18A48C]"><input type="checkbox" name="source" value="Startups" class="nesta-checkbox" onchange="updateModeDisplay()"><span class="text-[9px] font-bold uppercase">VC</span></label>
                         </div>
                     </div>
+                    <div class="flex flex-wrap gap-2 pb-2">
+                        <span class="metric-chip"><span class="text-[#9A1BBE] text-sm">●</span> Recent (≤30d)</span>
+                        <span class="metric-chip"><span class="text-[#18A48C] text-sm">●</span> Niche sources</span>
+                        <span class="metric-chip"><span class="text-[#0F294A] text-sm">●</span> URL verified</span>
+                    </div>
                 </div>
 
-                <div class="flex gap-3 items-end h-8">
-                    <div class="w-16 shrink-0 flex flex-col justify-end">
-                        <div class="flex justify-between mb-0.5">
+                <div class="flex gap-3 items-end h-10">
+                    <div class="w-24 shrink-0 flex flex-col justify-end">
+                        <div class="flex justify-between items-center mb-1">
                             <label class="text-[8px] font-bold uppercase text-[#0F294A]">Count</label>
-                            <span id="slider-val" class="text-[9px] font-bold text-[#9A1BBE]">3</span>
+                            <span id="slider-val" class="text-[10px] font-bold text-[#9A1BBE]">3</span>
                         </div>
-                        <input type="range" id="signal-count" min="1" max="10" value="3" class="range-slider w-full" 
+                        <input type="range" id="signal-count" min="1" max="10" value="3" class="range-slider w-full"
                             oninput="document.getElementById('slider-val').innerText = this.value">
                     </div>
-                    <div class="w-32 shrink-0">
-                        <select id="mission-select" class="w-full bg-white border border-black text-black font-bold text-[10px] h-8 px-1 focus:outline-none focus:border-[#9A1BBE]">
+                    <div class="w-40 shrink-0">
+                        <select id="mission-select" class="w-full bg-white border border-black text-black font-bold text-[10px] h-10 px-2 focus:outline-none focus:border-[#9A1BBE] rounded-md shadow-sm">
                             <option value="All Missions">✨ All Missions</option>
                             <option value="A Fairer Start">📚 Fairer Start</option>
                             <option value="A Healthy Life">❤️‍🩹 Healthy Life</option>
                             <option value="A Sustainable Future">🌳 Sustainable Future</option>
                         </select>
                     </div>
-                    <div class="flex flex-1 gap-0 border-nesta h-8">
-                        <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" class="flex-1 bg-white px-3 text-xs font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-[#f0f9fa] border-none text-black">
-                        <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-4 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap transition-colors flex items-center">Launch</button>
+                    <div class="flex flex-1 gap-0 border-nesta h-10 bg-white items-center px-2 rounded-xl">
+                        <input type="text" id="manual-input" placeholder="Topic (Optional - leave blank for broad scan)" class="flex-1 bg-transparent px-2 text-xs font-bold placeholder:font-normal placeholder:text-gray-400 focus:outline-none focus:bg-transparent border-none text-black">
+                        <button onclick="runScan()" class="bg-[#9A1BBE] text-white hover:bg-[#0F294A] px-5 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap transition-colors flex items-center gap-2 h-8 rounded-md glow-button">Launch <span class="text-xs">↗</span></button>
                     </div>
                 </div>
             </div>
 
-            <div id="chat-box" class="flex-1 bg-[#f9fafb] border-nesta p-6 overflow-y-auto space-y-6 relative scroll-smooth min-h-0 shadow-inner">
+            <div id="chat-box" class="flex-1 bg-[#f9fafb]/80 glass-panel border-nesta p-6 overflow-y-auto space-y-6 relative scroll-smooth min-h-0 shadow-inner">
                 <div class="flex flex-col items-center justify-center h-full text-gray-300 select-none">
                     <p class="text-6xl mb-4 grayscale opacity-20">📡</p>
                     <p class="font-bold text-xs text-[#0F294A] tracking-widest uppercase">Ready to Scout</p>
@@ -138,8 +156,8 @@
             </div>
         </div>
 
-        <div class="w-64 bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
-            <div class="bg-[#0F294A] text-white p-3 flex flex-col gap-1 shrink-0">
+        <div class="w-64 glass-panel bg-white border-nesta flex flex-col overflow-hidden h-full z-10 shrink-0">
+            <div class="bg-[#0F294A] text-white p-3 flex flex-col gap-1 shrink-0 shadow-md">
                 <div class="flex justify-between items-center">
                     <h3 class="font-bold uppercase tracking-wider flex items-center gap-2 text-xs">💾 Vault</h3>
                     <button onclick="refreshDatabase()" class="text-[9px] font-bold uppercase hover:text-[#97D9E3] transition-colors border border-white px-1.5 py-0.5">Refresh</button>
@@ -213,8 +231,15 @@
 
             const loaderId = `load-${Date.now()}`;
             chatBox.innerHTML += `
-                <div id="${loaderId}" class="flex gap-3 items-center text-[#9A1BBE] text-xs ml-1 mt-2 font-bold uppercase animate-pulse mb-6">
-                    <div class="w-3 h-3 bg-[#9A1BBE]"></div> Scouting...
+                <div id="${loaderId}" class="flex gap-3 items-center text-[#9A1BBE] text-xs ml-1 mt-2 font-bold uppercase animate-fade-in mb-6">
+                    <div class="relative flex items-center justify-center">
+                        <div class="w-3 h-3 rounded-full bg-[#9A1BBE] animate-ping"></div>
+                        <div class="w-2 h-2 rounded-full bg-[#9A1BBE] absolute"></div>
+                    </div>
+                    <div class="flex flex-col leading-tight text-left">
+                        <span>Scouting</span>
+                        <span class="text-[10px] text-[#0F294A] font-normal normal-case">Curating niche sources...</span>
+                    </div>
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -270,7 +295,7 @@
 
             const cardHTML = `
                 <div class="animate-fade-in group mb-6">
-                    <div class="bg-white border-2 border-black p-6 relative hover:border-[#9A1BBE] transition-colors">
+                    <div class="glass-panel bg-white/95 border-2 border-black p-6 relative hover:border-[#9A1BBE] transition-colors rounded-xl shadow-lg">
                         
                         <div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
                             <span class="text-[#9A1BBE] font-bold text-[10px] uppercase tracking-widest">${data.archetype || 'SIGNAL'}</span>
@@ -370,11 +395,35 @@
                             <span class="text-[8px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[60%]">${item['Archetype'] || item['archetype'] || 'SIGNAL'}</span>
                             <span class="text-[9px] font-bold text-white bg-[#9A1BBE] px-1">${item['Score'] || item['score'] || 0}</span>
                         </div>
-                        <div class="font-bold text-black text-[10px] leading-snug pr-4 mb-1">
+                        <div class="font-bold text-black text-[10px] leading-snug pr-4 mb-2">
                             <a href="${item['URL'] || item['url']}" target="_blank" class="hover:text-[#18A48C] transition-colors line-clamp-2">${item['Title'] || item['title']}</a>
                         </div>
+                        <div class="flex flex-col gap-1 text-[9px] mb-1">
+                            <label class="font-bold text-gray-500 uppercase tracking-widest">Rating</label>
+                            <input type="number" min="0" max="5" step="1" id="saved-rating-${item['_row'] || ''}" value="${item['User_Rating'] || item['user_rating'] || 0}" class="border border-gray-300 px-1 py-0.5 text-[10px] w-16">
+                        </div>
+                        <div class="flex flex-col gap-1 text-[9px] mb-2">
+                            <label class="font-bold text-gray-500 uppercase tracking-widest">Comment</label>
+                            <textarea id="saved-comment-${item['_row'] || ''}" rows="2" class="border border-gray-300 px-1 py-1 text-[10px] w-full">${item['User_Comment'] || item['user_comment'] || ''}</textarea>
+                        </div>
+                        <button onclick="updateSavedSignal('${item['URL'] || item['url']}', '${item['Title'] || item['title']}', ${item['_row'] || 'null'})" class="bg-black text-white text-[10px] font-bold uppercase tracking-widest w-full py-1 hover:bg-[#18A48C]">Update</button>
                     </div>`).join('');
             } catch (err) { console.error("DB Error", err); }
+        }
+
+        async function updateSavedSignal(url, title, rowId) {
+            const rating = parseInt(document.getElementById(`saved-rating-${rowId || ''}`)?.value || 0);
+            const comment = document.getElementById(`saved-comment-${rowId || ''}`)?.value || '';
+            try {
+                const res = await fetch(`${API_BASE}/api/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url, title, user_rating: rating, user_comment: comment, user_status: 'Accepted' })
+                });
+                if(res.ok) {
+                    refreshDatabase();
+                }
+            } catch (e) { console.error('Update failed', e); }
         }
     </script>
 </body>
