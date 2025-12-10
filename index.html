@@ -130,6 +130,9 @@
                         <button type="button" class="metric-chip active" data-flag="recent" onclick="toggleQualityChip(this)"><span class="text-[#9A1BBE] text-sm">●</span> Recent (≤30d)</button>
                         <button type="button" class="metric-chip" data-flag="niche" onclick="toggleQualityChip(this)"><span class="text-[#18A48C] text-sm">●</span> Niche sources</button>
                         <button type="button" class="metric-chip" data-flag="verified" onclick="toggleQualityChip(this)"><span class="text-[#0F294A] text-sm">●</span> URL verified</button>
+                        <span class="metric-chip"><span class="text-[#9A1BBE] text-sm">●</span> Recent (≤30d)</span>
+                        <span class="metric-chip"><span class="text-[#18A48C] text-sm">●</span> Niche sources</span>
+                        <span class="metric-chip"><span class="text-[#0F294A] text-sm">●</span> URL verified</span>
                     </div>
                 </div>
 
@@ -286,6 +289,13 @@
                         <span id="${loaderId}-headline">Scouting</span>
                         <span id="${loaderId}-status" class="text-[10px] text-[#0F294A] font-normal normal-case">Curating niche sources...</span>
                         <div class="progress-track"><div id="${loaderId}-bar" class="progress-bar"></div></div>
+                    <div class="relative flex items-center justify-center">
+                        <div class="w-3 h-3 rounded-full bg-[#9A1BBE] animate-ping"></div>
+                        <div class="w-2 h-2 rounded-full bg-[#9A1BBE] absolute"></div>
+                    </div>
+                    <div class="flex flex-col leading-tight text-left">
+                        <span>Scouting</span>
+                        <span class="text-[10px] text-[#0F294A] font-normal normal-case">Curating niche sources...</span>
                     </div>
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
