@@ -176,8 +176,8 @@ def get_learning_examples():
         for r in records:
             try:
                 status = str(r.get('User_Status', '')).lower()
-                raw_rating = r.get('User_Rating', 0)
-                rating = int(raw_rating) if raw_rating != "" else 0
+                raw_rating = r.get('User_Rating', 3)
+                rating = int(raw_rating) if str(raw_rating).strip() != "" else 3
                 
                 if status == "accepted" or rating >= 4:
                     good_signals.append(r)
@@ -401,7 +401,15 @@ class SaveSignalRequest(BaseModel):
     score_evocativeness: Optional[int] = 0
     score_novelty: Optional[int] = 0
     score_evidence: Optional[int] = 0
-    user_rating: Optional[int] = 0
+    user_rating: Optional[int] = 3
+    user_status: Optional[str] = "Pending"
+    user_comment: Optional[str] = ""
+
+
+class UpdateSignalRequest(BaseModel):
+    url: Optional[str] = ""
+    title: Optional[str] = ""
+    user_rating: Optional[int] = 3
     user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
 
