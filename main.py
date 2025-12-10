@@ -296,14 +296,17 @@ async def chat_endpoint(req: ChatRequest):
         # ✅ NEW: STRICT ANTI-HALLUCINATION INJECTION
         prompt += """
 
-        SYSTEM PROTOCOL (HIGH-FRICTION SEARCH):
-        1) You are in 'Research Mode'. You have NO internal memory of URLs. No search = no signal.
-        2) Generate 3–5 high-friction search queries using Underground/Edge/Conflict patterns tailored to the user's ask.
-        3) For EACH query, call 'perform_web_search'.
-        4) Discard any search result that lacks a direct article/news URL (ignore homepages, nav pages, vague redirects). COPY THE URL EXACTLY from results.
-        5) Confirm each kept link fits the requested Time Horizon before using it.
-        6) If no valid URLs are returned, respond with 'No verified signals found'.
-        7) Rerun/refine searches until the requested number of signals is met, and every signal has a verified URL.
+        SYSTEM PROTOCOL (DO NOT SKIP):
+        1) You are in Research Mode. No search = no signal.
+        2) Create 3–5 high-friction queries (Underground / Edge / Conflict) tailored to the request.
+        3) For EACH query, call perform_web_search with the current time horizon.
+        4) Keep only results with a direct article URL; copy the URL exactly. Reject homepages or vague links.
+        5) Discard anything outside the requested time horizon.
+        6) If tech mode is on: search ONLY hard tech (hardware, biotech, materials, code). If source types are provided, prioritize them.
+        7) Exclude any title in this blocklist: [titles…]. 
+        8) Repeat searches and refinements until you have exactly N verified signals (if N requested). If none qualify, say “No verified signals found.”
+        CHECKLIST BEFORE RESPONDING: every signal has a tool-returned URL; URL fits time horizon; title not blocked; count matches request.
+
         """
         
         if learning_prompt:
