@@ -259,7 +259,7 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
         signal.get("hook", ""), signal.get("url", ""), signal.get("mission", ""),
         signal.get("lenses", ""), signal.get("score_evocativeness", 0),
         signal.get("score_novelty", 0), signal.get("score_evidence", 0),
-        signal.get("user_rating", 3), signal.get("user_status", "Pending"),
+        signal.get("user_rating", 0), signal.get("user_status", "Pending"),
         signal.get("user_comment", "")
     ]
 
@@ -413,6 +413,14 @@ class UpdateSignalRequest(BaseModel):
     user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
 
+
+class UpdateSignalRequest(BaseModel):
+    url: Optional[str] = ""
+    title: Optional[str] = ""
+    user_rating: Optional[int] = 0
+    user_status: Optional[str] = "Pending"
+    user_comment: Optional[str] = ""
+
 # --- ENDPOINTS ---
 
 @app.get("/api/config")
@@ -443,7 +451,7 @@ def update_signal(update: UpdateSignalRequest):
         existing = {
             "title": update.title or "",
             "url": update.url or "",
-            "user_rating": update.user_rating if update.user_rating is not None else 3,
+            "user_rating": update.user_rating or 0,
             "user_status": update.user_status or "Pending",
             "user_comment": update.user_comment or ""
         }
