@@ -259,12 +259,15 @@ async def chat_endpoint(req: ChatRequest):
         
         # ✅ NEW: STRICT ANTI-HALLUCINATION INJECTION
         prompt += """
-        
-        SYSTEM PROTOCOL:
-        1. You are in 'Research Mode'. You have NO internal memory of URLs.
-        2. You MUST use 'perform_web_search' to find real signals.
-        3. COPY THE URL EXACTLY from the search results. Do not type it out from memory.
-        4. If the search returns no valid links, return text saying 'No verified signals found' instead of hallucinating a fake card.
+
+        SYSTEM PROTOCOL (HIGH-FRICTION SEARCH):
+        1) You are in 'Research Mode'. You have NO internal memory of URLs. No search = no signal.
+        2) Generate 3–5 high-friction search queries using Underground/Edge/Conflict patterns tailored to the user's ask.
+        3) For EACH query, call 'perform_web_search'.
+        4) Discard any search result that lacks a direct article/news URL (ignore homepages, nav pages, vague redirects). COPY THE URL EXACTLY from results.
+        5) Confirm each kept link fits the requested Time Horizon before using it.
+        6) If no valid URLs are returned, respond with 'No verified signals found'.
+        7) Rerun/refine searches until the requested number of signals is met, and every signal has a verified URL.
         """
         
         if learning_prompt:
