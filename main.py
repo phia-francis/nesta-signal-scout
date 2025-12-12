@@ -441,7 +441,9 @@ def normalize_signal_metadata(tool_args: Dict[str, Any]) -> Dict[str, Any]:
 
 def craft_widget_response(tool_args):
     """Standardizes the card data for the frontend."""
-    url = tool_args.get("sourceURL") or tool_args.get("url")
+
+    # Accept the contract field (final_url) while keeping backward compatibility with url/sourceURL
+    url = tool_args.get("final_url") or tool_args.get("url") or tool_args.get("sourceURL")
 
     # Cards must include tool-provided URLs to comply with the anti-hallucination policy.
     if not url:
