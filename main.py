@@ -494,7 +494,7 @@ class UpdateSignalRequest(BaseModel):
     url: Optional[str] = ""
     title: Optional[str] = ""
     user_rating: Optional[int] = 3
-    user_status: Optional[str] = "Reviewed"
+    user_status: Optional[str] = "Pending"
     user_comment: Optional[str] = ""
     shareable: Optional[str] = "Maybe"
     feedback: Optional[str] = ""
@@ -549,25 +549,25 @@ def update_signal(update: UpdateSignalRequest):
                 match = rec
                 break
 
-        if match:
-            merged = {
-                "title": match.get("Title", existing["title"]),
-                "score": match.get("Score", 0),
-                "hook": match.get("Hook", ""),
-                "url": match.get("URL", existing["url"]),
-                "mission": match.get("Mission", ""),
-                "lenses": match.get("Lenses", ""),
-                "score_evocativeness": match.get("Score_Evocativeness", 0),
-                "score_novelty": match.get("Score_Novelty", 0),
-                "score_evidence": match.get("Score_Evidence", 0),
-                "user_rating": existing["user_rating"],
-                "user_status": existing["user_status"],
-                "user_comment": existing["user_comment"],
-                "shareable": existing.get("shareable") or match.get("Shareable", "Maybe"),
-                "feedback": existing.get("feedback") or match.get("Feedback", match.get("User_Comment", ""))
-            }
-            upsert_signal(merged)
-            return {"status": "updated"}
+            if match:
+                merged = {
+                    "title": match.get("Title", existing["title"]),
+                    "score": match.get("Score", 0),
+                    "hook": match.get("Hook", ""),
+                    "url": match.get("URL", existing["url"]),
+                    "mission": match.get("Mission", ""),
+                    "lenses": match.get("Lenses", ""),
+                    "score_evocativeness": match.get("Score_Evocativeness", 0),
+                    "score_novelty": match.get("Score_Novelty", 0),
+                    "score_evidence": match.get("Score_Evidence", 0),
+                    "user_rating": existing["user_rating"],
+                    "user_status": existing["user_status"],
+                    "user_comment": existing["user_comment"],
+                    "shareable": existing.get("shareable") or match.get("Shareable", "Maybe"),
+                    "feedback": existing.get("feedback") or match.get("Feedback", match.get("User_Comment", ""))
+                }
+                upsert_signal(merged)
+                return {"status": "updated"}
 
         # If not found, save as new pending entry
         upsert_signal({
