@@ -502,13 +502,27 @@
         }
 
         function renderCard(data) {
+            const clamp10 = (val) => Math.max(0, Math.min(10, parseInt(val) || 0));
+            const sEvoRaw = clamp10(data.score_evocativeness);
+            const sNovRaw = clamp10(data.score_novelty);
+            const sEviRaw = clamp10(data.score_evidence);
+
+            const derivedQuality = Math.round(((sEvoRaw + sNovRaw + sEviRaw) / 30) * 100);
+            const qualityScore = Math.max(0, Math.min(100, parseInt(data.score) || derivedQuality || 0));
+
+            // Normalise the signal object so saves and UI use the same score basis.
+            data.score = qualityScore;
+            data.score_evocativeness = sEvoRaw;
+            data.score_novelty = sNovRaw;
+            data.score_evidence = sEviRaw;
+
             currentSignals.push(data);
             const idx = currentSignals.length - 1;
             const chatBox = document.getElementById('chat-box');
 
             let scoreClass = "bg-gray-100 text-black";
-            if(data.score >= 80) scoreClass = "bg-[#18A48C] text-white";
-            else if(data.score >= 60) scoreClass = "bg-[#97D9E3] text-black";
+            if(qualityScore >= 80) scoreClass = "bg-[#18A48C] text-white";
+            else if(qualityScore >= 60) scoreClass = "bg-[#97D9E3] text-black";
             const missionColorMap = {
                 "A Sustainable Future": "#18A48C",
                 "A Fairer Start": "#FF6E47",
@@ -517,7 +531,6 @@
             const missionBg = missionColorMap[data.mission] || "#0F294A";
             const missionHtml = data.mission ? `<span class="mission-tag" style="background:${missionBg};">${data.mission}</span>` : '';
             const lensesHtml = data.lenses ? data.lenses.split(',').map(tag => `<span class="border border-black text-black text-[9px] px-1.5 py-0.5 font-bold uppercase hover:bg-[#97D9E3] transition-colors">${tag.trim()}</span>`).join('') : '';
-            const sEvo = data.score_evocativeness || 0; const sNov = data.score_novelty || 0; const sEvi = data.score_evidence || 0;
             const sourceLabel = formatSourceLabel(data.final_url || data.sourceURL || "");
             const region = regionFromUrl(data.final_url || data.sourceURL || "", data.source_region || "");
             const regionChip = region ? `<span class="region-chip">${flagForRegion(region)} ${region}</span>` : '';
@@ -551,6 +564,7 @@
                                         <div class="flex justify-between"><span>Evidence (verifiable)</span> <span class="font-mono">${sEvi}/10</span></div>
                                         <div class="mt-2 text-[9px] text-[#0F294A]">Hover to see why this score was assigned.</div>
                                     </div>
+                                    <div class="text-[10px] text-gray-500 mt-1">Overall derived from these sub-scores (equal weighting).</div>
                                 </div>
                                 <div class="min-w-[140px]">
                                     <div class="flex justify-between items-center text-[10px] font-bold text-[#0F294A] mb-1">
