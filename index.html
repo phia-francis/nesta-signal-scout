@@ -99,6 +99,11 @@
         .quality-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
         .region-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(15,41,74,0.06); border: 1px solid rgba(15,41,74,0.12); border-radius: 12px; padding: 6px 10px; font-size: 11px; font-weight: 700; }
         .quality-bar { height: 8px; border-radius: 6px; background: linear-gradient(90deg, #18A48C, #97D9E3, #9A1BBE); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+
+        .signal-title,
+        .signal-description {
+            font-family: 'Century Gothic', CenturyGothic, AppleGothic, 'Inter', sans-serif;
+        }
         
         .badge-source {
             background: rgba(0,0,0,0.08);
@@ -131,6 +136,7 @@
             border-radius: 999px;
             height: 6px;
             overflow: hidden;
+            width: 220px;
         }
         
         .progress-bar {
@@ -286,6 +292,7 @@
         let currentSignals = [];
         let currentTimeFilter = "Past Month";
         const qualityPreferences = { recent: true, niche: false, verified: false };
+        const autoSavedKeys = new Set();
 
         window.onload = async () => {
             try {
@@ -315,6 +322,39 @@
                 toast.classList.remove('show');
                 setTimeout(() => toast.remove(), 250);
             }, 3200);
+        }
+
+        async function autoSaveSignal(data) {
+            const key = data.final_url || data.sourceURL || data.url;
+            if (!key || autoSavedKeys.has(key)) return;
+            autoSavedKeys.add(key);
+            const payload = {
+                title: data.title,
+                score: data.score,
+                hook: data.hook,
+                url: data.final_url || data.sourceURL || data.url,
+                mission: data.mission || "",
+                lenses: data.lenses || "",
+                score_evocativeness: data.score_evocativeness || 0,
+                score_novelty: data.score_novelty || 0,
+                score_evidence: data.score_evidence || 0,
+                user_rating: 3,
+                user_status: 'Autosaved',
+                user_comment: data.user_comment || '',
+                feedback: data.feedback || '',
+                shareable: data.shareable || 'Maybe'
+            };
+            try {
+                const res = await fetch(API_BASE_URL + '/api/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Autosave failed');
+            } catch (err) {
+                console.error('Autosave failed', err);
+                autoSavedKeys.delete(key);
+            }
         }
 
         function toggleQualityChip(el) {
@@ -477,7 +517,7 @@
                         <span id="${loaderId}-status" class="text-[10px] text-[#0F294A] font-normal normal-case">
                             Curating niche sources...
                         </span>
-                        <div class="progress-track">
+                        <div class="progress-track shrink-0">
                             <div id="${loaderId}-bar" class="progress-bar"></div>
                         </div>
                     </div>
@@ -570,6 +610,7 @@
             data.score_novelty = sNovRaw;
             data.score_evidence = sEviRaw;
 
+            autoSaveSignal(data);
             currentSignals.push(data);
             const idx = currentSignals.length - 1;
             const chatBox = document.getElementById('chat-box');
@@ -605,7 +646,6 @@
                         <div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
                             <div class="flex items-center gap-2">
                                 ${sourceLabel ? `<span class="badge-source subtle-pulse">${sourceLabel}</span>` : ''}
-                                <div class="pill pill-ghost">Signal Quality</div>
                             </div>
                             <div class="flex items-center gap-2">
                                 <div class="relative group/score cursor-help">
@@ -619,23 +659,11 @@
                                     </div>
                                     <div class="text-[10px] text-gray-500 mt-1">Overall derived from these sub-scores (equal weighting).</div>
                                 </div>
-                                <div class="min-w-[140px]">
-                                    <div class="flex justify-between items-center text-[10px] font-bold text-[#0F294A] mb-1">
-                                        <span>Signal Quality</span>
-                                        <span class="font-mono">${qualityScore}%</span>
-                                    </div>
-                                    <div class="quality-bar">
-                                        <div style="width:${qualityScore}%; height:8px; border-radius:6px; background: linear-gradient(90deg, #18A48C, #97D9E3, #9A1BBE);"></div>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-1 text-[9px] text-gray-500 mt-1">
-                                        <span>Evoc.</span><span>Novel</span><span>Evidence</span>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
-                        <h3 class="font-bold text-black text-xl leading-tight mb-3 group-hover:text-[#9A1BBE] transition-colors"><a href="${data.final_url}" target="_blank" class="hover:underline">${data.title}</a></h3>
-                        <p class="text-[15px] text-gray-800 mb-5 leading-relaxed font-medium bg-[#f8f8f8] border border-gray-200 p-3 rounded-lg shadow-sm">${data.hook}</p>
+                        <h3 class="font-bold text-black text-xl leading-tight mb-3 group-hover:text-[#9A1BBE] transition-colors signal-title"><a href="${data.final_url}" target="_blank" class="hover:underline">${data.title}</a></h3>
+                        <p class="text-[15px] text-gray-800 mb-5 leading-relaxed font-medium bg-[#f8f8f8] border border-gray-200 p-3 rounded-lg shadow-sm signal-description">${data.hook}</p>
                         <div class="flex flex-wrap gap-2 mb-6">${missionHtml}${lensesHtml}</div>
 
                         <div class="bg-gray-50 border-2 border-gray-200 p-3 mb-4 text-xs rounded-lg">
@@ -689,24 +717,34 @@
             const feedback = document.getElementById(`comment-${idx}`).value;
             const rating = 3;
 
+            const payload = {
+                title: data.title, score: data.score, hook: data.hook, url: data.final_url || data.sourceURL || data.url,
+                mission: data.mission || "", lenses: data.lenses || "",
+                score_evocativeness: data.score_evocativeness || 0, score_novelty: data.score_novelty || 0, score_evidence: data.score_evidence || 0,
+                user_rating: parseInt(rating), user_status: status, user_comment: feedback, shareable: shareable, feedback: feedback
+            };
+
             try {
                 const res = await fetch(API_BASE_URL + '/api/save', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        title: data.title, score: data.score, hook: data.hook, url: data.final_url,
-                        mission: data.mission || "", lenses: data.lenses || "",
-                        score_evocativeness: data.score_evocativeness || 0, score_novelty: data.score_novelty || 0, score_evidence: data.score_evidence || 0,
-                        user_rating: parseInt(rating), user_status: status, user_comment: feedback, shareable: shareable, feedback: feedback
-                    })
+                    body: JSON.stringify(payload)
                 });
-                if(res.ok) {
-                    btn.className = "bg-[#18A48C] text-white text-[10px] font-bold cursor-default uppercase tracking-widest border-r border-gray-700";
-                    btn.innerHTML = `SAVED`;
-                    btn.removeAttribute("onclick");
-                    showToast('Signal saved to database', 'success');
-                    refreshDatabase();
-                } else { throw new Error("Save failed"); }
+
+                if (!updateRes.ok) {
+                    const res = await fetch(API_BASE_URL + '/api/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error("Save failed");
+                }
+
+                btn.className = "bg-[#18A48C] text-white text-[10px] font-bold cursor-default uppercase tracking-widest border-r border-gray-700";
+                btn.innerHTML = `SAVED`;
+                btn.removeAttribute("onclick");
+                showToast('Signal saved to database', 'success');
+                refreshDatabase();
             } catch (err) {
                 alert("Failed to save.");
                 btn.innerHTML = originalContent;
@@ -755,6 +793,9 @@
                     </div>`;
                 }).join('');
             } catch (err) { console.error("DB Error", err); }
+            finally {
+                setButtonLoading(refreshBtn, false);
+            }
         }
 
         async function updateSavedSignal(url, title, rowId) {
