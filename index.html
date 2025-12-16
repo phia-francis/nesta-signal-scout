@@ -35,12 +35,10 @@
         .source-tag.active { background-color: #00C3E8; border-color: #00C3E8; font-weight: 600; color: black; }
         .preview-scroll { max-height: 150px; overflow-y: auto; scrollbar-width: thin; }
 
-        /* Tooltip Styles */
+        /* Tooltip & Toast */
         .tooltip { visibility: hidden; opacity: 0; transition: opacity 0.2s; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #0F294A; color: white; padding: 8px; border-radius: 6px; font-size: 10px; white-space: nowrap; z-index: 50; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .has-tooltip:hover .tooltip { visibility: visible; opacity: 1; }
         .tooltip-arrow { position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #0F294A transparent transparent transparent; }
-
-        /* Toast Notification */
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
         .toast { background: #0F294A; color: white; padding: 12px 24px; border-radius: 8px; font-family: 'Averta', sans-serif; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideIn 0.3s ease-out; display: flex; items-center; gap: 8px; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -53,7 +51,6 @@
     <header class="bg-nesta-dark text-white pt-8 pb-32 relative overflow-hidden shadow-lg">
         <div class="absolute top-0 right-0 w-96 h-96 bg-nesta-blue rounded-full mix-blend-multiply filter blur-3xl opacity-20 transform translate-x-1/2 -translate-y-1/2"></div>
         <div class="container mx-auto px-6 relative z-10">
-            
             <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-6">
                 <div>
                     <div class="flex items-center gap-3 mb-2">
@@ -63,32 +60,20 @@
                     <h1 class="font-display text-5xl font-bold tracking-tight">Signal Scout</h1>
                     <p class="text-nesta-teal font-body text-sm font-semibold tracking-wide uppercase mt-1">Automated Horizon Scanning</p>
                 </div>
-
                 <div class="w-full md:w-80 bg-white/5 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="text-xs font-bold uppercase text-nesta-teal tracking-widest">Recent Saves</h3>
                         <button onclick="openSavedSignals()" class="text-[10px] font-bold uppercase tracking-widest bg-white text-nesta-dark px-3 py-1 rounded-full hover:bg-nesta-teal transition-colors">View All &rarr;</button>
                     </div>
-                    <div id="preview-area" class="preview-scroll space-y-2">
-                        <div class="text-[10px] text-gray-400 italic">Loading...</div>
-                    </div>
+                    <div id="preview-area" class="preview-scroll space-y-2"><div class="text-[10px] text-gray-400 italic">Loading...</div></div>
                 </div>
             </div>
             
             <div class="bg-white p-6 rounded-3xl shadow-soft max-w-5xl mx-auto transform translate-y-8 border-b-4 border-nesta-blue text-nesta-black">
-                
                 <div class="flex flex-col md:flex-row gap-4 mb-6">
-                    <input type="text" id="topic-input" 
-                        placeholder="Topic (Leave empty for random scan...)" 
-                        class="flex-1 p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:border-nesta-blue focus:bg-white focus:outline-none text-lg text-nesta-dark placeholder-gray-400 font-body transition-all"
-                        onkeydown="if(event.key === 'Enter') runScan()">
-                    
-                    <button onclick="runScan()" 
-                        class="bg-nesta-blue hover:bg-nesta-dark text-white font-display font-bold text-lg px-8 py-3 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg whitespace-nowrap flex items-center gap-2">
-                        <span>🚀 Scout</span>
-                    </button>
+                    <input type="text" id="topic-input" placeholder="Topic (Leave empty for random scan...)" class="flex-1 p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:border-nesta-blue focus:bg-white focus:outline-none text-lg text-nesta-dark placeholder-gray-400 font-body transition-all" onkeydown="if(event.key === 'Enter') runScan()">
+                    <button onclick="runScan()" class="bg-nesta-blue hover:bg-nesta-dark text-white font-display font-bold text-lg px-8 py-3 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg whitespace-nowrap flex items-center gap-2"><span>🚀 Scout</span></button>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center border-t border-gray-100 pt-6">
                     <div class="flex gap-4">
                         <div class="flex flex-col gap-1">
@@ -109,7 +94,6 @@
                             </select>
                         </div>
                     </div>
-
                     <div class="flex items-center gap-3 justify-start md:justify-center">
                         <span class="text-xs font-bold uppercase text-gray-400 tracking-wider">Tech Mode</span>
                         <div class="relative inline-block w-10 align-middle">
@@ -117,7 +101,6 @@
                             <label for="tech-mode-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
                         </div>
                     </div>
-
                     <div class="flex flex-col gap-1">
                         <label class="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Source Bias</label>
                         <div class="flex flex-wrap gap-2" id="source-filters">
@@ -158,9 +141,7 @@
     </div>
 
     <footer class="bg-nesta-dark text-white pt-12 pb-8 border-t border-nesta-blue mt-auto">
-        <div class="container mx-auto px-6 text-center text-xs text-gray-500">
-            &copy; 2025 Nesta Discovery Hub.
-        </div>
+        <div class="container mx-auto px-6 text-center text-xs text-gray-500">&copy; 2025 Nesta Discovery Hub.</div>
     </footer>
 
     <script>
@@ -240,8 +221,7 @@
             const accent = theme.split(' ')[0];
             const lenses = (signal.lenses || '').split(',').map(l => `<span class="bg-gray-100 text-[10px] px-2 py-1 rounded text-gray-500 uppercase tracking-wide">${l}</span>`).join('');
             
-            // Handle potentially missing values for Feedback and Shareable
-            const commentVal = signal.user_comment || signal.feedback || "";
+            const commentVal = signal.feedback || signal.user_comment || "";
             const shareableVal = signal.shareable || "Maybe";
 
             const html = `
@@ -249,7 +229,6 @@
                     
                     <div class="flex justify-between items-start mb-4">
                         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-400 border px-2 py-1 rounded">${signal.source_country || 'Global'}</span>
-                        
                         <div class="relative has-tooltip cursor-help group">
                             <span class="${accent} bg-gray-50 font-bold text-xs px-3 py-1 rounded-full border border-gray-100">${signal.score}/100</span>
                             <div class="tooltip">
@@ -292,14 +271,9 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = `<span>Saving...</span>`;
             
-            // Capture Values
-            const feedback = document.getElementById(`comment-${idSuffix}`).value;
-            const shareable = document.getElementById(`share-${idSuffix}`).value;
-
-            // Update Signal Object
-            signal.user_comment = feedback;
-            signal.feedback = feedback;
-            signal.shareable = shareable;
+            signal.feedback = document.getElementById(`comment-${idSuffix}`).value;
+            signal.user_comment = signal.feedback; // Sync both fields
+            signal.shareable = document.getElementById(`share-${idSuffix}`).value;
 
             fetch(`${API_BASE_URL}/api/save`, {
                 method: 'POST',
@@ -308,33 +282,22 @@
             })
             .then(res => res.json())
             .then(data => {
-                if(data.status.includes('success') || data.status.includes('saved') || data.status.includes('updated')) {
-                    showToast(data.status === 'saved' ? 'Signal Saved to Vault' : 'Database Updated');
-                    btn.innerHTML = `<span>Success</span>`;
-                    btn.classList.add('bg-nesta-green', 'text-white', 'border-transparent');
-                    
-                    if(data.status === 'saved') loadRecentSignals();
-                    
-                    setTimeout(() => { 
-                        btn.innerHTML = originalText;
-                        btn.classList.remove('bg-nesta-green', 'text-white', 'border-transparent');
-                    }, 2000);
-                } else {
-                    showToast('Error saving signal', 'error');
-                    btn.innerHTML = `<span>Error</span>`;
-                }
+                showToast(data.status === 'saved' ? 'Signal Saved to Vault' : 'Database Updated');
+                btn.innerHTML = `<span>Success</span>`;
+                btn.classList.add('bg-nesta-green', 'text-white', 'border-transparent');
+                if(data.status === 'saved') loadRecentSignals();
+                setTimeout(() => { 
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('bg-nesta-green', 'text-white', 'border-transparent');
+                }, 2000);
             })
-            .catch(() => {
-                showToast('Network Error', 'error');
-                btn.innerHTML = `<span>Retry</span>`;
-            });
+            .catch(() => { showToast('Network Error', 'error'); btn.innerHTML = `<span>Retry</span>`; });
         }
 
         async function openSavedSignals() {
             document.getElementById('saved-modal').classList.remove('hidden');
             const list = document.getElementById('saved-list');
             list.innerHTML = '<div class="col-span-full text-center py-10">Loading database...</div>';
-            
             try {
                 const res = await fetch(`${API_BASE_URL}/api/saved`);
                 const data = await res.json();
@@ -343,7 +306,7 @@
                     const normalized = {
                         title: sig.Title, score: sig.Score, hook: sig.Hook, final_url: sig.URL,
                         source_country: sig.Source_Country, mission: sig.Mission, lenses: sig.Lenses,
-                        user_comment: sig.User_Comment || sig.Feedback, shareable: sig.Shareable,
+                        feedback: sig.Feedback || sig.User_Comment, shareable: sig.Shareable,
                         score_novelty: sig.Score_Novelty, score_evidence: sig.Score_Evidence, score_evocativeness: sig.Score_Evocativeness
                     };
                     createSignalCard(normalized, i, false, 'saved-list');
