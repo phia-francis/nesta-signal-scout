@@ -50,6 +50,7 @@ def connect_db():
     except: return None
 
 def ensure_sheet_headers(sheet):
+    # User_Rating kept for backward compatibility but ignored in logic
     expected = [
         "Title", "Score", "Hook", "URL", "Mission", "Lenses", 
         "Score_Evocativeness", "Score_Novelty", "Score_Evidence", 
@@ -62,13 +63,33 @@ def ensure_sheet_headers(sheet):
             sheet.update(range_name='A1', values=[expected])
     except: pass
 
-# --- LOGIC: RANDOM & PROMPTS ---
+# --- PROMPT INJECTION HELPERS ---
 def generate_random_topic():
+    """Generates a random search topic if input is empty."""
     mission = random.choice(list(MISSION_KEYWORDS.keys()))
     kw = random.sample(MISSION_KEYWORDS[mission], 2)
     return f"Future of {mission} involving {kw[0]} and {kw[1]}"
 
+def get_learning_examples():
+    """Fetches 'Shareable: Yes' examples to teach the AI the right 'taste'."""
+    try:
+        sheet = connect_db()
+        if not sheet: return ""
+        records = sheet.get_all_records()
+        
+        # LOGIC UPDATE: Filter by 'Shareable' == 'Yes' instead of Rating
+        good = [r for r in records if str(r.get('Shareable','')).lower() == 'yes']
+        
+        if not good: return ""
+        examples = random.sample(good, k=min(3, len(good)))
+        prompt = "### USER'S GOLD STANDARD EXAMPLES (EMULATE THESE):\n"
+        for ex in examples:
+            prompt += f"- Title: {ex.get('Title')}\n  Hook: {ex.get('Hook')}\n  Note: {ex.get('User_Comment','')}\n"
+        return prompt
+    except: return ""
+
 def get_mission_keywords(message: str):
+    """Injects mission-specific keywords to force diversity."""
     rng = random.Random()
     prompt = "### MISSION CONTEXT (Use these for diversity):"
     for m, k in MISSION_KEYWORDS.items():
@@ -81,7 +102,7 @@ async def perform_google_search(query):
     print(f"🔍 Searching: {query}")
     async with httpx.AsyncClient() as http_client:
         try:
-            params = {"key": GOOGLE_SEARCH_KEY, "cx": GOOGLE_SEARCH_CX, "q": query, "num": 8, "dateRestrict": "m1"}
+            params = {"key": GOOGLE_SEARCH_KEY, "cx": GOOGLE_SEARCH_CX, "q": query, "num": 10, "dateRestrict": "m1"}
             resp = await http_client.get("https://www.googleapis.com/customsearch/v1", params=params)
             data = resp.json()
             items = data.get("items", [])
@@ -108,11 +129,11 @@ class SaveSignalRequest(BaseModel):
     score_evocativeness: Optional[int] = 0
     score_novelty: Optional[int] = 0
     score_evidence: Optional[int] = 0
-    user_rating: Optional[int] = 3
+    user_rating: Optional[int] = 3   # Deprecated but kept for schema
     user_status: Optional[str] = "Pending"
-    user_comment: Optional[str] = ""     # Maps to 'User_Comment' column
-    feedback: Optional[str] = ""         # Maps to 'Feedback' column (synced)
-    shareable: Optional[str] = "Maybe"
+    user_comment: Optional[str] = ""     
+    feedback: Optional[str] = ""         
+    shareable: Optional[str] = "Maybe" # Default for new signals
 
 @app.get("/")
 def health(): return {"status": "online"}
@@ -140,13 +161,16 @@ def save_signal(signal: SaveSignalRequest):
                 existing = r
                 break
         
-        # Use feedback field if provided, otherwise fallback to user_comment
         final_feedback = signal.feedback or signal.user_comment or ""
+        
+        # Logic: If updating, keep existing Shareable status unless user changed it. 
+        # If new, it defaults to "Maybe" from the Pydantic model.
+        final_shareable = signal.shareable
+        if row_idx and signal.shareable == "Maybe": 
+             # If sending default "Maybe" on an update, try to keep existing status
+             final_shareable = existing.get('Shareable', 'Maybe')
 
-        # SAFE MERGE LOGIC
         if row_idx:
-            # We prioritize the INCOMING data for editable fields (Shareable, Feedback)
-            # We prioritize EXISTING data for static fields (Title, Hook) unless they were empty
             row = [
                 signal.title or existing.get('Title',''),
                 signal.score if signal.score != 0 else existing.get('Score',0),
@@ -158,11 +182,11 @@ def save_signal(signal: SaveSignalRequest):
                 signal.score_novelty or existing.get('Score_Novelty',0),
                 signal.score_evidence or existing.get('Score_Evidence',0),
                 signal.source_country if signal.source_country != "Global" else existing.get('Source_Country','Global'),
-                signal.user_rating, 
+                0, # User Rating (Deprecated)
                 signal.user_status,
-                final_feedback, # Map to User_Comment
-                signal.shareable, 
-                final_feedback  # Map to Feedback
+                final_feedback, 
+                final_shareable, 
+                final_feedback
             ]
             sheet.update(range_name=f"A{row_idx}:O{row_idx}", values=[row])
             return {"status": "updated"}
@@ -170,7 +194,7 @@ def save_signal(signal: SaveSignalRequest):
             row = [
                 signal.title, signal.score, signal.hook, signal.final_url, signal.mission, signal.lenses, 
                 signal.score_evocativeness, signal.score_novelty, signal.score_evidence, signal.source_country, 
-                signal.user_rating, signal.user_status, final_feedback, signal.shareable, final_feedback
+                0, signal.user_status, final_feedback, signal.shareable, final_feedback
             ]
             sheet.append_row(row)
             return {"status": "saved"}
@@ -181,35 +205,51 @@ async def chat_endpoint(req: ChatRequest):
     print(f"💬 Incoming: {req.message or 'RANDOM'} | Count: {req.signal_count}")
     if not ASSISTANT_ID: raise HTTPException(500, "No Assistant ID")
 
+    # 1. SETUP
     topic = req.message if req.message.strip() else generate_random_topic()
     mission_data = get_mission_keywords(topic)
+    learning_data = get_learning_examples()
 
-    # --- THE BRAIN: COMPLEX PROMPT CONSTRUCTION ---
+    # 2. THE MAXIMALIST PROMPT (RESTORED QUERY VOLUME)
     prompt = f"TARGET TOPIC: {topic}\n"
     prompt += f"GOAL: Find exactly {req.signal_count} unique, verified weak signals."
     
     prompt += """
     \nROLE: You are Nesta's Discovery Hub Lead Foresight Researcher.
+    Operate as a research engine (not a writer) and use British English.
     
-    \nNON-NEGOTIABLE PROTOCOL:
-    1. FRICTION SEARCH: Start by searching for '[Topic] + unregulated', '[Topic] + black market', '[Topic] + lawsuit'.
-    2. FALLBACK SEARCH: If friction queries fail, pivot to specific technical queries (e.g., 'novel [Topic] pilot study'). DO NOT GIVE UP.
-    3. KILL COMMITTEE: Reject generic opinion pieces. Reject homepages. Keep only specific articles/papers with direct URLs.
+    \nNON-NEGOTIABLE PROTOCOL (THE FRICTION METHOD):
+    1. GENERATE QUERIES: Create 3-5 high-friction queries using these modifiers: 
+       - '[Topic] + unregulated / black market / smuggling'
+       - '[Topic] + lawsuit / banned / ethical outcry'
+       - '[Topic] + homebrew / DIY / citizen science'
+    2. EXECUTE: Call 'perform_web_search' for EACH query immediately. Do not ask for permission.
+    3. FILTER (KILL COMMITTEE): Reject generic opinion pieces. Reject homepages. Keep only specific articles/papers with direct URLs.
+    4. REPEAT: If you have fewer than {N} verified signals, generate NEW diverse keywords and search again. DO NOT STOP until you have {N} signals.
     """
 
-    prompt += "\n\nTOOL CONTRACT (display_signal_card): title, score (0-100), source_country, hook, final_url, mission (Enum: A Fairer Start, A Healthy Life, A Sustainable Future), lenses."
+    prompt += "\n\nTOOL CONTRACT (display_signal_card): title (<=8 words), score (0-100), source_country, hook (75-100 words, Deep Hook 3-sentence format: Signal, Twist, Implication), final_url, mission (Enum: A Fairer Start, A Healthy Life, A Sustainable Future, Mission Adjacent), lenses."
     
     prompt += """
     \nSCORING RUBRIC (0-10):
-    - Novelty: Distance from mainstream (BBC=Low, arXiv/Reddit=High).
-    - Evidence: Reality factor (Concept=Low, Pilot/Law=High).
+    - Novelty: Distance from mainstream (BBC/NYT=2, Reddit/arXiv=9).
+    - Evidence: Reality factor (Concept=1, Pilot/Law=9).
     - Evocativeness: The 'What the hell?' factor.
     """
 
-    if req.tech_mode: prompt += "\nCONSTRAINT: TECH MODE ON. Ignore policy. Focus on Hardware/Biotech/Code."
-    if req.source_types: prompt += f"\nCONSTRAINT: Prioritize sources: {', '.join(req.source_types)}."
-    prompt += f"\n\n{mission_data}"
+    if req.tech_mode: 
+        prompt += "\nCONSTRAINT: TECH MODE ON. Ignore policy/opinion. Focus on Hardware, Biotech, Materials, Code."
+    
+    if req.source_types: 
+        prompt += f"\nCONSTRAINT: Prioritize findings from these source types: {', '.join(req.source_types)}."
 
+    # Inject Learning & Mission Data
+    if learning_data:
+        prompt += f"\n\n{learning_data}\nINSTRUCTION: The examples above are rated 'Shareable: Yes'. Emulate this taste profile."
+    
+    prompt += f"\n\n{mission_data}\nINSTRUCTION: Use these keywords to ensure diversity across Nesta's missions."
+
+    # 3. EXECUTION
     try:
         thread = await asyncio.to_thread(client.beta.threads.create)
         await asyncio.to_thread(client.beta.threads.messages.create, thread_id=thread.id, role="user", content=prompt)
@@ -218,6 +258,7 @@ async def chat_endpoint(req: ChatRequest):
         acc = []
         while True:
             status = await asyncio.to_thread(client.beta.threads.runs.retrieve, thread_id=thread.id, run_id=run.id)
+            
             if status.status == 'requires_action':
                 outputs = []
                 for tool in status.required_action.submit_tool_outputs.tool_calls:
@@ -225,20 +266,29 @@ async def chat_endpoint(req: ChatRequest):
                         q = json.loads(tool.function.arguments).get("query")
                         res = await perform_google_search(q)
                         outputs.append({"tool_call_id": tool.id, "output": res})
+                    
                     elif tool.function.name == "display_signal_card":
                         data = json.loads(tool.function.arguments)
                         acc.append({
-                            "title": data.get("title","Untitled"), "score": data.get("score",0),
-                            "hook": data.get("hook",""), "final_url": data.get("final_url","#"),
+                            "title": data.get("title","Untitled"), 
+                            "score": data.get("score",0),
+                            "hook": data.get("hook",""), 
+                            "final_url": data.get("final_url","#"),
                             "source_country": data.get("source_country","Global"),
-                            "mission": data.get("mission","General"), "lenses": data.get("lenses",""),
+                            "mission": data.get("mission","General"), 
+                            "lenses": data.get("lenses",""),
                             "score_novelty": data.get("score_novelty",0), 
                             "score_evidence": data.get("score_evidence",0),
-                            "score_evocativeness": data.get("score_evocativeness",0)
+                            "score_evocativeness": data.get("score_evocativeness",0),
+                            "shareable": "Maybe" # Force default for new signals
                         })
                         outputs.append({"tool_call_id": tool.id, "output": "displayed"})
+                
                 await asyncio.to_thread(client.beta.threads.runs.submit_tool_outputs, thread_id=thread.id, run_id=run.id, tool_outputs=outputs)
+            
             elif status.status == 'completed': return {"signals": acc}
             elif status.status in ['failed', 'expired']: raise HTTPException(500, f"AI Error: {status.last_error}")
+            
             await asyncio.sleep(1)
+            
     except Exception as e: raise HTTPException(500, str(e))
