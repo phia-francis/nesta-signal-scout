@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 # Ensure keywords.py is present in your repo
 from keywords import MISSION_KEYWORDS, CROSS_CUTTING_KEYWORDS
 
@@ -54,7 +54,8 @@ def connect_db():
             "https://www.googleapis.com/auth/spreadsheets", 
             "https://www.googleapis.com/auth/drive"
         ]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        # Note: 'scopes' (plural) is correct for this library
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         g_client = gspread.authorize(creds)
         return g_client.open_by_url(SHEET_URL).sheet1
     except Exception as e:
