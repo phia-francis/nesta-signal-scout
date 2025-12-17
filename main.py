@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any, Set
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
 import gspread
@@ -190,7 +190,7 @@ async def perform_google_search(query, date_restrict="m1", requested_results: in
 class ChatRequest(BaseModel):
     message: str
     time_filter: str = "Past Month"
-    source_types: List[str] = []
+    source_types: List[str] = Field(default_factory=list)
     tech_mode: bool = False
 
 @app.post("/api/chat")
@@ -282,8 +282,10 @@ async def chat_endpoint(req: ChatRequest):
         print(f"Server Error: {e}")
         # Only check for cancellation if 'run' was created
         if isinstance(e, asyncio.CancelledError) and run:
-             try: await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
-             except: pass
+            try:
+                await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/saved")
