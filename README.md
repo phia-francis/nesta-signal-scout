@@ -137,4 +137,4 @@ Every signal is scored (0-100) based on three dimensions:
 
 -----
 
-**© 2025 Nesta Discovery Team**
+**© 2025 Nesta Discovery Hub**
