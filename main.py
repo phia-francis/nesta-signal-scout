@@ -281,5 +281,10 @@ def get_saved(): return get_sheet_records()
 
 @app.post("/api/update")
 def update_sig(req: Dict[str, Any]): 
-    upsert_signal(req)
-    return {"status": "ok"}
+    try:
+        # Pass the raw dictionary to upsert_signal
+        upsert_signal(req)
+        return {"status": "updated"}
+    except Exception as e:
+        print(f"Update Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
