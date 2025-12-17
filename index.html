@@ -333,6 +333,7 @@
         let radarChart = null;
         let isProcessing = false;
         let scanController = null; // For cancelling requests
+        let currentSaved = [];
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
@@ -356,9 +357,8 @@
             if (!text) return "";
             // Remove "In 2024," or "In 2025 " at the start
             let clean = text.replace(/^In \d{4},?\s*/i, "");
-            // Remove citations like
-            // We use a regex that looks for
-            clean = clean.replace(/\/g, "");
+            // Drop bracketed citations (e.g. "[1]") and stray backslashes
+            clean = clean.replace(/\[[^\]]*\]/g, "").replace(/\\/g, "");
             return clean;
         }
 
