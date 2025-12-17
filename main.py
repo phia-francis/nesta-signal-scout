@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from typing import Optional, List, Dict, Any, Set
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse # ✅ ADDED for UI
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -39,12 +39,13 @@ client = OpenAI(
 
 app = FastAPI()
 
+# ✅ STRONG CORS CONFIGURATION
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"], # Allows all methods
+    allow_headers=["*"], # Allows all headers
 )
 
 # --- HELPERS ---
@@ -109,9 +110,7 @@ def get_sheet_records(include_rejected: bool = False) -> List[Dict[str, Any]]:
         records = []
         for idx, row in enumerate(rows[1:], start=2):
             if all(cell == "" for cell in row): continue
-            # Pad row if missing columns
             while len(row) < len(headers): row.append("")
-            
             record = {headers[i]: row[i] for i in range(len(headers))}
             record["_row"] = idx
             status = str(record.get("User_Status", "")).lower()
@@ -127,7 +126,6 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     if not sheet: return
     ensure_sheet_headers(sheet)
     
-    # Sanitize dictionary keys to match sheet headers (lowercase -> match)
     row_data = [
         signal.get("title", ""), 
         signal.get("score", 0),
@@ -199,12 +197,10 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(req: ChatRequest):
     try:
         print(f"Incoming: {req.message}")
-        
         prompt = req.message
         prompt += "\n\nROLE: You are Nesta's Discovery Hub Lead Foresight Researcher."
         prompt += "\n\nPROTOCOL: 1. SEARCH high-friction queries. 2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals."
         prompt += "\n\nTOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet."
-        
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
         prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Bias Source Types: {', '.join(req.source_types)}."
         
@@ -230,12 +226,10 @@ async def chat_endpoint(req: ChatRequest):
                         d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
                         res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"))
                         tool_outputs.append({"tool_call_id": tool.id, "output": res})
-                    
                     elif tool.function.name == "fetch_article_text":
                         args = json.loads(tool.function.arguments)
                         content = await fetch_article_text(args.get("url"))
                         tool_outputs.append({"tool_call_id": tool.id, "output": content})
-                    
                     elif tool.function.name == "display_signal_card":
                         args = json.loads(tool.function.arguments)
                         card = {
@@ -249,7 +243,6 @@ async def chat_endpoint(req: ChatRequest):
                             "source_date": args.get("published_date", "Recent"),
                             "ui_type": "signal_card"
                         }
-                        
                         if card["url"] and card["url"] not in seen_urls:
                             accumulated_signals.append(card)
                             seen_urls.add(card["url"])
@@ -270,7 +263,6 @@ async def chat_endpoint(req: ChatRequest):
             
             elif run_status.status in ['failed', 'expired', 'cancelled']:
                 return {"ui_type": "text", "content": f"System Error: {run_status.last_error}"}
-            
             await asyncio.sleep(1)
 
     except Exception as e:
@@ -289,10 +281,11 @@ def update_sig(req: Dict[str, Any]):
         print(f"Update Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ✅ CRITICAL FIX: SERVE THE FRONTEND ---
 @app.get("/")
 def serve_home():
-    """Serves the index.html file so the UI loads correctly."""
-    with open("index.html", "r") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
+    # Fallback to serving the HTML if running as a monolithic app on Render
+    try:
+        with open("index.html", "r") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+    except:
+        return HTMLResponse(content="<h1>Backend Running</h1>", status_code=200)
