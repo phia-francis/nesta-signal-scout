@@ -104,9 +104,7 @@
 
         /* RADAR LOADER */
         .radar-loader {
-            width: 40px; height: 40px; border-radius: 50%;
-            border: 2px solid rgba(151, 217, 227, 0.2);
-            border-top-color: #97D9E3;
+            border-radius: 50%;
             animation: spin 1.2s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -334,6 +332,9 @@
         let isProcessing = false;
         let scanController = null; // For cancelling requests
         let currentSaved = [];
+        
+        // --- ANIMATION STATE ---
+        let loadIntervals = [];
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
@@ -362,6 +363,58 @@
             loadPreview();
         }
 
+        // --- LOADING ANIMATION LOGIC ---
+        function startLoadingSimulation() {
+            const statuses = [
+                "Initializing Scout Agent...",
+                "Scanning Global Sources...",
+                "Filtering Mainstream Noise...",
+                "Applying Friction Method...",
+                "Scoring Novelty & Evidence...",
+                "Synthesizing Intelligence..."
+            ];
+            let statusIndex = 0;
+            
+            stopLoadingSimulation(); // Clear existing
+
+            // Status Text Rotator (1.2s)
+            const statInt = setInterval(() => {
+                statusIndex = (statusIndex + 1) % statuses.length;
+                const el = document.getElementById('loading-status-text');
+                if(el) {
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        el.innerText = statuses[statusIndex];
+                        el.style.opacity = '1';
+                    }, 200);
+                }
+            }, 1200);
+            loadIntervals.push(statInt);
+
+            // Percentage Simulator
+            let progress = 0;
+            const progInt = setInterval(() => {
+                if(progress < 99) {
+                    // Logarithmic slowdown
+                    let increment = (100 - progress) / 80;
+                    if(increment < 0.1) increment = 0.1;
+                    progress += increment;
+                    
+                    const textEl = document.getElementById('loading-percent-text');
+                    const barEl = document.getElementById('loading-bar-inner');
+                    
+                    if(textEl) textEl.innerText = Math.floor(progress) + '%';
+                    if(barEl) barEl.style.width = progress + '%';
+                }
+            }, 50);
+            loadIntervals.push(progInt);
+        }
+
+        function stopLoadingSimulation() {
+            loadIntervals.forEach(clearInterval);
+            loadIntervals = [];
+        }
+
         function getMissionEmoji(mission) {
             for (const [key, emoji] of Object.entries(MISSION_EMOJIS)) { if (mission.includes(key)) return emoji; }
             return ''; 
@@ -377,9 +430,7 @@
 
         function cleanText(text) {
             if (!text) return "";
-            // Remove "In 2024," or "In 2025 " at the start
             let clean = text.replace(/^In \d{4},?\s*/i, "");
-            // Drop bracketed citations (e.g. "[1]") and stray backslashes
             clean = clean.replace(/\[[^\]]*\]/g, "").replace(/\\/g, "");
             return clean;
         }
@@ -408,7 +459,10 @@
                 if(!res.ok) throw new Error();
                 const data = await res.json();
                 if(!data || data.length === 0) { grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400">Database empty.</div>'; return; }
-                const recent = data.slice(0, 3);
+                
+                // REVERSE TO GET NEWEST (BOTTOM OF SHEET) FIRST
+                const recent = data.slice().reverse().slice(0, 3);
+                
                 grid.innerHTML = ''; 
                 recent.forEach((sig, i) => {
                     const normalized = {
@@ -458,12 +512,10 @@
             const stopBtn = document.getElementById('stop-btn');
 
             if (isScanning) {
-                // HIDE Start buttons, SHOW Stop button
                 startBtn.classList.add('hidden');
                 broadBtn.classList.add('hidden');
                 stopBtn.classList.remove('hidden');
             } else {
-                // SHOW Start buttons, HIDE Stop button
                 startBtn.classList.remove('hidden');
                 broadBtn.classList.remove('hidden');
                 stopBtn.classList.add('hidden');
@@ -475,7 +527,6 @@
                 scanController.abort();
                 scanController = null;
                 showToast('Scan Cancelled', 'error');
-                // The finally block in generateSignal will handle UI reset via setScanningState(false)
             }
         }
 
@@ -486,20 +537,30 @@
             
             if (!topic && !isBroad) return showToast("Please enter a topic", "error");
 
-            // UI UPDATES START
             isProcessing = true;
-            setScanningState(true); // Toggle buttons
+            setScanningState(true); 
+            switchView('list');
             
+            // --- NEW LOADING ANIMATION HTML ---
             container.innerHTML = `
-                <div class="col-span-full py-24 flex flex-col items-center justify-center space-y-6 animate-fade-in-up">
-                    <div class="radar-loader"></div>
-                    <div class="text-center">
-                        <p class="font-display text-2xl text-nesta-navy mb-1">Scanning Horizon...</p>
-                        <p class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Searching • Scraping • Scoring</p>
+                <div class="col-span-full py-24 flex flex-col items-center justify-center space-y-8 animate-fade-in-up">
+                    <div class="radar-loader w-16 h-16 border-4 border-t-nesta-blue"></div>
+                    
+                    <div class="w-full max-w-md space-y-2">
+                        <div class="flex justify-between items-end px-1">
+                            <p id="loading-status-text" class="font-display text-xl text-nesta-navy transition-opacity duration-200">Initializing Scout Agent...</p>
+                            <p id="loading-percent-text" class="font-bold text-nesta-blue text-xl">0%</p>
+                        </div>
+                        <div class="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                            <div id="loading-bar-inner" class="h-full bg-gradient-to-r from-nesta-blue to-nesta-aqua w-0 transition-all duration-100 ease-out"></div>
+                        </div>
+                        <p class="text-[10px] font-bold text-nesta-darkgrey uppercase tracking-widest text-center pt-2">
+                            AI Analysis in Progress
+                        </p>
                     </div>
                 </div>`;
             
-            switchView('list');
+            startLoadingSimulation();
 
             const payload = {
                 message: isBroad 
@@ -510,13 +571,13 @@
                 tech_mode: document.getElementById('tech-mode').checked
             };
 
-            // INIT CONTROLLER
             scanController = new AbortController();
             const signal = scanController.signal;
 
             try {
                 const backendReady = await warmBackend();
                 if (!backendReady) {
+                    stopLoadingSimulation();
                     container.innerHTML = `<div class="p-8 bg-white border-l-4 border-nesta-red shadow-sm text-center"><p class="font-bold text-nesta-red">Backend Offline</p><p class="text-sm text-gray-500">Could not reach the scanning service. Trying again in a moment...</p></div>`;
                     showToast('Could not reach backend. Please retry.', 'error');
                     return;
@@ -526,11 +587,13 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload),
-                    signal: signal // Attach signal
+                    signal: signal 
                 });
                 
                 if(!res.ok) throw new Error();
                 const data = await res.json();
+                
+                stopLoadingSimulation();
                 container.innerHTML = '';
 
                 if (data.ui_type === 'signal_list') {
@@ -543,16 +606,16 @@
                     container.innerHTML = `<div class="p-10 bg-white border border-gray-100 rounded-xl text-center text-nesta-navy shadow-sm">${data.content}</div>`;
                 }
             } catch (error) {
+                stopLoadingSimulation();
                 if (error.name === 'AbortError') {
                     container.innerHTML = `<div class="p-10 text-center text-gray-400">Scan cancelled.</div>`;
                 } else {
                     container.innerHTML = `<div class="p-8 bg-white border-l-4 border-nesta-red shadow-sm text-center"><p class="font-bold text-nesta-red">Connection Failed</p><p class="text-sm text-gray-500">Please check your internet or try again later.</p></div>`;
                 }
             } finally {
-                // UI UPDATES END
                 isProcessing = false;
                 scanController = null;
-                setScanningState(false); // Reset buttons
+                setScanningState(false);
             }
         }
 
@@ -561,7 +624,10 @@
             
             // MISSION COLOUR LOGIC
             let barColor = "bg-nesta-darkgrey"; 
-            let badgeColor = "bg-gray-100 text-nesta-darkgrey";
+            
+            // DEFAULT: Dark Grey Background with White Text (High Contrast for unknown/adjacent missions)
+            let badgeColor = "bg-nesta-darkgrey text-white"; 
+
             const m = (signal.mission || "").toLowerCase();
             
             if (m.includes("fairer")) { 
@@ -581,9 +647,11 @@
             const sourceName = formatSource(signal.final_url || signal.url);
             const lensTags = getLensBadges(signal.lenses || '');
             const cleanHook = cleanText(signal.hook);
+            
+            // Style class for metadata labels (Novelty, Evidence, etc) - Darker Grey
+            const accentClass = "text-[9px] text-nesta-darkgrey uppercase font-bold mb-1 tracking-wider";
 
             const card = document.createElement('div');
-            // Add ID for scroll targeting
             card.id = `${containerId}-card-${index}`;
             card.className = `bg-white p-7 border border-gray-100 border-t-8 ${barColor} card-hover flex flex-col h-full shadow-soft rounded-xl animate-fade-in-up transition-all duration-300`;
             card.style.borderTopColor = barColor.replace('bg-', 'var(--color-nesta-');
@@ -607,12 +675,21 @@
                 <p class="text-sm text-nesta-darkgrey mb-6 leading-relaxed flex-grow font-body">${cleanHook}</p>
                 
                 <div class="grid grid-cols-3 gap-2 py-4 border-t border-b border-gray-100 mb-5 bg-gray-50/50 rounded-sm">
-                     <div class="text-center"><div class="text-[9px] text-gray-400 uppercase font-bold mb-1 tracking-wider">Novelty</div><div class="font-bold text-nesta-navy text-lg">${signal.score_novelty}/10</div></div>
-                     <div class="text-center border-l border-gray-200"><div class="text-[9px] text-gray-400 uppercase font-bold mb-1 tracking-wider">Evidence</div><div class="font-bold text-nesta-navy text-lg">${signal.score_evidence}/10</div></div>
-                     <div class="text-center border-l border-gray-200"><div class="text-[9px] text-gray-400 uppercase font-bold mb-1 tracking-wider">Impact</div><div class="font-bold text-nesta-navy text-lg">${signal.score_evocativeness}/10</div></div>
+                     <div class="text-center">
+                        <div class="${accentClass}">Novelty</div>
+                        <div class="font-bold text-nesta-navy text-lg">${signal.score_novelty}/10</div>
+                     </div>
+                     <div class="text-center border-l border-gray-200">
+                        <div class="${accentClass}">Evidence</div>
+                        <div class="font-bold text-nesta-navy text-lg">${signal.score_evidence}/10</div>
+                     </div>
+                     <div class="text-center border-l border-gray-200">
+                        <div class="${accentClass}">Impact</div>
+                        <div class="font-bold text-nesta-navy text-lg">${signal.score_evocativeness}/10</div>
+                     </div>
                 </div>
                 
-                <div class="flex items-center justify-between text-xs font-bold text-gray-400 mt-auto">
+                <div class="flex items-center justify-between text-xs font-bold text-gray-500 mt-auto">
                     <span>${signal.source_date || 'Recent'}</span>
                     <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-1 hover:text-nesta-blue transition group">
                         ${sourceName} <span class="text-lg leading-none group-hover:translate-x-0.5 transition-transform">↗</span>
@@ -622,7 +699,7 @@
                 ${isSavedView ? `
                 <div class="mt-5 pt-5 border-t border-gray-100 space-y-4">
                     <div class="space-y-1">
-                        <label for="saved-shareable-${index}" class="text-[10px] uppercase font-bold text-gray-400">Status</label>
+                        <label for="saved-shareable-${index}" class="${accentClass}">Status</label>
                         <select id="saved-shareable-${index}" class="w-full text-xs bg-gray-50 border border-gray-200 rounded px-3 py-2 font-bold text-nesta-navy focus:border-nesta-blue focus:ring-0">
                             <option value="Yes" ${signal.shareable === 'Yes' ? 'selected' : ''}>Yes - Shareable</option>
                             <option value="Maybe" ${signal.shareable === 'Maybe' ? 'selected' : ''}>Maybe</option>
@@ -630,7 +707,7 @@
                         </select>
                     </div>
                     <div class="space-y-1">
-                         <label for="saved-comment-${index}" class="text-[10px] uppercase font-bold text-gray-400">Notes</label>
+                         <label for="saved-comment-${index}" class="${accentClass}">Notes</label>
                          <input type="text" id="saved-comment-${index}" class="w-full text-xs bg-gray-50 border border-gray-200 px-3 py-2 text-nesta-navy focus:border-nesta-blue focus:ring-0 rounded" placeholder="Add comment..." value="${signal.feedback || ''}">
                     </div>
                     <button onclick="updateSavedSignal('${signal.final_url || signal.url}', '${(signal.title || "").replace(/'/g, "\\'")}', ${index})" class="w-full py-2.5 bg-nesta-navy text-white text-xs font-bold uppercase rounded hover:bg-nesta-blue transition shadow-md">Save Changes</button>
@@ -642,15 +719,17 @@
         async function openSavedSignals() {
             document.getElementById('saved-modal').classList.remove('hidden');
             const list = document.getElementById('saved-list');
-            list.innerHTML = '<div class="col-span-full py-24 text-center flex flex-col items-center"><div class="radar-loader mb-4"></div><p class="font-bold text-nesta-navy">Retrieving Intelligence...</p></div>';
+            list.innerHTML = '<div class="col-span-full py-24 text-center flex flex-col items-center"><div class="radar-loader mb-4 border-2 border-gray-200 border-t-nesta-blue w-10 h-10"></div><p class="font-bold text-nesta-navy">Retrieving Intelligence...</p></div>';
             
             try {
                 const res = await fetch(`${API_BASE_URL}/api/saved`);
                 const data = await res.json();
                 list.innerHTML = '';
-                currentSaved = data;
+                // NEWEST FIRST for full database view as well
+                currentSaved = data.reverse(); 
                 if(data.length === 0) { list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>'; return; }
-                data.forEach((sig, i) => {
+                
+                currentSaved.forEach((sig, i) => {
                     const normalized = {
                         title: sig.Title, score: sig.Score, hook: sig.Hook, final_url: sig.URL,
                         mission: sig.Mission, lenses: sig.Lenses, 
@@ -689,12 +768,11 @@
 
         // --- INTERACTIVE RADAR ---
         function scrollToCard(index) {
-            switchView('list'); // Switch back to list to see the card
+            switchView('list'); 
             const cardId = `result-container-card-${index}`;
             const card = document.getElementById(cardId);
             if (card) {
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Visual feedback
                 card.classList.add('card-highlight');
                 setTimeout(() => card.classList.remove('card-highlight'), 2000);
             }
@@ -708,7 +786,7 @@
                 y: s.score_evidence || Math.random()*10, 
                 r: (s.score/10)||5, 
                 title: s.title,
-                index: i // Store index for click handler
+                index: i 
             }));
             
             radarChart = new Chart(ctx, {
@@ -727,7 +805,7 @@
                     maintainAspectRatio: false,
                     onClick: (evt, activeElements) => {
                         if (activeElements.length > 0) {
-                            const dataIndex = activeElements[0].index; // Index in dataset
+                            const dataIndex = activeElements[0].index; 
                             const point = dataPoints[dataIndex];
                             scrollToCard(point.index);
                         }
