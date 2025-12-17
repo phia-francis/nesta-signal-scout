@@ -14,25 +14,25 @@
                 extend: {
                     colors: {
                         nesta: {
-                            blue: '#0000FF',       // Hero
-                            green: '#18A48C',      // Sustainable Future
-                            aqua: '#97D9E3',       // Fairer Start Support
-                            purple: '#9A1BBE',     // Healthy Life
-                            violet: '#A59BEE',     // Healthy Life Support
-                            red: '#EB003B',        // Accent
-                            pink: '#F6A4B7',       // Accent
-                            orange: '#FF6E47',     // Accent
-                            yellow: '#FDB633',     // Sustainable Support
-                            navy: '#0F294A',       // Text/Structure
-                            darkgrey: '#646363',   // Text
-                            sand: '#D2C9C0',       // Backgrounds
-                            black: '#000000',      //
-                            white: '#FFFFFF'       //
+                            blue: '#0000FF',       // Hero [cite: 141-145]
+                            green: '#18A48C',      // Sustainable Future [cite: 146-148]
+                            aqua: '#97D9E3',       // Fairer Start Support [cite: 149-150]
+                            purple: '#9A1BBE',     // Healthy Life [cite: 151-152]
+                            violet: '#A59BEE',     // Healthy Life Support [cite: 153-154]
+                            red: '#EB003B',        // Accent [cite: 155-156]
+                            pink: '#F6A4B7',       // Accent [cite: 157-158]
+                            orange: '#FF6E47',     // Accent [cite: 159-160]
+                            yellow: '#FDB633',     // Sustainable Support [cite: 161-162]
+                            navy: '#0F294A',       // Text/Structure [cite: 167-171]
+                            darkgrey: '#646363',   // Text [cite: 163-165]
+                            sand: '#D2C9C0',       // Backgrounds [cite: 164-166]
+                            black: '#000000',      // [cite: 174-177]
+                            white: '#FFFFFF'       // [cite: 172-173]
                         }
                     },
                     fontFamily: {
-                        display: ['"Zosia Display"', 'sans-serif'],
-                        body: ['"Averta"', 'sans-serif']
+                        display: ['"Zosia Display"', 'sans-serif'], // [cite: 230-232]
+                        body: ['"Averta"', 'sans-serif']           // 
                     },
                     animation: {
                         'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
@@ -90,7 +90,7 @@
             </div>
             <div class="flex gap-4">
                 <button onclick="downloadCSV()" class="px-4 py-2 text-sm font-bold text-nesta-navy hover:text-nesta-blue transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4"></path></svg>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Export
                 </button>
                 <button onclick="openSavedSignals()" class="px-5 py-2 bg-nesta-navy text-white text-sm font-bold rounded hover:bg-nesta-blue transition shadow-lg shadow-nesta-navy/10">
@@ -119,9 +119,9 @@
                     <div class="relative">
                         <select id="mission-select" class="w-full appearance-none bg-nesta-sand/20 border-b border-nesta-sand text-nesta-navy font-bold py-3 px-4 rounded-t focus:ring-0 focus:border-nesta-blue cursor-pointer">
                             <option value="All Missions">All Missions</option>
-                            <option value="A Fairer Start">A Fairer Start (Blue/Aqua)</option>
-                            <option value="A Healthy Life">A Healthy Life (Purple/Violet)</option>
-                            <option value="A Sustainable Future">A Sustainable Future (Green/Yellow)</option>
+                            <option value="A Fairer Start">A Fairer Start 📚</option>
+                            <option value="A Healthy Life">A Healthy Life ❤️‍🩹</option>
+                            <option value="A Sustainable Future">A Sustainable Future 🌳</option>
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-nesta-navy">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -164,6 +164,7 @@
                     <select id="time-filter" class="bg-transparent text-sm font-bold text-nesta-darkgrey focus:outline-none hover:text-nesta-blue cursor-pointer">
                         <option>Past Month</option>
                         <option>Past 3 Months</option>
+                        <option>Past 6 Months</option>
                         <option>Past Year</option>
                     </select>
                     <button onclick="generateSignal(true)" class="px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-blue-50 transition">Broad Scan</button>
@@ -199,6 +200,23 @@
 
     </main>
 
+    <footer class="bg-nesta-navy text-white mt-auto">
+        <div class="h-1 w-full bg-gradient-to-r from-nesta-blue via-nesta-green to-nesta-purple"></div>
+        
+        <div class="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-white text-nesta-navy flex items-center justify-center text-lg font-bold rounded-sm brand-font">N</div>
+                <div class="flex flex-col">
+                    <span class="text-lg font-display leading-none">Nesta Discovery Hub</span>
+                    <span class="text-[10px] uppercase tracking-widest opacity-60">Foresight & Innovation</span>
+                </div>
+            </div>
+            <div class="text-xs font-body opacity-60">
+                &copy; 2025 Nesta. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
     <div id="saved-modal" class="fixed inset-0 bg-nesta-navy/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-6xl h-[90vh] shadow-2xl flex flex-col overflow-hidden">
             <div class="px-8 py-6 border-b border-nesta-sand flex justify-between items-center bg-gray-50">
@@ -224,10 +242,53 @@
         let isProcessing = false;
         let currentSaved = [];
 
+        // EMOJI MAPPINGS
+        const MISSION_EMOJIS = {
+            'A Fairer Start': '📚',
+            'A Healthy Life': '❤️‍🩹',
+            'A Sustainable Future': '🌳'
+        };
+        const LENS_EMOJIS = {
+            'Social': '👥',
+            'Tech': '🤖',
+            'Media': '🎙️',
+            'Powerhouse': '⚡'
+        };
+
         // INIT
-        function initDashboard() {
-            // Load the recent preview on startup
-            loadPreview();
+        function initDashboard() { loadPreview(); }
+
+        // UTILS
+        function getMissionEmoji(mission) {
+            for (const [key, emoji] of Object.entries(MISSION_EMOJIS)) {
+                if (mission.includes(key)) return emoji;
+            }
+            return ''; 
+        }
+
+        function formatSource(url) {
+            try {
+                const hostname = new URL(url).hostname.replace('www.', '');
+                const name = hostname.split('.')[0];
+                return name.length <= 3 ? name.toUpperCase() : name.charAt(0).toUpperCase() + name.slice(1);
+            } catch { return 'Source'; }
+        }
+
+        function getLensBadges(lensesStr) {
+            if (!lensesStr) return '';
+            const tags = lensesStr.split(',').map(t => t.trim());
+            let html = '<div class="flex flex-wrap gap-1 mb-3">';
+            tags.forEach(tag => {
+                let emoji = '';
+                for (const [key, icon] of Object.entries(LENS_EMOJIS)) {
+                    if (tag.toLowerCase().includes(key.toLowerCase())) emoji = icon;
+                }
+                if (emoji) {
+                    html += `<span class="px-2 py-0.5 border border-nesta-sand rounded text-[10px] text-nesta-darkgrey bg-nesta-sand/10" title="${tag}">${emoji} ${tag}</span>`;
+                }
+            });
+            html += '</div>';
+            return html;
         }
 
         async function loadPreview() {
@@ -235,29 +296,19 @@
             try {
                 const res = await fetch(`${API_BASE_URL}/api/saved`);
                 const data = await res.json();
-                
-                if(!data || data.length === 0) {
-                    grid.innerHTML = '<div class="col-span-3 text-center py-10 text-nesta-darkgrey">No signals in database yet.</div>';
-                    return;
-                }
-
-                // Take top 3 recent
+                if(!data || data.length === 0) { grid.innerHTML = '<div class="col-span-3 text-center py-10 text-nesta-darkgrey">No signals in database yet.</div>'; return; }
                 const recent = data.slice(0, 3);
-                grid.innerHTML = ''; // Clear loaders
-
+                grid.innerHTML = ''; 
                 recent.forEach((sig, i) => {
                     const normalized = {
                         title: sig.Title, score: sig.Score, hook: sig.Hook, final_url: sig.URL,
-                        mission: sig.Mission, 
+                        mission: sig.Mission, lenses: sig.Lenses, // Pass Lenses
                         score_novelty: sig.Score_Novelty, score_evidence: sig.Score_Evidence, score_evocativeness: sig.Score_Evocativeness,
                         shareable: sig.Shareable, _row: sig._row, source_date: sig.Source_Date
                     };
                     createSignalCard(normalized, i, false, 'preview-grid');
                 });
-            } catch(e) {
-                console.error("Preview load failed", e);
-                grid.innerHTML = '<div class="col-span-3 text-center text-xs text-nesta-red">Unable to load preview.</div>';
-            }
+            } catch(e) { console.error(e); grid.innerHTML = '<div class="col-span-3 text-center text-xs text-nesta-red">Unable to load preview.</div>'; }
         }
 
         // UTILS
@@ -278,7 +329,6 @@
             const radar = document.getElementById('radar-container');
             const btnList = document.getElementById('btn-list');
             const btnRadar = document.getElementById('btn-radar');
-
             if(view === 'list') {
                 list.classList.remove('hidden'); radar.classList.add('hidden');
                 btnList.className = "px-4 py-2 text-xs font-bold transition shadow-sm bg-white text-nesta-navy";
@@ -332,7 +382,6 @@
                     data.items.forEach((item, index) => {
                         setTimeout(() => createSignalCard(item, index), index * 150);
                     });
-                    // Refresh preview to show new adds
                     setTimeout(loadPreview, 2000);
                 } else {
                     container.innerHTML = `<div class="p-8 bg-white border border-nesta-sand text-center text-nesta-navy">${data.content}</div>`;
@@ -360,19 +409,27 @@
             else if (m.includes("sustainable")) { barColor = "bg-nesta-green"; badgeColor = "bg-nesta-green/10 text-nesta-green"; }
             else if (m.includes("healthy")) { barColor = "bg-nesta-purple"; badgeColor = "bg-nesta-purple/10 text-nesta-purple"; }
 
+            // Metadata Processing
+            const missionEmoji = getMissionEmoji(signal.mission || '');
+            const sourceName = formatSource(signal.final_url || signal.url);
+            const lensTags = getLensBadges(signal.lenses || '');
+
             const card = document.createElement('div');
             card.className = `bg-white p-6 border-l border-r border-b border-nesta-sand border-t-8 ${barColor} card-hover flex flex-col h-full shadow-sm animate-fade-in-up`;
             card.style.borderTopColor = barColor.replace('bg-', 'var(--color-nesta-');
 
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-4">
-                    <span class="px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-widest ${badgeColor}">${signal.mission || 'General'}</span>
+                    <span class="px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-widest ${badgeColor}">
+                        ${missionEmoji} ${signal.mission || 'General'}
+                    </span>
                     <span class="flex items-center justify-center w-8 h-8 bg-nesta-black text-white font-bold text-sm shadow-md">${signal.score || '-'}</span>
                 </div>
                 <h3 class="text-2xl brand-font text-nesta-navy mb-3 leading-tight hover:text-nesta-blue transition-colors">
                     <a href="${signal.final_url || signal.url}" target="_blank" class="hover:underline decoration-2 underline-offset-2">${signal.title}</a>
                 </h3>
-                <p class="text-sm text-nesta-darkgrey mb-6 leading-relaxed flex-grow font-body">${signal.hook}</p>
+                
+                ${lensTags} <p class="text-sm text-nesta-darkgrey mb-6 leading-relaxed flex-grow font-body">${signal.hook}</p>
                 <div class="grid grid-cols-3 gap-2 py-4 border-t border-b border-nesta-sand/30 mb-4">
                      <div class="text-center"><div class="text-[9px] text-nesta-darkgrey uppercase font-bold mb-1">Novelty</div><div class="font-bold text-nesta-navy text-lg">${signal.score_novelty}/10</div></div>
                      <div class="text-center border-l border-nesta-sand/30"><div class="text-[9px] text-nesta-darkgrey uppercase font-bold mb-1">Evidence</div><div class="font-bold text-nesta-navy text-lg">${signal.score_evidence}/10</div></div>
@@ -380,7 +437,9 @@
                 </div>
                 <div class="flex items-center justify-between text-xs font-bold text-nesta-darkgrey mt-auto">
                     <span>${signal.source_date || 'Recent'}</span>
-                    <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-1 hover:text-nesta-blue transition">Read Source <span class="text-lg leading-none">→</span></a>
+                    <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-1 hover:text-nesta-blue transition">
+                        ${sourceName} <span class="text-lg leading-none">↗</span>
+                    </a>
                 </div>
                 ${isSavedView ? `
                 <div class="mt-4 pt-4 border-t border-nesta-sand space-y-3">
@@ -416,7 +475,8 @@
                 data.forEach((sig, i) => {
                     const normalized = {
                         title: sig.Title, score: sig.Score, hook: sig.Hook, final_url: sig.URL,
-                        mission: sig.Mission, score_novelty: sig.Score_Novelty, score_evidence: sig.Score_Evidence, score_evocativeness: sig.Score_Evocativeness,
+                        mission: sig.Mission, lenses: sig.Lenses, // Ensure Lenses are passed
+                        score_novelty: sig.Score_Novelty, score_evidence: sig.Score_Evidence, score_evocativeness: sig.Score_Evocativeness,
                         shareable: sig.Shareable, feedback: sig.Feedback || sig.User_Comment, _row: sig._row, source_date: sig.Source_Date
                     };
                     createSignalCard(normalized, i, true, 'saved-list');
@@ -434,7 +494,7 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url, title, shareable: shareVal, user_status: shareVal === 'No' ? 'Rejected' : 'Accepted', user_comment: commentVal, feedback: commentVal })
                 });
-                if(res.ok) { showToast('Database updated'); loadPreview(); } // Reload preview to show status change
+                if(res.ok) { showToast('Database updated'); loadPreview(); }
                 else throw new Error();
             } catch(e) { showToast('Update failed', 'error'); }
         }
