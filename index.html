@@ -22,7 +22,7 @@
                             yellow: '#FDB633',     // A Fairer Start
                             green: '#18A48C',      // A Sustainable Future
                             
-                            // GENERIC UI ACCENTS (Allowed for Controls)
+                            // GENERIC UI ACCENTS
                             aqua: '#97D9E3',       // Focus / Active States
                             purple: '#9A1BBE',     // Filters / Secondary
                             orange: '#FF6E47',     // Alerts / Toggles
@@ -42,11 +42,16 @@
                         'fade-in-up': 'fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                         'radar-spin': 'spin 2s linear infinite',
                         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                     },
                     keyframes: {
                         fadeInUp: {
                             '0%': { opacity: '0', transform: 'translateY(15px)' },
                             '100%': { opacity: '1', transform: 'translateY(0)' }
+                        },
+                        pop: {
+                            '0%': { transform: 'scale(0.95)' },
+                            '100%': { transform: 'scale(1)' }
                         },
                         pulse: {
                             '0%, 100%': { opacity: '1' },
@@ -56,7 +61,7 @@
                     boxShadow: {
                         'soft': '0 4px 20px -2px rgba(15, 41, 74, 0.08)',
                         'hover': '0 10px 25px -5px rgba(0, 0, 255, 0.12)',
-                        'glow': '0 0 15px rgba(151, 217, 227, 0.3)', // Aqua Glow
+                        'glow': '0 0 15px rgba(151, 217, 227, 0.3)',
                     }
                 }
             }
@@ -77,17 +82,17 @@
         .card-hover { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
         .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 30px -8px rgba(0, 0, 255, 0.12); }
         
-        /* CUSTOM RANGE SLIDER (Blue Thumb, Aqua Track) */
+        /* CUSTOM RANGE SLIDER */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
             background: #0000FF; cursor: pointer; margin-top: -7px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: transform 0.1s;
         }
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
         input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; background: #97D9E3; border-radius: 2px; /* Aqua Track */
+            width: 100%; height: 4px; background: #97D9E3; border-radius: 2px;
         }
 
-        /* RADAR LOADER (Aqua) */
+        /* RADAR LOADER */
         .radar-loader {
             width: 40px; height: 40px; border-radius: 50%;
             border: 2px solid rgba(151, 217, 227, 0.2);
@@ -96,11 +101,59 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        /* CHECKBOX STYLES (Purple for Filters) */
-        .bias-chip input:checked + span {
-            background-color: #9A1BBE; color: #FFFFFF; border-color: #9A1BBE; box-shadow: 0 4px 6px -1px rgba(154, 27, 190, 0.2);
+        /* --- BUTTON ANIMATIONS & INTERACTIVITY --- */
+        
+        /* Filter Chips (Purple) */
+        /* Fixed Selector: Targets LABEL not SPAN */
+        .bias-chip label {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
         }
-        .bias-chip span { transition: all 0.2s ease; }
+        .bias-chip label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(15, 41, 74, 0.1);
+            border-color: #9A1BBE; /* Purple Hover Border */
+        }
+        .bias-chip label:active {
+            transform: scale(0.95); /* Tactile Press */
+        }
+        .bias-chip input:checked + label {
+            background-color: #9A1BBE; 
+            color: #FFFFFF; 
+            border-color: #9A1BBE; 
+            box-shadow: 0 4px 12px rgba(154, 27, 190, 0.3);
+            animation: pulse-purple 0.4s ease-out;
+        }
+
+        /* Hard Tech Toggle (Orange) */
+        .tech-toggle-label {
+            transition: all 0.2s ease;
+        }
+        .tech-toggle-group:hover .tech-toggle-label {
+            color: #FF6E47; /* Orange Text on Hover */
+        }
+        .tech-toggle-group:active {
+            transform: scale(0.98);
+        }
+
+        /* CTA Buttons */
+        .btn-interactive {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-interactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .btn-interactive:active {
+            transform: translateY(0);
+            transform: scale(0.97);
+        }
+
+        @keyframes pulse-purple {
+            0% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(154, 27, 190, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0); }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased bg-gray-50" onload="initDashboard()">
@@ -115,11 +168,11 @@
                 </div>
             </div>
             <div class="flex gap-4">
-                <button onclick="downloadCSV()" class="px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua transition flex items-center gap-2 group">
+                <button onclick="downloadCSV()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
                     <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Export
                 </button>
-                <button onclick="openSavedSignals()" class="px-6 py-2 bg-white text-nesta-navy text-sm font-bold rounded-sm hover:bg-nesta-aqua hover:text-nesta-navy transition shadow-lg hover:shadow-xl transform active:scale-95">
+                <button onclick="openSavedSignals()" class="btn-interactive px-6 py-2 bg-white text-nesta-navy text-sm font-bold rounded-sm hover:bg-nesta-aqua hover:text-nesta-navy shadow-lg">
                     Full Database
                 </button>
             </div>
@@ -170,24 +223,24 @@
                 </div>
 
                 <div class="md:col-span-5 flex flex-wrap gap-4 justify-end">
-                    <div class="flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm group">
-                        <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange">
-                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none group-hover:text-nesta-orange transition-colors">Hard Tech Only</label>
+                    <div class="flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group">
+                        <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
+                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Hard Tech Only</label>
                     </div>
                     
                     <div class="flex bg-gray-100 p-1 rounded-lg">
-                        <button onclick="switchView('list')" id="btn-list" class="px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md">List</button>
-                        <button onclick="switchView('radar')" id="btn-radar" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md">Radar</button>
+                        <button onclick="switchView('list')" id="btn-list" class="px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md hover:scale-105 active:scale-95">List</button>
+                        <button onclick="switchView('radar')" id="btn-radar" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Radar</button>
                     </div>
                 </div>
             </div>
 
             <div class="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div class="flex flex-wrap gap-3" id="source-bias-container">
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only"><label for="bias-academia" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey hover:border-nesta-purple cursor-pointer block select-none">Academia</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-vc" name="source_bias" value="VC" class="peer sr-only"><label for="bias-vc" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey hover:border-nesta-purple cursor-pointer block select-none">VC Blogs</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-scimags" name="source_bias" value="Scientific Magazines" class="peer sr-only"><label for="bias-scimags" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey hover:border-nesta-purple cursor-pointer block select-none">Sci Mags</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only"><label for="bias-niche" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey hover:border-nesta-purple cursor-pointer block select-none">Niche Forums</label></div>
+                    <div class="bias-chip relative"><input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only"><label for="bias-academia" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Academia</label></div>
+                    <div class="bias-chip relative"><input type="checkbox" id="bias-vc" name="source_bias" value="VC" class="peer sr-only"><label for="bias-vc" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">VC Blogs</label></div>
+                    <div class="bias-chip relative"><input type="checkbox" id="bias-scimags" name="source_bias" value="Scientific Magazines" class="peer sr-only"><label for="bias-scimags" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Sci Mags</label></div>
+                    <div class="bias-chip relative"><input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only"><label for="bias-niche" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Niche Forums</label></div>
                 </div>
                 
                 <div class="flex gap-4 w-full md:w-auto items-center">
@@ -199,8 +252,8 @@
                         <option class="text-nesta-navy">Past Year</option>
                     </select>
                     <div class="h-6 w-px bg-gray-300"></div>
-                    <button onclick="generateSignal(true)" class="px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-gray-50 rounded transition">Broad Scan</button>
-                    <button id="search-btn" onclick="generateSignal(false)" class="px-8 py-3 bg-nesta-blue text-white text-sm font-bold rounded shadow-lg hover:bg-blue-700 hover:shadow-xl transition flex items-center gap-3 transform active:scale-95">
+                    <button onclick="generateSignal(true)" class="btn-interactive px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-gray-50 rounded border border-transparent hover:border-nesta-blue/20">Broad Scan</button>
+                    <button id="search-btn" onclick="generateSignal(false)" class="btn-interactive px-8 py-3 bg-nesta-blue text-white text-sm font-bold rounded shadow-lg hover:bg-blue-700 hover:shadow-xl flex items-center gap-3">
                         <span>Initiate Scan</span>
                         <div id="btn-loader" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     </button>
@@ -272,7 +325,7 @@
     <script>
         const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
             ? 'http://127.0.0.1:8000' 
-            : 'https://nesta-signal-scout.onrender.com';
+            : 'https://nesta-signal-backend.onrender.com';
 
         let currentSignals = [];
         let radarChart = null;
@@ -338,7 +391,6 @@
             const el = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
             const dot = el.querySelector('div');
-            // Aqua for Success, Red for Error
             dot.className = `w-2 h-2 rounded-full ${type === 'error' ? 'bg-nesta-red' : 'bg-nesta-aqua'}`;
             el.className = `fixed bottom-8 right-8 bg-nesta-navy text-white px-6 py-4 shadow-2xl transform transition-all duration-500 z-[120] font-bold text-sm flex items-center gap-4 rounded-lg border-l-4 ${type === 'error' ? 'border-nesta-red' : 'border-nesta-aqua'}`;
             el.classList.remove('translate-y-24', 'opacity-0');
@@ -376,7 +428,6 @@
             document.getElementById('search-btn').disabled = true;
             document.getElementById('btn-loader').classList.remove('hidden');
             
-            // Loading State (Aqua Radar)
             container.innerHTML = `
                 <div class="col-span-full py-24 flex flex-col items-center justify-center space-y-6 animate-fade-in-up">
                     <div class="radar-loader"></div>
@@ -426,7 +477,7 @@
         function createSignalCard(signal, index, isSavedView = false, containerId = 'result-container') {
             const container = document.getElementById(containerId);
             
-            [cite_start]// MISSION COLOUR LOGIC (Reserved for Cards Only) [cite: 190-193]
+            [cite_start]// MISSION COLOUR LOGIC - STRICTLY RESERVED [cite: 190-193]
             let barColor = "bg-nesta-darkgrey"; 
             let badgeColor = "bg-gray-100 text-nesta-darkgrey";
             const m = (signal.mission || "").toLowerCase();
@@ -449,7 +500,6 @@
             const lensTags = getLensBadges(signal.lenses || '');
 
             const card = document.createElement('div');
-            // Top Border is the Mission Key
             card.className = `bg-white p-7 border border-gray-100 border-t-8 ${barColor} card-hover flex flex-col h-full shadow-soft rounded-xl animate-fade-in-up`;
             card.style.borderTopColor = barColor.replace('bg-', 'var(--color-nesta-');
 
