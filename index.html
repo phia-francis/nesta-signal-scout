@@ -5,8 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nesta Signal Scout Pro</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const originalWarn = console.warn;
+        console.warn = (...args) => {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+            originalWarn.apply(console, args);
+        };
+    </script>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     
     <script>
         tailwind.config = {
@@ -348,7 +356,7 @@
             if (!text) return "";
             // Remove "In 2024," or "In 2025 " at the start
             let clean = text.replace(/^In \d{4},?\s*/i, "");
-            // Remove tags
+            // Remove citations like [cite: 12]
             clean = clean.replace(/\/g, "");
             return clean;
         }
@@ -521,6 +529,7 @@
         function createSignalCard(signal, index, isSavedView = false, containerId = 'result-container') {
             const container = document.getElementById(containerId);
             
+            // MISSION COLOUR LOGIC
             let barColor = "bg-nesta-darkgrey"; 
             let badgeColor = "bg-gray-100 text-nesta-darkgrey";
             const m = (signal.mission || "").toLowerCase();
