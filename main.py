@@ -193,6 +193,7 @@ class ChatRequest(BaseModel):
     time_filter: str = "Past Month"
     source_types: List[str] = Field(default_factory=list)
     tech_mode: bool = False
+    mission: str = "All Missions" # Added mission field to request
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
@@ -200,18 +201,39 @@ async def chat_endpoint(req: ChatRequest):
     try:
         # 1. Get Current Date
         today_str = datetime.now().strftime("%Y-%m-%d")
-        print(f"Incoming: {req.message} | Date: {today_str}")
+        print(f"Incoming: {req.message} | Mission: {req.mission} | Date: {today_str}")
         
-        # 2. Construct Prompt
+        # 2. Select Keywords based on Mission
+        relevant_keywords_set = set()
+        if req.mission in MISSION_KEYWORDS:
+            relevant_keywords_set.update(MISSION_KEYWORDS[req.mission])
+        elif req.mission == "All Missions":
+             for key in MISSION_KEYWORDS:
+                 relevant_keywords_set.update(MISSION_KEYWORDS[key])
+        
+        # Always include cross-cutting
+        relevant_keywords_set.update(CROSS_CUTTING_KEYWORDS)
+        
+        # Convert to list for random.sample
+        relevant_keywords_list = list(relevant_keywords_set)
+        
+        # Random sample to keep prompt size manageable and varied
+        selected_keywords = random.sample(relevant_keywords_list, min(len(relevant_keywords_list), 15))
+        keywords_str = ", ".join(selected_keywords)
+
+        # 3. Construct Prompt
         prompt_parts = [
             req.message,
             f"CURRENT DATE: {today_str}",
             "ROLE: You are Nesta's Discovery Hub Lead Foresight Researcher.",
-            "PROTOCOL: 1. SEARCH high-friction queries (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). 2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",
+            f"SUGGESTED KEYWORDS: {keywords_str}",
+            "PROTOCOL: 1. SEARCH using a combination of the 'Suggested Keywords' AND high-friction terms (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). Do NOT rely solely on friction terms.",
+            "2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",
             "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
             "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet."
         ]
         prompt = "\n\n".join(prompt_parts)
+        
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
         
         # Explicit instruction for Gateway to Research
