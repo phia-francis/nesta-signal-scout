@@ -916,7 +916,7 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url, title, shareable: shareVal, user_status: shareVal === 'No' ? 'Rejected' : 'Accepted', user_comment: commentVal, feedback: commentVal })
                 });
-                if(res.ok) { showToast('Database updated'); loadPreview(); }
+                if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
                 else throw new Error();
             } catch(e) { showToast('Update failed', 'error'); }
         }
