@@ -203,17 +203,15 @@ async def chat_endpoint(req: ChatRequest):
         print(f"Incoming: {req.message} | Date: {today_str}")
         
         # 2. Construct Prompt
-        prompt = req.message
-        prompt += f"\n\nCURRENT DATE: {today_str}"
-        prompt += "\n\nROLE: You are Nesta's Discovery Hub Lead Foresight Researcher."
-        
-        # Broader definition of High Friction
-        prompt += "\n\nPROTOCOL: 1. SEARCH high-friction queries (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). 2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals."
-        
-        # 3. DATE CONSTRAINT RULE
-        prompt += "\n\nSEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection."
-
-        prompt += "\n\nTOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet."
+        prompt_parts = [
+            req.message,
+            f"CURRENT DATE: {today_str}",
+            "ROLE: You are Nesta's Discovery Hub Lead Foresight Researcher.",
+            "PROTOCOL: 1. SEARCH high-friction queries (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). 2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",
+            "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
+            "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet."
+        ]
+        prompt = "\n\n".join(prompt_parts)
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
         
         # Explicit instruction for Gateway to Research
