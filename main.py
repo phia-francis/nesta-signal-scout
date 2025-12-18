@@ -204,18 +204,21 @@ async def chat_endpoint(req: ChatRequest):
         print(f"Incoming: {req.message} | Mission: {req.mission} | Date: {today_str}")
         
         # 2. Select Keywords based on Mission
-        relevant_keywords = []
+        relevant_keywords_set = set()
         if req.mission in MISSION_KEYWORDS:
-            relevant_keywords.extend(MISSION_KEYWORDS[req.mission])
+            relevant_keywords_set.update(MISSION_KEYWORDS[req.mission])
         elif req.mission == "All Missions":
              for key in MISSION_KEYWORDS:
-                 relevant_keywords.extend(MISSION_KEYWORDS[key])
+                 relevant_keywords_set.update(MISSION_KEYWORDS[key])
         
         # Always include cross-cutting
-        relevant_keywords.extend(CROSS_CUTTING_KEYWORDS)
+        relevant_keywords_set.update(CROSS_CUTTING_KEYWORDS)
+        
+        # Convert to list for random.sample
+        relevant_keywords_list = list(relevant_keywords_set)
         
         # Random sample to keep prompt size manageable and varied
-        selected_keywords = random.sample(relevant_keywords, min(len(relevant_keywords), 15))
+        selected_keywords = random.sample(relevant_keywords_list, min(len(relevant_keywords_list), 15))
         keywords_str = ", ".join(selected_keywords)
 
         # 3. Construct Prompt
