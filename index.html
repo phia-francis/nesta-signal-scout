@@ -941,14 +941,19 @@
                 y: s.score_evidence || Math.random()*10, 
                 r: (s.score/10)||5, 
                 title: s.title,
+                mission: s.mission,
                 index: i 
             }));
+
+            const pointColors = dataPoints.map(p => getMissionColor(p.mission));
             
             radarChart = new Chart(ctx, {
                 type: 'bubble',
                 data: { datasets: [{ 
                     label: 'Active Signals', 
-                    data: dataPoints, 
+                    data: dataPoints,
+                    backgroundColor: pointColors, 
+                    borderColor: pointColors, 
                     backgroundColor: 'rgba(0, 0, 255, 0.6)', 
                     borderColor: '#0000FF', 
                     borderWidth: 1, 
