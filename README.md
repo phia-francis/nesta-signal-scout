@@ -137,4 +137,18 @@ Every signal is scored (0-100) based on three dimensions:
 
 -----
 
+## ⚖️ License & Copyright
+
+**Codebase:**
+The source code for this project is licensed under the [MIT License](LICENSE).
+
+**Proprietary Assets:**
+The following assets included in this repository are **proprietary to Nesta** or their respective creators and are **excluded** from the MIT License:
+* **Fonts:** `Zosia-Display.woff2`, `Averta-Regular.otf`, `Averta-Semibold.otf`.
+* **Branding:** All Nesta logos, icons, and visual identity assets.
+
+You may use this software for your own purposes, but you must replace these proprietary assets with your own if you redistribute the project.
+
+-----
+
 **© 2025 Nesta Discovery Hub**
