@@ -432,6 +432,7 @@
             let statusIndex = 0;
             stopLoadingSimulation(); 
 
+            // SLOWED DOWN: 1200ms -> 3500ms
             const statInt = setInterval(() => {
                 statusIndex = (statusIndex + 1) % statuses.length;
                 const el = document.getElementById('loading-status-text');
@@ -439,21 +440,23 @@
                     el.style.opacity = '0';
                     setTimeout(() => { el.innerText = statuses[statusIndex]; el.style.opacity = '1'; }, 200);
                 }
-            }, 1200);
+            }, 3500);
             loadIntervals.push(statInt);
 
+            // SLOWED DOWN: 50ms -> 150ms and reduced increment divisor
             let progress = 0;
             const progInt = setInterval(() => {
                 if(progress < 99) {
-                    let increment = (100 - progress) / 80;
-                    if(increment < 0.1) increment = 0.1;
+                    // Slower steps: Divisor increased from 80 to 250
+                    let increment = (100 - progress) / 250;
+                    if(increment < 0.05) increment = 0.05; // Minimum step reduced
                     progress += increment;
                     const textEl = document.getElementById('loading-percent-text');
                     const barEl = document.getElementById('loading-bar-inner');
                     if(textEl) textEl.innerText = Math.floor(progress) + '%';
                     if(barEl) barEl.style.width = progress + '%';
                 }
-            }, 50);
+            }, 150);
             loadIntervals.push(progInt);
         }
 
@@ -879,9 +882,12 @@
             list.innerHTML = '<div class="col-span-full py-24 text-center flex flex-col items-center"><div class="radar-loader mb-4 border-2 border-gray-200 border-t-nesta-blue w-10 h-10"></div><p class="font-bold text-nesta-navy">Retrieving Intelligence...</p></div>';
             
             try {
-                await ensureDatabaseLoaded();
+                const res = await fetch(`${API_BASE_URL}/api/saved`);
+                const data = await res.json();
                 list.innerHTML = '';
-                if(currentSaved.length === 0) { list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>'; return; }
+                // NEWEST FIRST for full database view as well
+                currentSaved = data.reverse(); 
+                if(data.length === 0) { list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>'; return; }
                 
                 currentSaved.forEach((sig, i) => {
                     const normalized = normalizeSignal(sig);
@@ -900,7 +906,7 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url, title, shareable: shareVal, user_status: shareVal === 'No' ? 'Rejected' : 'Accepted', user_comment: commentVal, feedback: commentVal })
                 });
-                if(res.ok) { showToast('Database updated'); ensureDatabaseLoaded(); loadPreview(); }
+                if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
                 else throw new Error();
             } catch(e) { showToast('Update failed', 'error'); }
         }
@@ -930,7 +936,6 @@
         function renderRadar() {
             if(radarChart) radarChart.destroy();
             const ctx = document.getElementById('signalRadar').getContext('2d');
-            
             const dataPoints = currentSignals.map((s, i) => ({ 
                 x: s.score_novelty || Math.random()*10, 
                 y: s.score_evidence || Math.random()*10, 
@@ -939,16 +944,18 @@
                 mission: s.mission,
                 index: i 
             }));
-            
-            const pointColors = dataPoints.map(p => getMissionColor(p.mission));
 
+            const pointColors = dataPoints.map(p => getMissionColor(p.mission));
+            
             radarChart = new Chart(ctx, {
                 type: 'bubble',
                 data: { datasets: [{ 
                     label: 'Active Signals', 
-                    data: dataPoints, 
+                    data: dataPoints,
                     backgroundColor: pointColors, 
                     borderColor: pointColors, 
+                    backgroundColor: 'rgba(0, 0, 255, 0.6)', 
+                    borderColor: '#0000FF', 
                     borderWidth: 1, 
                     hoverBackgroundColor: '#0F294A', 
                     hoverBorderColor: '#0F294A' 
