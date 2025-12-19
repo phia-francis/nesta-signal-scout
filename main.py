@@ -226,6 +226,7 @@ async def chat_endpoint(req: ChatRequest):
             req.message,
             f"CURRENT DATE: {today_str}",
             "ROLE: You are Nesta's Discovery Hub Lead Foresight Researcher.",
+            "LANGUAGE: Use British English spellings consistently across all outputs.",
             f"SUGGESTED KEYWORDS: {keywords_str}",
             "PROTOCOL: 1. SEARCH using a combination of the 'Suggested Keywords' AND high-friction terms (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). Do NOT rely solely on friction terms.",
             "2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",

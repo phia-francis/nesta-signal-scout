@@ -365,16 +365,12 @@ MISSION_KEYWORDS: Dict[str, List[str]] = {
         mental health, digital
         mental health, tech
         diet personalisation
-        diet personalization
         gut microbiome, diet
         nutrigenomics
         nutrition app
         nutrition personalisation
-        nutrition personalization
         personalised diet
         personalised nutrition
-        personalized diet
-        personalized nutrition
         plant burger
         plant-based burger
         plant-based meat
@@ -540,7 +536,6 @@ MISSION_KEYWORDS: Dict[str, List[str]] = {
         virtual care platform
         lifestyle change program
         behavioural therapy
-        behavioral therapy
         nhs digital weight management
         pre-diabetes
         prediabetes
@@ -675,15 +670,12 @@ MISSION_KEYWORDS: Dict[str, List[str]] = {
         fitness app
         personal health
         health and wellness
-        personalized nutrition
         personalised nutrition
         gut microbiome
         wellbeing
         well-being
         nutrition personalisation
-        nutrition personalization
         personalised diet
-        personalized diet
         nutrigenomics
         retail
         retailer
