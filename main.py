@@ -4,7 +4,7 @@ import asyncio
 import random
 import re
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from typing import Optional, List, Dict, Any, Set
 from fastapi import FastAPI, HTTPException
@@ -99,6 +99,64 @@ async def fetch_article_text(url: str) -> str:
             return text[:2500] + "..."
     except Exception as e:
         return f"Error reading article: {str(e)}"
+
+TIME_FILTER_WINDOWS = {
+    "Past Month": 31,
+    "Past 3 Months": 93,
+    "Past 6 Months": 186,
+    "Past Year": 366
+}
+
+def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
+    if not date_str:
+        return None
+    cleaned = date_str.strip()
+    if not cleaned or cleaned.lower() in {"recent", "unknown", "n/a", "na"}:
+        return None
+    cleaned = re.sub(r"[|•]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    iso_match = re.search(r"\d{4}-\d{2}-\d{2}", cleaned)
+    if iso_match:
+        cleaned = iso_match.group(0)
+    else:
+        slash_match = re.search(r"\d{1,2}/\d{1,2}/\d{4}", cleaned)
+        if slash_match:
+            cleaned = slash_match.group(0)
+
+    formats = [
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%d %B %Y",
+        "%d %b %Y"
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+
+    month_year_formats = ["%B %Y", "%b %Y"]
+    for fmt in month_year_formats:
+        try:
+            parsed = datetime.strptime(cleaned, fmt)
+            return parsed.replace(day=1)
+        except ValueError:
+            continue
+
+    if re.fullmatch(r"\d{4}", cleaned):
+        return datetime(int(cleaned), 1, 1)
+    return None
+
+def is_date_within_time_filter(source_date: Optional[str], time_filter: str, request_date: datetime) -> bool:
+    parsed = parse_source_date(source_date)
+    if not parsed or parsed > request_date:
+        return False
+    window_days = TIME_FILTER_WINDOWS.get(time_filter, TIME_FILTER_WINDOWS["Past Month"])
+    return request_date - parsed <= timedelta(days=window_days)
 
 def get_sheet_records(include_rejected: bool = False) -> List[Dict[str, Any]]:
     sheet = get_google_sheet()
@@ -200,7 +258,8 @@ async def chat_endpoint(req: ChatRequest):
     run = None
     try:
         # 1. Get Current Date
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        request_date = datetime.now()
+        today_str = request_date.strftime("%Y-%m-%d")
         print(f"Incoming: {req.message} | Mission: {req.mission} | Date: {today_str}")
         
         # 2. Select Keywords based on Mission
@@ -231,7 +290,8 @@ async def chat_endpoint(req: ChatRequest):
             "PROTOCOL: 1. SEARCH using a combination of the 'Suggested Keywords' AND high-friction terms (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). Do NOT rely solely on friction terms.",
             "2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",
             "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
-            "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet."
+            "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet.",
+            "VALIDATION: Only display sources with published dates that fall within the user's time horizon, relative to CURRENT DATE. Provide published_date in YYYY-MM-DD format."
         ]
         prompt = "\n\n".join(prompt_parts)
         
@@ -274,6 +334,10 @@ async def chat_endpoint(req: ChatRequest):
                             tool_outputs.append({"tool_call_id": tool.id, "output": content})
                         elif tool.function.name == "display_signal_card":
                             args = json.loads(tool.function.arguments)
+                            published_date = args.get("published_date", "")
+                            if not is_date_within_time_filter(published_date, req.time_filter, request_date):
+                                tool_outputs.append({"tool_call_id": tool.id, "output": "rejected_out_of_time_window"})
+                                continue
                             card = {
                                 "title": args.get("title"), "url": args.get("final_url") or args.get("url"),
                                 "hook": args.get("hook"), "score": args.get("score"),
@@ -282,7 +346,7 @@ async def chat_endpoint(req: ChatRequest):
                                 "score_novelty": args.get("score_novelty", 0),
                                 "score_evidence": args.get("score_evidence", 0),
                                 "score_evocativeness": args.get("score_evocativeness", 0),
-                                "source_date": args.get("published_date", "Recent"),
+                                "source_date": published_date,
                                 "ui_type": "signal_card"
                             }
                             if card["url"] and card["url"] not in seen_urls:
