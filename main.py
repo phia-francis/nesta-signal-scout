@@ -4,7 +4,8 @@ import asyncio
 import random
 import re
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from urllib.parse import urlparse
 from typing import Optional, List, Dict, Any, Set
 from fastapi import FastAPI, HTTPException
@@ -100,11 +101,11 @@ async def fetch_article_text(url: str) -> str:
     except Exception as e:
         return f"Error reading article: {str(e)}"
 
-TIME_FILTER_WINDOWS = {
-    "Past Month": 31,
-    "Past 3 Months": 93,
-    "Past 6 Months": 186,
-    "Past Year": 366
+TIME_FILTER_OFFSETS = {
+    "Past Month": relativedelta(months=1),
+    "Past 3 Months": relativedelta(months=3),
+    "Past 6 Months": relativedelta(months=6),
+    "Past Year": relativedelta(years=1)
 }
 
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
@@ -155,8 +156,9 @@ def is_date_within_time_filter(source_date: Optional[str], time_filter: str, req
     parsed = parse_source_date(source_date)
     if not parsed or parsed > request_date:
         return False
-    window_days = TIME_FILTER_WINDOWS.get(time_filter, TIME_FILTER_WINDOWS["Past Month"])
-    return request_date - parsed <= timedelta(days=window_days)
+    offset = TIME_FILTER_OFFSETS.get(time_filter, TIME_FILTER_OFFSETS["Past Month"])
+    cutoff_date = request_date - offset
+    return parsed >= cutoff_date
 
 def get_sheet_records(include_rejected: bool = False) -> List[Dict[str, Any]]:
     sheet = get_google_sheet()
