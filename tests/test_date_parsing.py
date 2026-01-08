@@ -17,6 +17,7 @@ from main import parse_source_date, is_date_within_time_filter
         ("2024/03/10", datetime(2024, 3, 10)),
         ("10/03/2024", datetime(2024, 3, 10)),
         ("10-03-2024", datetime(2024, 3, 10)),
+        ("03/10/2024", datetime(2024, 10, 3)),
         ("March 10, 2024", datetime(2024, 3, 10)),
         ("Mar 10, 2024", datetime(2024, 3, 10)),
         ("10 March 2024", datetime(2024, 3, 10)),

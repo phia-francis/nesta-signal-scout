@@ -128,6 +128,7 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
         "%Y-%m-%d",
         "%Y/%m/%d",
         "%d/%m/%Y",
+        "%m/%d/%Y",
         "%d-%m-%Y",
         "%B %d, %Y",
         "%b %d, %Y",
