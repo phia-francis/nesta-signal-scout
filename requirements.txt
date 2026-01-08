@@ -6,3 +6,5 @@ openai
 python-dotenv
 httpx
 beautifulsoup4
+python-dateutil
+pytest
