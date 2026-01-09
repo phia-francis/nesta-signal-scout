@@ -156,7 +156,7 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
 def is_date_within_time_filter(source_date: Optional[str], time_filter: str, request_date: datetime) -> bool:
     parsed = parse_source_date(source_date)
     if not parsed:
-        print(f"⚠️ Date Rejected (Unparsable): {source_date}")
+        logging.warning(f'⚠️ Date Rejected (Unparsable): {source_date}')
         return False
     if parsed > request_date:
         return False
