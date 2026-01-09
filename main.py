@@ -155,7 +155,10 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
 
 def is_date_within_time_filter(source_date: Optional[str], time_filter: str, request_date: datetime) -> bool:
     parsed = parse_source_date(source_date)
-    if not parsed or parsed > request_date:
+    if not parsed:
+        logging.warning(f'⚠️ Date Rejected (Unparsable): {source_date}')
+        return False
+    if parsed > request_date:
         return False
     offset = TIME_FILTER_OFFSETS.get(time_filter, TIME_FILTER_OFFSETS["Past Month"])
     cutoff_date = request_date - offset
@@ -223,7 +226,7 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     except Exception as e:
         print(f"Upsert Error: {e}")
 
-async def perform_google_search(query, date_restrict="m1", requested_results: int = 8):
+async def perform_google_search(query, date_restrict="m1", requested_results: int = 15):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
     print(f"🔍 Searching: '{query}' ({date_restrict})...")
@@ -290,8 +293,11 @@ async def chat_endpoint(req: ChatRequest):
             "ROLE: You are Nesta's Discovery Hub Lead Foresight Researcher.",
             "LANGUAGE: Use British English spellings consistently across all outputs.",
             f"SUGGESTED KEYWORDS: {keywords_str}",
-            "PROTOCOL: 1. SEARCH using a combination of the 'Suggested Keywords' AND high-friction terms (e.g., 'unregulated', 'banned', 'DIY', 'citizen science', 'stealth startup', 'novel application'). Do NOT rely solely on friction terms.",
-            "2. SELECT best candidates. 3. READ candidates (using 'fetch_article_text') to verify they are real/relevant. 4. DISPLAY cards only for verified signals.",
+            "PROTOCOL: 1. SEARCH STRATEGY: Start with a BROAD search combining the User's Topic and 'Suggested Keywords'.",
+            "2. OPTIONAL REFINEMENT: You MAY append friction terms (e.g., 'unregulated', 'startup', 'novel') if results are plentiful, but prioritise finding any relevant signals first.",
+            "3. EXPANSION: If the first search yields low results, immediately try a broader query or remove the specific 'Mission Keywords'.",
+            "4. SELECT & VERIFY: Select the best 3-5 candidates. READ them (using 'fetch_article_text') to verify relevance.",
+            "5. DISPLAY: Call 'display_signal_card' only for verified signals.",
             "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
             "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet.",
             "VALIDATION: Only display sources with published dates that fall within the user's time horizon, relative to CURRENT DATE. Provide published_date in YYYY-MM-DD format."
