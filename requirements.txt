@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-gspread
+gspread==5.12.4
 google-auth
 openai
 python-dotenv
