@@ -307,6 +307,7 @@ async def chat_endpoint(req: ChatRequest):
             "3. EXPANSION: If the first search yields low results, immediately try a broader query or remove the specific 'Mission Keywords'.",
             "4. SELECT & VERIFY: Select the best 3-5 candidates. READ them (using 'fetch_article_text') to verify relevance.",
             "5. DISPLAY: Call 'display_signal_card' only for verified signals.",
+            "OUTPUT FORMATTING: You MUST present every signal by calling the 'display_signal_card' tool. This is the ONLY valid output format; DO NOT use text lists, bullet points, or Markdown.",
             "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
             "URL SAFETY: NEVER fabricate or guess URLs (e.g., for 'gtr.ukri.org'). ONLY use URLs explicitly returned by 'perform_google_search'. If a direct study link is unavailable, use a news article or press release instead.",
             "QUALITY & SOURCING RULES: Output DIRECT links only (no Yahoo/MSN aggregators or search redirects). Trace any secondary source (e.g., news summaries) back to the primary study or press release using 'fetch_article_text'. Strictly reject Reddit or social media as primary sources.",
