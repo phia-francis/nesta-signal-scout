@@ -301,9 +301,9 @@ async def chat_endpoint(req: ChatRequest):
             f"SUGGESTED KEYWORDS: {keywords_str}",
             "LANGUAGE: British English (Colour, Centre, Programme).",
             "SCORING RUBRIC:",
-            "- Novelty (0-10): Distance from mainstream. (9-10 = Academic/Patent; 0-3 = BBC/NYT).",
-            "- Evidence (0-10): Reality check. (0 = Rumour; 10 = Legislation/Widespread).",
-            "- Evocativeness (0-10): The 'What!?' factor.",
+            "- Novelty (0-10): Distance from mainstream. (9-10 = Academic/Patent; 7-8 = Specialist news; 4-6 = Trade press; 0-3 = BBC/NYT).",
+            "- Evidence (0-10): Reality check. (9-10 = Widespread adoption; 6-8 = Pilot/Beta; 3-5 = Startup launch; 0-2 = Rumour).",
+            "- Evocativeness (0-10): The 'What!?' factor. (9-10 = Shocking; 7-8 = Unintended consequence; 4-6 = Logical evolution; 0-3 = Incremental)."
             "OPERATIONAL ALGORITHM:",
             "STEP 1: SEARCH. Use `perform_web_search` with friction terms (e.g., 'unregulated', 'backlash', 'DIY') to find obscure signals.",
             "STEP 2: FILTER & VERIFY. Select candidates. You MUST call `fetch_article_text` to verify the primary source. REJECT aggregators (Yahoo, MSN).",
