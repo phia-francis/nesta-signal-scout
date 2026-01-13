@@ -229,7 +229,12 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
 async def perform_google_search(query, date_restrict="m1", requested_results: int = 15):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
-    print(f"🔍 Searching: '{query}' ({date_restrict})...")
+    exclusion_filter = (
+        "-site:reddit.com -site:quora.com -site:twitter.com "
+        "-site:facebook.com -site:instagram.com"
+    )
+    final_query = f"{query} {exclusion_filter}"
+    print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
     results = []
     start_index = 1
@@ -238,7 +243,7 @@ async def perform_google_search(query, date_restrict="m1", requested_results: in
             while len(results) < target_results:
                 params = {
                     "key": GOOGLE_SEARCH_KEY, "cx": GOOGLE_SEARCH_CX,
-                    "q": query, "num": 10, "start": start_index, "dateRestrict": date_restrict
+                    "q": final_query, "num": 10, "start": start_index, "dateRestrict": date_restrict
                 }
                 resp = await http_client.get(url, params=params)
                 if resp.status_code != 200: break
@@ -300,6 +305,7 @@ async def chat_endpoint(req: ChatRequest):
             "5. DISPLAY: Call 'display_signal_card' only for verified signals.",
             "SEARCH RULE: Do NOT include specific years (e.g., '2024', '2025') or 'since:' operators in your search queries. The search tool automatically applies the correct time filter based on the user's selection.",
             "URL SAFETY: NEVER fabricate or guess URLs (e.g., for 'gtr.ukri.org'). ONLY use URLs explicitly returned by 'perform_google_search'. If a direct study link is unavailable, use a news article or press release instead.",
+            "QUALITY & SOURCING RULES: Output DIRECT links only (no Yahoo/MSN aggregators or search redirects). Trace any secondary source (e.g., news summaries) back to the primary study or press release using 'fetch_article_text'. Strictly reject Reddit or social media as primary sources.",
             "TOOL CONTRACT: You MUST call 'fetch_article_text' on a URL before calling 'display_signal_card'. Never display a card based solely on a Google snippet. If 'fetch_article_text' fails, drop that candidate and find another.",
             "VALIDATION: Only display sources with published dates that fall within the user's time horizon, relative to CURRENT DATE. Provide published_date in YYYY-MM-DD format."
         ]
