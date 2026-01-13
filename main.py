@@ -229,10 +229,14 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
 async def perform_google_search(query, date_restrict="m1", requested_results: int = 15):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
-    exclusion_filter = (
-        "-site:reddit.com -site:quora.com -site:twitter.com "
-        "-site:facebook.com -site:instagram.com"
-    )
+    excluded_sites = [
+        'reddit.com',
+        'quora.com',
+        'twitter.com',
+        'facebook.com',
+        'instagram.com',
+    ]
+    exclusion_filter = ' '.join(f'-site:{site}' for site in excluded_sites)
     final_query = f"{query} {exclusion_filter}"
     print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
