@@ -426,7 +426,8 @@ async def chat_endpoint(req: ChatRequest):
                                 accumulated_signals.append(card)
                                 seen_urls.add(card["url"])
                                 try: await asyncio.to_thread(upsert_signal, card)
-                                except: pass
+                                except Exception as e:
+                                    print(f"Error upserting signal {card.get('url')}: {e}")
                                 tool_outputs.append({"tool_call_id": tool.id, "output": "displayed"})
                             else:
                                 tool_outputs.append({"tool_call_id": tool.id, "output": "duplicate_skipped"})
