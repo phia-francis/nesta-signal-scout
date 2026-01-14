@@ -298,7 +298,7 @@ async def chat_endpoint(req: ChatRequest):
             "PROTOCOL:",
             "1. SEARCH STRATEGY: Start with a BROAD search combining the User's Topic and 'Suggested Keywords'.",
             "2. OPTIONAL REFINEMENT: You MAY append friction terms (e.g., 'unregulated', 'startup', 'novel') if results are plentiful.",
-            "3. SELECT & VERIFY: Select the best 3-5 candidates. READ them (using 'fetch_article_text') to verify relevance.",
+            "3. SELECT & VERIFY: Select the best candidates (aim for 5-8, or the number requested by the user). READ them (using 'fetch_article_text') to verify relevance.",
             "4. DISPLAY: Call 'display_signal_card' only for verified signals.",
             "QUALITY & SOURCING RULES:",
             "1. DIRECT LINKS ONLY: Output the URL to the primary study/startup. No aggregators (Yahoo/MSN).",
