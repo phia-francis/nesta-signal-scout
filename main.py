@@ -293,11 +293,7 @@ async def chat_endpoint(req: ChatRequest):
             req.message,
             f"CURRENT DATE: {today_str}",
             # 3. Construct Prompt (NUANCED & FIXED VERSION)
-        prompt_parts = [
-            req.message,
-            f"CURRENT DATE: {today_str}",
-            "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Weak Signals'—obscure, high-potential indicators of change.",
-
+            
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
             "- Use: Colour, Centre, Programme, Minimise, Behaviour, Organisation, Labour.",
             "- Avoid: Color, Center, Program, Minimize, Behavior, Organization, Labor.",
