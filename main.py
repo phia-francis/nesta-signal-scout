@@ -33,6 +33,9 @@ GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
 GOOGLE_SEARCH_KEY = os.getenv("Google_Search_API_KEY") or os.getenv("GOOGLE_SEARCH_KEY")
 GOOGLE_SEARCH_CX = os.getenv("Google_Search_CX") or os.getenv("GOOGLE_SEARCH_CX")
 
+DEFAULT_SIGNAL_COUNT = 5
+QUERY_GENERATION_BUFFER = 3
+
 # --- CLIENT INIT ---
 client = OpenAI(
     api_key=OPENAI_API_KEY,
@@ -270,7 +273,7 @@ async def chat_endpoint(req: ChatRequest):
         # 1. Get Current Date & Validation
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
-        target_count = req.signal_count if req.signal_count and req.signal_count > 0 else 5
+        target_count = req.signal_count if req.signal_count and req.signal_count > 0 else DEFAULT_SIGNAL_COUNT
         
         print(f"Incoming: {req.message} | Target: {target_count} | Mission: {req.mission} | Date: {today_str}")
         
@@ -325,6 +328,8 @@ async def chat_endpoint(req: ChatRequest):
 
             "C. EVOCATIVENESS (0-10): 'The What!? Factor'",
             "   0-3: Incremental.",
+            "   4-6: Logical evolution.",
+            "   7-8: Unintended consequence.",
             "   9-10: Shocking/Visual.",
 
             "2. THE 'DEEP HOOK' PROTOCOL (INTERNAL DATA GENERATION):",
@@ -336,7 +341,7 @@ async def chat_endpoint(req: ChatRequest):
             "WARNING: Pass this text ONLY to the tool. Do NOT output it in the chat.",
 
             "3. OPERATIONAL ALGORITHM:",
-            f"STEP 1: QUERY ENGINEERING. Generate at least {target_count + 3} distinct search queries to ensure sufficient coverage. Avoid generic topics.",
+            f"STEP 1: QUERY ENGINEERING. Generate at least {target_count + QUERY_GENERATION_BUFFER} distinct search queries to ensure sufficient coverage. Avoid generic topics.",
             "- Underground: [Topic] AND ('unregulated' OR 'black market' OR 'off-label use')",
             "- Failure: [Topic] AND ('lawsuit' OR 'banned' OR 'ethical outcry' OR 'recall')",
             "- Edge: [Topic] AND ('open source' OR 'repository' OR 'citizen science' -site:reddit.com)",
@@ -350,9 +355,9 @@ async def chat_endpoint(req: ChatRequest):
 
             "STEP 3: GENERATE CARD (Data Extraction)",
             "If the signal passes Deep Verification, call `display_signal_card`:",
-            "- Extract Source Country (Check TLD or Context).",
-            "- Assign Mission.",
-            "- Assign Lenses.",
+            "- Extract Source Country (Check TLD or Context; e.g., TLD:.co.uk = UK, .de = Germany. Context: Researchers in Brazil... = Brazil).",
+            "- Assign Mission (Strict Enum): 'A Fairer Start', 'A Healthy Life', 'A Sustainable Future', 'Mission Adjacent'.",
+            "- Assign Lenses (2-3): Social, Tech, Economic, Environmental, Political, Legal, Ethical.",
 
             f"LOOPING LOGIC (CRITICAL): The user requested exactly {target_count} signals. You MUST NOT STOP until you have successfully called `display_signal_card` {target_count} times with valid, unique signals. If you run out of search results, generate NEW queries and search again.",
             
