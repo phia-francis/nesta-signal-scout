@@ -260,15 +260,19 @@ class ChatRequest(BaseModel):
     source_types: List[str] = Field(default_factory=list)
     tech_mode: bool = False
     mission: str = "All Missions" # Added mission field to request
+    signal_count: Optional[int] = None
 
+@app.post("/chat")
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
     run = None
     try:
-        # 1. Get Current Date
+        # 1. Get Current Date & Validation
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
-        print(f"Incoming: {req.message} | Mission: {req.mission} | Date: {today_str}")
+        target_count = req.signal_count if req.signal_count and req.signal_count > 0 else 5
+        
+        print(f"Incoming: {req.message} | Target: {target_count} | Mission: {req.mission} | Date: {today_str}")
         
         # 2. Select Keywords based on Mission
         relevant_keywords_set = set()
@@ -288,11 +292,11 @@ async def chat_endpoint(req: ChatRequest):
         selected_keywords = random.sample(relevant_keywords_list, min(len(relevant_keywords_list), 15))
         keywords_str = ", ".join(selected_keywords)
 
-        # 3. Construct Prompt (FINAL ALIGNED VERSION)
+        # 3. Construct Prompt (DYNAMIC SCALING VERSION)
         prompt_parts = [
             req.message,
             f"CURRENT DATE: {today_str}",
-            # 3. Construct Prompt (NUANCED & FIXED VERSION)
+            "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Weak Signals'—obscure, high-potential indicators of change.",
             
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
             "- Use: Colour, Centre, Programme, Minimise, Behaviour, Organisation, Labour.",
@@ -304,26 +308,24 @@ async def chat_endpoint(req: ChatRequest):
             "- NO SEARCH = NO SIGNAL: If you cannot find a direct URL, the signal does not exist.",
             "- QUALITY CONTROL (CRITICAL):",
             "  1. DIRECT LINKS ONLY: You must output the URL to the primary study, startup, or press release. NEVER output an aggregator link (Yahoo, MSN, Newsletters).",
-            "  2. NO UGC: Do not rely on Reddit, Quora, or Social Media. If a signal is found there, you must trace it to a reputable primary source (University, Industry Body, Government).",
+            "  2. NO UGC: Do not rely on Reddit, Quora, or Social Media. If a signal is found there, you must trace it to a reputable primary source.",
 
             "1. THE SCORING RUBRIC (Strict Calculation):",
             "A. NOVELTY (0-10): 'Distance from the Mainstream'",
-            "   0-3 (Low): Covered by major outlets (BBC, NYT). Allow ONLY if Evidence score is High 6+).",
+            "   0-3 (Low): Covered by major outlets. Allow ONLY if Evidence score is High (8+).",
             "   4-6 (Mid): Trade press, industry journals, niche blogs.",
-            "   7-8 (High): Local/non-English news, GitHub Repos, Specialist Substack, Patents.",
-            "   9-10 (Peak): Academic pre-prints (arXiv), Leaked policy docs, Hard Tech Whitepapers.",
+            "   7-8 (High): Local/non-English news, GitHub Repos, Patents.",
+            "   9-10 (Peak): Academic pre-prints, Leaked policy docs.",
             
             "B. EVIDENCE (0-10): 'Reality vs. Rumour'",
-            "   0-2: Concept art, rumours.",
-            "   3-5: Startup launch, proposed bill.",
-            "   6-8: Physical pilot, beta test, published paper.",
-            "   9-10: Passed legislation, widespread adoption, failed large-scale experiment.",
+            "   0-2: Rumours.",
+            "   3-5: Startup launch.",
+            "   6-8: Physical pilot, published paper.",
+            "   9-10: Passed legislation, widespread adoption.",
 
             "C. EVOCATIVENESS (0-10): 'The What!? Factor'",
-            "   0-3: Incremental update.",
-            "   4-6: Logical evolution.",
-            "   7-8: Unintended consequence.",
-            "   9-10: Shocking/Visual (Biological computers, Sand Theft).",
+            "   0-3: Incremental.",
+            "   9-10: Shocking/Visual.",
 
             "2. THE 'DEEP HOOK' PROTOCOL (INTERNAL DATA GENERATION):",
             "The hook field is a Strategic Briefing (75-100 words) written in British English.",
@@ -334,7 +336,7 @@ async def chat_endpoint(req: ChatRequest):
             "WARNING: Pass this text ONLY to the tool. Do NOT output it in the chat.",
 
             "3. OPERATIONAL ALGORITHM:",
-            "STEP 1: QUERY ENGINEERING (The Friction Method). Generate 3-5 queries. Avoid generic topics.",
+            f"STEP 1: QUERY ENGINEERING. Generate at least {target_count + 3} distinct search queries to ensure sufficient coverage. Avoid generic topics.",
             "- Underground: [Topic] AND ('unregulated' OR 'black market' OR 'off-label use')",
             "- Failure: [Topic] AND ('lawsuit' OR 'banned' OR 'ethical outcry' OR 'recall')",
             "- Edge: [Topic] AND ('open source' OR 'repository' OR 'citizen science' -site:reddit.com)",
@@ -348,11 +350,11 @@ async def chat_endpoint(req: ChatRequest):
 
             "STEP 3: GENERATE CARD (Data Extraction)",
             "If the signal passes Deep Verification, call `display_signal_card`:",
-            "- Extract Source Country (Check TLD or Context): TLD:.co.uk = UK, .de = Germany. Context: Researchers in Brazil... = Brazil. Global: GitHub repos or decentralised tech = Global",
-            "- Assign Mission (Strict Enum): 'A Fairer Start', 'A Healthy Life', 'A Sustainable Future', 'Mission Adjacent'.",
-            "- Assign Lenses (2-3): Social, Tech, Economic, Environmental, Political, Legal, Ethical.",
+            "- Extract Source Country (Check TLD or Context).",
+            "- Assign Mission.",
+            "- Assign Lenses.",
 
-            "LOOPING LOGIC: Extract the number of signals requested by the user. Continue searching, tracing, and verifying until you have exactly that number of validated signals.",
+            f"LOOPING LOGIC (CRITICAL): The user requested exactly {target_count} signals. You MUST NOT STOP until you have successfully called `display_signal_card` {target_count} times with valid, unique signals. If you run out of search results, generate NEW queries and search again.",
             
             "OUTPUT SAFETY:",
             "1. SILENCE: Do not output conversational text or lists.",
@@ -363,7 +365,6 @@ async def chat_endpoint(req: ChatRequest):
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
         
-        # Explicit instruction for Gateway to Research
         bias_sources = req.source_types
         if "Gateway to Research" in bias_sources:
             prompt += "\nCONSTRAINT: User selected 'Gateway to Research'. You MUST include searches using 'site:gtr.ukri.org' to find relevant projects."
@@ -379,7 +380,7 @@ async def chat_endpoint(req: ChatRequest):
         accumulated_signals = []
         seen_urls = set()
 
-        # Polling Loop with Cancellation Support
+        # Polling Loop
         while True:
             try:
                 run_status = await asyncio.to_thread(client.beta.threads.runs.retrieve, thread_id=run.thread_id, run_id=run.id)
@@ -401,12 +402,17 @@ async def chat_endpoint(req: ChatRequest):
                         elif tool.function.name == "display_signal_card":
                             args = json.loads(tool.function.arguments)
                             published_date = args.get("published_date", "")
+                            
+                            # Validation Logic
                             if not is_date_within_time_filter(published_date, req.time_filter, request_date):
                                 tool_outputs.append({"tool_call_id": tool.id, "output": "rejected_out_of_time_window"})
                                 continue
+                            
                             card = {
-                                "title": args.get("title"), "url": args.get("final_url") or args.get("url"),
-                                "hook": args.get("hook"), "score": args.get("score"),
+                                "title": args.get("title"), 
+                                "url": args.get("final_url") or args.get("url"),
+                                "hook": args.get("hook"), 
+                                "score": args.get("score"),
                                 "mission": args.get("mission", "General"),
                                 "lenses": args.get("lenses", ""),
                                 "score_novelty": args.get("score_novelty", 0),
@@ -415,12 +421,13 @@ async def chat_endpoint(req: ChatRequest):
                                 "source_date": published_date,
                                 "ui_type": "signal_card"
                             }
+                            
                             if card["url"] and card["url"] not in seen_urls:
                                 accumulated_signals.append(card)
                                 seen_urls.add(card["url"])
-                                # Upsert in thread to prevent blocking cancellation
                                 try: await asyncio.to_thread(upsert_signal, card)
-                                except: pass
+                                except Exception as e:
+                                    print(f"Error upserting signal {card.get('url')}: {e}")
                                 tool_outputs.append({"tool_call_id": tool.id, "output": "displayed"})
                             else:
                                 tool_outputs.append({"tool_call_id": tool.id, "output": "duplicate_skipped"})
@@ -445,11 +452,10 @@ async def chat_endpoint(req: ChatRequest):
                     await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
                 except Exception as e:
                     print(f"Error cancelling run: {e}")
-                raise # Re-raise to allow FastAPI to close the connection properly
+                raise 
 
     except Exception as e:
         print(f"Server Error: {e}")
-        # Only check for cancellation if 'run' was created
         if isinstance(e, asyncio.CancelledError) and run:
             try:
                 await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
