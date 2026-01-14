@@ -328,6 +328,8 @@ async def chat_endpoint(req: ChatRequest):
 
             "C. EVOCATIVENESS (0-10): 'The What!? Factor'",
             "   0-3: Incremental.",
+            "   4-6: Logical evolution.",
+            "   7-8: Unintended consequence.",
             "   9-10: Shocking/Visual.",
 
             "2. THE 'DEEP HOOK' PROTOCOL (INTERNAL DATA GENERATION):",
