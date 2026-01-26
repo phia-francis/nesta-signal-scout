@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from pathlib import Path
 import sys
 
@@ -6,6 +7,8 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
+
+os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
 from main import parse_source_date, is_date_within_time_filter
 
