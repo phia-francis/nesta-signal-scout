@@ -1070,16 +1070,25 @@
                 
                 <div class="flex items-center justify-between text-xs font-bold mt-auto ${styles.footer}">
                     <span>${signal.source_date || 'Recent'}</span>
-                    <div class="flex items-center gap-2">
-                        <button type="button" onclick='copyForSlack(${JSON.stringify({ title: signal.title, hook: cleanHook, url: signal.final_url || signal.url }).replace(/'/g, "&apos;")})' class="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold border border-white/20 hover:border-white/40 transition">
-                            <span aria-hidden="true">💬</span> Copy for Slack
-                        </button>
-                        <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-2 hover:opacity-100 opacity-70 transition group">
-                            <span id="${linkStatusId}" class="w-2 h-2 rounded-full bg-nesta-sand" title="Checking link..."></span>
-                            ${sourceName} <span class="text-lg leading-none group-hover:translate-x-0.5 transition-transform">↗</span>
-                        </a>
-                    </div>
+                    <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-2 hover:opacity-100 opacity-70 transition group">
+                        <span id="${linkStatusId}" class="w-2 h-2 rounded-full bg-nesta-sand" title="Checking link..."></span>
+                        ${sourceName} <span class="text-lg leading-none group-hover:translate-x-0.5 transition-transform">↗</span>
+                    </a>
                 </div>
+
+                ${!isSavedView ? `
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="p-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition" title="Reject">
+                        👎
+                    </button>
+                    <button type="button" onclick='shortlistSignal(${JSON.stringify({ title: signal.title, hook: cleanHook, url: signal.final_url || signal.url }).replace(/'/g, "&apos;")})' class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
+                        📋 Copy for Slack
+                    </button>
+                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
+                        ☆ Keep
+                    </button>
+                </div>
+                ` : ''}
 
                 ${isSavedView ? `
                 <div class="mt-5 pt-5 border-t border-black/5 space-y-4">
@@ -1105,6 +1114,46 @@
             }
         }
 
+        async function updateSignalStatus(url, status) {
+            if (!url) return;
+            try {
+                await fetch(`${API_BASE_URL}/api/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url, user_status: status })
+                });
+            } catch (e) {
+                console.error('Status update failed', e);
+            }
+        }
+
+        async function rejectSignal(url, cardId) {
+            await updateSignalStatus(url, 'Rejected');
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.remove();
+            }
+            currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
+            lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
+            updateDownloadButton();
+            showToast('Signal rejected', 'normal');
+        }
+
+        async function shortlistSignal(cardData) {
+            copyForSlack(cardData);
+            await updateSignalStatus(cardData?.url, 'Shortlisted');
+        }
+
+        async function keepSignal(url, buttonId) {
+            await updateSignalStatus(url, 'Saved');
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.textContent = '★ Saved';
+                button.classList.add('bg-nesta-sand');
+            }
+            showToast('Signal saved', 'success');
+        }
+
         async function checkLinkHealth(url, indicatorId) {
             const indicator = document.getElementById(indicatorId);
             if (!indicator) return;
@@ -1127,7 +1176,7 @@
             const text = `*${title}*\n> ${hook}\nSource: ${url}`;
             try {
                 await navigator.clipboard.writeText(text);
-                showToast('Copied for Slack', 'success');
+                showToast('Copied!', 'success');
             } catch (e) {
                 showToast('Clipboard unavailable', 'error');
             }

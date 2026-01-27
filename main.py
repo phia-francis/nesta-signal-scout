@@ -283,6 +283,8 @@ async def chat_endpoint(req: ChatRequest):
         # 1. Get Current Date & Validation
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
+        existing_records = await asyncio.to_thread(get_sheet_records, include_rejected=True)
+        known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
         
         # Default to 5 signals if not specified
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else 5
@@ -357,6 +359,13 @@ async def chat_endpoint(req: ChatRequest):
             "2. You MUST NOT STOP until you have successfully generated valid cards for that specific number.",
             "3. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead."
         ]
+        if known_urls:
+            recent_memory = known_urls[-50:] if len(known_urls) > 50 else known_urls
+            prompt_parts.append(
+                "MEMORY CONSTRAINTS (CRITICAL):\n"
+                "The following URLs are already known or rejected. DO NOT return them again:\n"
+                f"{json.dumps(recent_memory)}"
+            )
         if req.scan_mode == "policy":
             prompt_parts.append("MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.")
         elif req.scan_mode == "grants":
