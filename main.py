@@ -205,7 +205,21 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     sheet = get_google_sheet()
     if not sheet: return
     ensure_sheet_headers(sheet)
-    
+    incoming_status = str(signal.get("user_status") or signal.get("User_Status") or "").strip()
+    incoming_shareable = signal.get("shareable") or signal.get("Shareable") or "Maybe"
+    normalized_status = incoming_status.title() if incoming_status else "Pending"
+    normalized_shareable = incoming_shareable
+    status_key = normalized_status.lower()
+    if status_key == "shortlisted":
+        normalized_status = "Shortlisted"
+        normalized_shareable = "Yes"
+    elif status_key == "rejected":
+        normalized_status = "Rejected"
+    elif status_key == "saved":
+        normalized_status = "Saved"
+    elif status_key == "generated":
+        normalized_status = "Generated"
+
     row_data = [
         signal.get("title", ""), 
         signal.get("score", 0),
@@ -217,9 +231,9 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
         signal.get("score_novelty", 0), 
         signal.get("score_evidence", 0),
         signal.get("user_rating", 3), 
-        signal.get("user_status", "Pending"),
+        normalized_status,
         signal.get("user_comment", "") or signal.get("feedback", ""), 
-        signal.get("shareable", "Maybe"),
+        normalized_shareable,
         signal.get("feedback", ""),
         signal.get("source_date", "Recent")
     ]
@@ -269,6 +283,13 @@ async def perform_google_search(query, date_restrict="m1", requested_results: in
                     results.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nSnippet: {item.get('snippet', '')}")
                 if len(items) < 10: break
                 start_index += 10
+            if not results:
+                return json.dumps([{
+                    "title": "SYSTEM_MSG",
+                    "url": "ERROR",
+                    "hook": "No results found. Please RETRY with a broader query (remove specific dates or niche adjectives).",
+                    "score": 0
+                }])
             return "\n\n".join(results[:target_results])
         except Exception as e: return f"Search Exception: {str(e)}"
 
@@ -325,6 +346,7 @@ async def chat_endpoint(req: ChatRequest):
         prompt_parts = [
             user_request_block,
             f"CURRENT DATE: {today_str}",
+            f"SEARCH CONSTRAINT: Do NOT include the current year (e.g., '{request_date.year}') inside search query keywords. Rely ONLY on the time_filter tool parameter. Adding the year manually excludes valid results.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
             
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
@@ -375,6 +397,13 @@ async def chat_endpoint(req: ChatRequest):
             )
         if mode_prompt := MODE_PROMPTS.get(req.scan_mode):
             prompt_parts.append(mode_prompt)
+        if req.scan_mode == "grants":
+            prompt_parts.append(
+                "MODE ADAPTATION: GRANT STALKER.CRITICAL: You must TRANSLATE consumer/mission keywords into Academic/Scientific terminology before searching.\n"
+                "Input: 'School Readiness' → Search: ('Cognitive development' OR 'Pedagogical interventions')\n"
+                "Input: 'Healthy Snacking' → Search: ('Nutrient reformulation' OR 'Metabolic health')\n"
+                "SOURCE RULE: Apply these translated keywords to the User-Provided Source List (e.g., selected_sources). Do NOT hardcode site:ukri.org if the user has selected other filters (like VC Blogs or News)."
+            )
         prompt = "\n\n".join(prompt_parts)
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
@@ -433,6 +462,7 @@ async def chat_endpoint(req: ChatRequest):
                                 "score_evidence": args.get("score_evidence", 0),
                                 "score_evocativeness": args.get("score_evocativeness", 0),
                                 "source_date": published_date,
+                                "user_status": "Generated",
                                 "ui_type": "signal_card"
                             }
                             

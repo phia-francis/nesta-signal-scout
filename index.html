@@ -309,7 +309,10 @@
             </div>
 
             <div class="mt-6">
-                <div class="text-xs font-bold text-nesta-black uppercase tracking-widest mb-2">Live Terminal</div>
+                <button type="button" onclick="toggleTerminal()" class="w-full flex items-center justify-between text-xs font-bold text-nesta-black uppercase tracking-widest mb-2">
+                    <span>&gt;_ SYSTEM LOGS</span>
+                    <span id="terminal-toggle-indicator">[-]</span>
+                </button>
                 <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body rounded-xl p-4 h-32 overflow-y-auto border border-nesta-sand">
                     <div class="opacity-70">> Waiting for scan...</div>
                 </div>
@@ -380,7 +383,7 @@
                 </div>
                 <button onclick="closeSavedSignals()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
             </div>
-            <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 gap-8"></div>
         </div>
     </div>
 
@@ -720,6 +723,20 @@
             };
         }
 
+        function renderDatabase() {
+            const list = document.getElementById('saved-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!currentSaved || currentSaved.length === 0) {
+                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
+                return;
+            }
+            currentSaved.forEach((sig, i) => {
+                const normalized = normalizeSignal(sig);
+                createSignalCard(normalized, i, true, 'saved-list');
+            });
+        }
+
         // --- UNIFIED FILTER LOGIC ---
         async function switchFilter(type) {
             activeFilter = type;
@@ -861,6 +878,14 @@
             }
         }
 
+        function toggleTerminal() {
+            const terminal = document.getElementById('live-terminal');
+            const indicator = document.getElementById('terminal-toggle-indicator');
+            if (!terminal || !indicator) return;
+            terminal.classList.toggle('hidden');
+            indicator.textContent = terminal.classList.contains('hidden') ? '[+]' : '[-]';
+        }
+
         function stopScan() {
             if (scanController) {
                 scanController.abort();
@@ -981,7 +1006,7 @@
             }
         }
 
-        function createSignalCard(signal, index, isSavedView = false, containerId = 'result-container') {
+        function createSignalCard(signal, index, showActions = true, containerId = 'result-container') {
             const container = document.getElementById(containerId);
             const m = (signal.mission || "").toLowerCase();
             
@@ -1035,6 +1060,20 @@
             const linkStatusId = `${containerId}-link-status-${index}`;
             card.className = `${styles.cardBg} p-7 border border-black/5 flex flex-col h-full shadow-soft rounded-xl animate-fade-in-up transition-all duration-300 transform hover:-translate-y-1`;
 
+            const actionBar = `
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="px-3 py-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition text-xs font-bold" title="Reject">
+                        👎 Reject
+                    </button>
+                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
+                        📋 Copy (Slack)
+                    </button>
+                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
+                        ⭐ Keep
+                    </button>
+                </div>
+            `;
+
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-5">
                     <span class="px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-widest ${styles.badge}">
@@ -1076,36 +1115,7 @@
                     </a>
                 </div>
 
-                ${!isSavedView ? `
-                <div class="mt-4 flex items-center justify-between gap-3">
-                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="p-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition" title="Reject">
-                        👎
-                    </button>
-                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
-                        📋 Copy for Slack
-                    </button>
-                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
-                        ☆ Keep
-                    </button>
-                </div>
-                ` : ''}
-
-                ${isSavedView ? `
-                <div class="mt-5 pt-5 border-t border-black/5 space-y-4">
-                    <div class="space-y-1">
-                        <label for="saved-shareable-${index}" class="${accentClass}">Status</label>
-                        <select id="saved-shareable-${index}" class="w-full text-xs rounded px-3 py-2 font-bold focus:ring-0 focus:border-current ${styles.selectBg}">
-                            <option value="Yes" ${signal.shareable === 'Yes' ? 'selected' : ''}>Yes - Shareable</option>
-                            <option value="Maybe" ${signal.shareable === 'Maybe' ? 'selected' : ''}>Maybe</option>
-                            <option value="No" ${signal.shareable === 'No' ? 'selected' : ''}>No - Reject</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                         <label for="saved-comment-${index}" class="${accentClass}">Notes</label>
-                         <input type="text" id="saved-comment-${index}" class="w-full text-xs px-3 py-2 rounded focus:ring-0 ${styles.inputBg}" placeholder="Add comment..." value="${signal.feedback || ''}">
-                    </div>
-                    <button onclick="updateSavedSignal('${signal.final_url || signal.url}', '${(signal.title || "").replace(/'/g, "\\'")}', ${index})" class="w-full py-2.5 text-xs font-bold uppercase rounded transition shadow-md ${styles.button}">Save Changes</button>
-                </div>` : ''}
+                ${showActions ? actionBar : ''}
             `;
             container.appendChild(card);
             const linkUrl = signal.final_url || signal.url;
@@ -1145,6 +1155,7 @@
             }
             currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
             lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
+            currentSaved = currentSaved.filter(signal => (signal.URL || signal.url) !== url);
             updateDownloadButton();
             showToast('Signal rejected', 'normal');
         }
@@ -1158,7 +1169,7 @@
             await updateSignalStatus(url, 'Saved');
             const button = document.getElementById(buttonId);
             if (button) {
-                button.textContent = '★ Saved';
+                button.textContent = '⭐ Saved';
                 button.classList.add('bg-nesta-sand');
             }
             showToast('Signal saved', 'success');
@@ -1203,12 +1214,7 @@
                 list.innerHTML = '';
                 // NEWEST FIRST for full database view as well
                 currentSaved = data.reverse(); 
-                if(data.length === 0) { list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>'; return; }
-                
-                currentSaved.forEach((sig, i) => {
-                    const normalized = normalizeSignal(sig);
-                    createSignalCard(normalized, i, true, 'saved-list');
-                });
+                renderDatabase();
             } catch(e) { list.innerHTML = '<div class="col-span-full text-center text-nesta-red py-10 font-bold">Failed to load database.</div>'; }
         }
 
@@ -1217,10 +1223,11 @@
         async function updateSavedSignal(url, title, domIndex) {
             const shareVal = document.getElementById(`saved-shareable-${domIndex}`).value;
             const commentVal = document.getElementById(`saved-comment-${domIndex}`)?.value || '';
+            const statusMap = { Yes: 'Shortlisted', Maybe: 'Saved', No: 'Rejected' };
             try {
                 const res = await fetch(`${API_BASE_URL}/api/update`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: shareVal === 'No' ? 'Rejected' : 'Accepted', user_comment: commentVal, feedback: commentVal })
+                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: statusMap[shareVal] || 'Saved', user_comment: commentVal, feedback: commentVal })
                 });
                 if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
                 else throw new Error();
