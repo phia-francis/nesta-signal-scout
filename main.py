@@ -230,11 +230,19 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     except Exception as e:
         print(f"Upsert Error: {e}")
 
-async def perform_google_search(query, date_restrict="m1", requested_results: int = 15):
+async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general"):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
-    exclusions = "-site:reddit.com -site:quora.com -site:twitter.com -site:facebook.com -site:instagram.com"
-    final_query = f"{query} {exclusions}"
+    scan_mode = (scan_mode or "general").lower()
+    exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com"
+    if scan_mode != "community":
+        exclusions = f"{exclusions} -site:reddit.com -site:quora.com"
+    mode_filters = {
+        "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
+        "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)"
+    }
+    mode_filter = mode_filters.get(scan_mode, "")
+    final_query = " ".join(part for part in [query, mode_filter, exclusions] if part)
     print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
     results = []
@@ -265,6 +273,7 @@ class ChatRequest(BaseModel):
     tech_mode: bool = False
     mission: str = "All Missions" # Added mission field to request
     signal_count: Optional[int] = None
+    scan_mode: str = "general"
 
 @app.post("/chat")
 @app.post("/api/chat")
@@ -348,6 +357,12 @@ async def chat_endpoint(req: ChatRequest):
             "2. You MUST NOT STOP until you have successfully generated valid cards for that specific number.",
             "3. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead."
         ]
+        if req.scan_mode == "policy":
+            prompt_parts.append("MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.")
+        elif req.scan_mode == "grants":
+            prompt_parts.append("MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.")
+        elif req.scan_mode == "community":
+            prompt_parts.append("MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run.")
         prompt = "\n\n".join(prompt_parts)
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
@@ -380,7 +395,7 @@ async def chat_endpoint(req: ChatRequest):
                         if tool.function.name == "perform_web_search":
                             args = json.loads(tool.function.arguments)
                             d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
-                            res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"))
+                            res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"), scan_mode=req.scan_mode)
                             tool_outputs.append({"tool_call_id": tool.id, "output": res})
                         elif tool.function.name == "fetch_article_text":
                             args = json.loads(tool.function.arguments)
