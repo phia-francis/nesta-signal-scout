@@ -112,6 +112,17 @@ TIME_FILTER_OFFSETS = {
     "Past Year": relativedelta(years=1)
 }
 
+MODE_FILTERS = {
+    "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
+    "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)"
+}
+
+MODE_PROMPTS = {
+    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
+    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.",
+    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run."
+}
+
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:
         return None
@@ -234,14 +245,10 @@ async def perform_google_search(query, date_restrict="m1", requested_results: in
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
     scan_mode = (scan_mode or "general").lower()
-    exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com"
+    exclusions = ""
     if scan_mode != "community":
-        exclusions = f"{exclusions} -site:reddit.com -site:quora.com"
-    mode_filters = {
-        "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
-        "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)"
-    }
-    mode_filter = mode_filters.get(scan_mode, "")
+        exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com -site:reddit.com -site:quora.com"
+    mode_filter = MODE_FILTERS.get(scan_mode, "")
     final_query = " ".join(part for part in [query, mode_filter, exclusions] if part)
     print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
@@ -366,12 +373,8 @@ async def chat_endpoint(req: ChatRequest):
                 "The following URLs are already known or rejected. DO NOT return them again:\n"
                 f"{json.dumps(recent_memory)}"
             )
-        if req.scan_mode == "policy":
-            prompt_parts.append("MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.")
-        elif req.scan_mode == "grants":
-            prompt_parts.append("MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.")
-        elif req.scan_mode == "community":
-            prompt_parts.append("MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run.")
+        if mode_prompt := MODE_PROMPTS.get(req.scan_mode):
+            prompt_parts.append(mode_prompt)
         prompt = "\n\n".join(prompt_parts)
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."

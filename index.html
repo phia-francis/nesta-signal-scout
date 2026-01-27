@@ -1081,7 +1081,7 @@
                     <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="p-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition" title="Reject">
                         👎
                     </button>
-                    <button type="button" onclick='shortlistSignal(${JSON.stringify({ title: signal.title, hook: cleanHook, url: signal.final_url || signal.url }).replace(/'/g, "&apos;")})' class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
+                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
                         📋 Copy for Slack
                     </button>
                     <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
@@ -1111,6 +1111,16 @@
             const linkUrl = signal.final_url || signal.url;
             if (linkUrl) {
                 checkLinkHealth(linkUrl, linkStatusId);
+            }
+            const copyButton = document.getElementById(`copy-slack-${card.id}`);
+            if (copyButton) {
+                copyButton.dataset.title = signal.title || '';
+                copyButton.dataset.hook = cleanHook || '';
+                copyButton.dataset.url = linkUrl || '';
+                copyButton.addEventListener('click', (event) => {
+                    const { title, hook, url } = event.currentTarget.dataset;
+                    shortlistSignal({ title, hook, url });
+                });
             }
         }
 
@@ -1162,10 +1172,10 @@
             try {
                 await fetch(url, { method: 'HEAD', mode: 'no-cors' });
                 indicator.className = 'w-2 h-2 rounded-full bg-nesta-green';
-                indicator.title = 'Link looks reachable';
+                indicator.title = 'Server responded (link validity not checked)';
             } catch (e) {
                 indicator.className = 'w-2 h-2 rounded-full bg-nesta-red';
-                indicator.title = 'Link might be broken';
+                indicator.title = 'Server unreachable (link may be broken)';
             }
         }
 
