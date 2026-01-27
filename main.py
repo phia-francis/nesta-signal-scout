@@ -112,6 +112,17 @@ TIME_FILTER_OFFSETS = {
     "Past Year": relativedelta(years=1)
 }
 
+MODE_FILTERS = {
+    "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
+    "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)"
+}
+
+MODE_PROMPTS = {
+    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
+    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.",
+    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run."
+}
+
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:
         return None
@@ -230,11 +241,15 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     except Exception as e:
         print(f"Upsert Error: {e}")
 
-async def perform_google_search(query, date_restrict="m1", requested_results: int = 15):
+async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general"):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
-    exclusions = "-site:reddit.com -site:quora.com -site:twitter.com -site:facebook.com -site:instagram.com"
-    final_query = f"{query} {exclusions}"
+    scan_mode = (scan_mode or "general").lower()
+    exclusions = ""
+    if scan_mode != "community":
+        exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com -site:reddit.com -site:quora.com"
+    mode_filter = MODE_FILTERS.get(scan_mode, "")
+    final_query = " ".join(part for part in [query, mode_filter, exclusions] if part)
     print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
     results = []
@@ -265,6 +280,7 @@ class ChatRequest(BaseModel):
     tech_mode: bool = False
     mission: str = "All Missions" # Added mission field to request
     signal_count: Optional[int] = None
+    scan_mode: str = "general"
 
 @app.post("/chat")
 @app.post("/api/chat")
@@ -274,6 +290,8 @@ async def chat_endpoint(req: ChatRequest):
         # 1. Get Current Date & Validation
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
+        existing_records = await asyncio.to_thread(get_sheet_records, include_rejected=True)
+        known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
         
         # Default to 5 signals if not specified
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else 5
@@ -348,6 +366,15 @@ async def chat_endpoint(req: ChatRequest):
             "2. You MUST NOT STOP until you have successfully generated valid cards for that specific number.",
             "3. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead."
         ]
+        if known_urls:
+            recent_memory = known_urls[-50:] if len(known_urls) > 50 else known_urls
+            prompt_parts.append(
+                "MEMORY CONSTRAINTS (CRITICAL):\n"
+                "The following URLs are already known or rejected. DO NOT return them again:\n"
+                f"{json.dumps(recent_memory)}"
+            )
+        if mode_prompt := MODE_PROMPTS.get(req.scan_mode):
+            prompt_parts.append(mode_prompt)
         prompt = "\n\n".join(prompt_parts)
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
@@ -380,7 +407,7 @@ async def chat_endpoint(req: ChatRequest):
                         if tool.function.name == "perform_web_search":
                             args = json.loads(tool.function.arguments)
                             d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
-                            res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"))
+                            res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"), scan_mode=req.scan_mode)
                             tool_outputs.append({"tool_call_id": tool.id, "output": res})
                         elif tool.function.name == "fetch_article_text":
                             args = json.loads(tool.function.arguments)

@@ -220,6 +220,28 @@
                     </div>
                 </div>
 
+                <div class="md:col-span-12 space-y-3">
+                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</label>
+                    <div class="flex flex-wrap gap-3">
+                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                            <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
+                            📰 News
+                        </label>
+                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                            <input type="radio" name="scan_mode" value="policy" class="text-nesta-blue focus:ring-nesta-blue">
+                            🏛️ Policy
+                        </label>
+                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                            <input type="radio" name="scan_mode" value="grants" class="text-nesta-blue focus:ring-nesta-blue">
+                            💰 Grants
+                        </label>
+                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                            <input type="radio" name="scan_mode" value="community" class="text-nesta-blue focus:ring-nesta-blue">
+                            🗣️ Community
+                        </label>
+                    </div>
+                </div>
+
                 <div class="md:col-span-3 space-y-4">
                     <div class="flex justify-between items-baseline px-1">
                         <label for="signal-count" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Quantity</label>
@@ -279,6 +301,17 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         Stop
                     </button>
+
+                    <button id="download-signals-btn" onclick="downloadSignalsAsCSV()" class="hidden btn-interactive px-6 py-3 text-sm font-bold bg-nesta-black text-white hover:bg-opacity-90 transition-all rounded-full">
+                        Download CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <div class="text-xs font-bold text-nesta-black uppercase tracking-widest mb-2">Live Terminal</div>
+                <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body rounded-xl p-4 h-32 overflow-y-auto border border-nesta-sand">
+                    <div class="opacity-70">> Waiting for scan...</div>
                 </div>
             </div>
         </div>
@@ -370,6 +403,8 @@
         let isProcessing = false;
         let scanController = null;
         let loadIntervals = [];
+        let liveTerminalInterval = null;
+        let liveTerminalIndex = 0;
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
@@ -513,6 +548,85 @@
             loadIntervals = [];
         }
 
+        function addTerminalLine(text) {
+            const terminal = document.getElementById('live-terminal');
+            if (!terminal) return;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const line = document.createElement('div');
+            line.textContent = `> [${time}] ${text}`;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function startLiveTerminal() {
+            const terminal = document.getElementById('live-terminal');
+            if (terminal) {
+                terminal.innerHTML = '';
+            }
+            const messages = [
+                'Initialising scout agent...',
+                'Searching for relevant sources...',
+                'Verifying deep links...',
+                'Scraping signal context...',
+                'Scoring novelty and evidence...',
+                'Synthesising candidate signals...'
+            ];
+            liveTerminalIndex = 0;
+            addTerminalLine(messages[liveTerminalIndex]);
+            if (liveTerminalInterval) {
+                clearInterval(liveTerminalInterval);
+            }
+            liveTerminalInterval = setInterval(() => {
+                liveTerminalIndex = (liveTerminalIndex + 1) % messages.length;
+                addTerminalLine(messages[liveTerminalIndex]);
+            }, 4000);
+        }
+
+        function stopLiveTerminal() {
+            if (liveTerminalInterval) {
+                clearInterval(liveTerminalInterval);
+                liveTerminalInterval = null;
+            }
+            addTerminalLine('Scan complete.');
+        }
+
+        function downloadSignalsAsCSV() {
+            const signals = currentSignals.length > 0 ? currentSignals : lastScanResults;
+            if (!signals || signals.length === 0) {
+                showToast('No signals to download', 'error');
+                return;
+            }
+            const headers = ['Title', 'URL', 'Hook', 'Novelty Score', 'Evidence Score', 'Mission'];
+            const escapeCSV = (value) => {
+                if (value === null || value === undefined) return '';
+                const stringValue = String(value).replace(/"/g, '""');
+                return `"${stringValue}"`;
+            };
+            const rows = signals.map((signal) => [
+                escapeCSV(signal.title),
+                escapeCSV(signal.final_url || signal.url),
+                escapeCSV(signal.hook),
+                escapeCSV(signal.score_novelty),
+                escapeCSV(signal.score_evidence),
+                escapeCSV(signal.mission)
+            ]);
+            const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+            const mode = getSelectedScanMode();
+            const modeLabel = mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'General';
+            const dateString = new Date().toISOString().split('T')[0];
+            const filename = `SignalScout_${modeLabel}_${dateString}.csv`;
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
         function getMissionEmoji(mission) {
             for (const [key, emoji] of Object.entries(MISSION_EMOJIS)) { if (mission.includes(key)) return emoji; }
             return ''; 
@@ -629,6 +743,7 @@
                     currentSignals = [];
                     listContainer.innerHTML = `<div class="col-span-full py-16 text-center border-2 border-dashed border-gray-200 rounded-xl"><p class="text-nesta-darkgrey font-bold">No active scan results.</p><p class="text-xs text-gray-400 mt-1">Enter a topic above to initiate a scan.</p></div>`;
                     renderRadar(); // Clears radar
+                    updateDownloadButton();
                     return;
                 }
                 currentSignals = lastScanResults;
@@ -667,6 +782,7 @@
             const container = document.getElementById('result-container');
             container.innerHTML = '';
             currentSignals.forEach((sig, i) => createSignalCard(sig, i));
+            updateDownloadButton();
         }
 
         function showToast(msg, type='success') {
@@ -698,6 +814,19 @@
 
         function handleEnter(e) { if(e.key === 'Enter') generateSignal(false); }
         function getCheckedSources() { return Array.from(document.querySelectorAll('#source-bias-container input:checked')).map(cb => cb.value); }
+        function getSelectedScanMode() {
+            const selected = document.querySelector('input[name="scan_mode"]:checked');
+            return selected ? selected.value : 'general';
+        }
+        function updateDownloadButton() {
+            const button = document.getElementById('download-signals-btn');
+            if (!button) return;
+            if (lastScanResults.length > 0) {
+                button.classList.remove('hidden');
+            } else {
+                button.classList.add('hidden');
+            }
+        }
 
         function switchView(view) {
             const list = document.getElementById('result-container');
@@ -754,6 +883,8 @@
             switchView('list');
             // Force filter to 'scan' mode
             switchFilter('scan'); 
+            updateDownloadButton();
+            startLiveTerminal();
             
             container.innerHTML = `
                 <div class="col-span-full py-24 flex flex-col items-center justify-center space-y-8 animate-fade-in-up">
@@ -782,7 +913,8 @@
                 source_types: getCheckedSources(),
                 tech_mode: document.getElementById('tech-mode').checked,
                 mission: missionSelectValue,
-                signal_count: signalCount
+                signal_count: signalCount,
+                scan_mode: getSelectedScanMode()
             };
 
             scanController = new AbortController();
@@ -827,6 +959,7 @@
                     });
                     
                     setTimeout(loadPreview, 2000);
+                    updateDownloadButton();
                 } else {
                     container.innerHTML = `<div class="p-10 bg-white border border-gray-100 rounded-xl text-center text-nesta-navy shadow-sm">${data.content}</div>`;
                 }
@@ -844,6 +977,7 @@
                 isProcessing = false;
                 scanController = null;
                 setScanningState(false);
+                stopLiveTerminal();
             }
         }
 
@@ -898,6 +1032,7 @@
 
             const card = document.createElement('div');
             card.id = `${containerId}-card-${index}`;
+            const linkStatusId = `${containerId}-link-status-${index}`;
             card.className = `${styles.cardBg} p-7 border border-black/5 flex flex-col h-full shadow-soft rounded-xl animate-fade-in-up transition-all duration-300 transform hover:-translate-y-1`;
 
             card.innerHTML = `
@@ -935,10 +1070,25 @@
                 
                 <div class="flex items-center justify-between text-xs font-bold mt-auto ${styles.footer}">
                     <span>${signal.source_date || 'Recent'}</span>
-                    <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-1 hover:opacity-100 opacity-70 transition group">
+                    <a href="${signal.final_url || signal.url}" target="_blank" class="flex items-center gap-2 hover:opacity-100 opacity-70 transition group">
+                        <span id="${linkStatusId}" class="w-2 h-2 rounded-full bg-nesta-sand" title="Checking link..."></span>
                         ${sourceName} <span class="text-lg leading-none group-hover:translate-x-0.5 transition-transform">↗</span>
                     </a>
                 </div>
+
+                ${!isSavedView ? `
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="p-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition" title="Reject">
+                        👎
+                    </button>
+                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
+                        📋 Copy for Slack
+                    </button>
+                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
+                        ☆ Keep
+                    </button>
+                </div>
+                ` : ''}
 
                 ${isSavedView ? `
                 <div class="mt-5 pt-5 border-t border-black/5 space-y-4">
@@ -958,6 +1108,88 @@
                 </div>` : ''}
             `;
             container.appendChild(card);
+            const linkUrl = signal.final_url || signal.url;
+            if (linkUrl) {
+                checkLinkHealth(linkUrl, linkStatusId);
+            }
+            const copyButton = document.getElementById(`copy-slack-${card.id}`);
+            if (copyButton) {
+                copyButton.dataset.title = signal.title || '';
+                copyButton.dataset.hook = cleanHook || '';
+                copyButton.dataset.url = linkUrl || '';
+                copyButton.addEventListener('click', (event) => {
+                    const { title, hook, url } = event.currentTarget.dataset;
+                    shortlistSignal({ title, hook, url });
+                });
+            }
+        }
+
+        async function updateSignalStatus(url, status) {
+            if (!url) return;
+            try {
+                await fetch(`${API_BASE_URL}/api/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url, user_status: status })
+                });
+            } catch (e) {
+                console.error('Status update failed', e);
+            }
+        }
+
+        async function rejectSignal(url, cardId) {
+            await updateSignalStatus(url, 'Rejected');
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.remove();
+            }
+            currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
+            lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
+            updateDownloadButton();
+            showToast('Signal rejected', 'normal');
+        }
+
+        async function shortlistSignal(cardData) {
+            copyForSlack(cardData);
+            await updateSignalStatus(cardData?.url, 'Shortlisted');
+        }
+
+        async function keepSignal(url, buttonId) {
+            await updateSignalStatus(url, 'Saved');
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.textContent = '★ Saved';
+                button.classList.add('bg-nesta-sand');
+            }
+            showToast('Signal saved', 'success');
+        }
+
+        async function checkLinkHealth(url, indicatorId) {
+            const indicator = document.getElementById(indicatorId);
+            if (!indicator) return;
+            indicator.className = 'w-2 h-2 rounded-full bg-nesta-sand';
+            indicator.title = 'Checking link...';
+            try {
+                await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+                indicator.className = 'w-2 h-2 rounded-full bg-nesta-green';
+                indicator.title = 'Server responded (link validity not checked)';
+            } catch (e) {
+                indicator.className = 'w-2 h-2 rounded-full bg-nesta-red';
+                indicator.title = 'Server unreachable (link may be broken)';
+            }
+        }
+
+        async function copyForSlack(cardData) {
+            const title = cardData?.title || 'Untitled Signal';
+            const hook = cardData?.hook || '';
+            const url = cardData?.url || '';
+            const text = `*${title}*\n> ${hook}\nSource: ${url}`;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Copied!', 'success');
+            } catch (e) {
+                showToast('Clipboard unavailable', 'error');
+            }
         }
 
         async function openSavedSignals() {
