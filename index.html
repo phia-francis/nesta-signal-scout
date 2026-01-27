@@ -154,6 +154,32 @@
         }
         select::-ms-expand { display: none; }
 
+        .tooltip {
+            position: relative;
+        }
+        .tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 8px);
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            font-family: 'Averta', sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            padding: 6px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 50;
+        }
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+
         @keyframes pulse-purple {
             0% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0.4); }
             70% { box-shadow: 0 0 0 6px rgba(154, 27, 190, 0); }
@@ -175,6 +201,9 @@
                 </div>
             </div>
             <div class="flex gap-4">
+                <button onclick="openUserGuide()" class="btn-interactive px-4 py-2 text-sm font-bold text-nesta-navy bg-white border border-white/20 hover:bg-nesta-aqua hover:text-nesta-navy rounded-sm shadow-lg">
+                    User Guide
+                </button>
                 <button onclick="downloadCSV()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
                     <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Export
@@ -244,7 +273,6 @@
                                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </div>
                         </div>
-                        <p class="text-xs text-nesta-darkgrey">Leave empty to let the Agent randomly explore the Mission.</p>
                     </div>
 
                     <div class="space-y-3">
@@ -275,7 +303,7 @@
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-emerging" name="source_bias" value="Emerging Tech" class="peer sr-only">
-                            <label for="bias-emerging" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🚀 Emerging Tech (TechCrunch, Wired, MIT Tech Review)</label>
+                            <label for="bias-emerging" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Broad landscape of innovation, including software, AI, and apps.">🚀 Emerging Tech (TechCrunch, Wired, MIT Tech Review)</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-data" name="source_bias" value="Open Data" class="peer sr-only">
@@ -291,9 +319,9 @@
 
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-2 border-t border-gray-100">
                 <div class="flex flex-wrap gap-4">
-                    <div class="flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group">
+                    <div class="tooltip flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group" data-tooltip="Tangible engineering and scientific breakthroughs (Atoms, not just Bits).">
                         <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
-                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Hard Tech Only</label>
+                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Deep Tech</label>
                     </div>
 
                     <div class="flex bg-gray-100 p-1 rounded-lg">
@@ -303,16 +331,18 @@
                 </div>
 
                 <div class="flex flex-wrap gap-4 items-center">
-                    <div class="relative group">
-                        <label for="time-filter" class="sr-only">Time Horizon</label>
-                        <select id="time-filter" name="time_filter" class="appearance-none bg-white border-2 border-gray-100 text-nesta-navy font-bold text-sm py-3 pl-5 pr-10 rounded-full focus:outline-none focus:border-nesta-blue focus:ring-2 focus:ring-nesta-blue/5 cursor-pointer hover:border-nesta-blue/30 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                            <option class="text-nesta-navy">Past Month</option>
-                            <option class="text-nesta-navy">Past 3 Months</option>
-                            <option class="text-nesta-navy">Past 6 Months</option>
-                            <option class="text-nesta-navy">Past Year</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors">
-                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <div class="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-3">
+                        <label for="time-filter" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Time Horizon</label>
+                        <div class="relative group">
+                            <select id="time-filter" name="time_filter" class="appearance-none bg-transparent text-nesta-navy font-bold text-sm pr-6 focus:outline-none cursor-pointer">
+                                <option class="text-nesta-navy">Past Month</option>
+                                <option class="text-nesta-navy">Past 3 Months</option>
+                                <option class="text-nesta-navy">Past 6 Months</option>
+                                <option class="text-nesta-navy">Past Year</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors">
+                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
                         </div>
                     </div>
 
@@ -340,9 +370,7 @@
                     <span class="text-nesta-green">&gt;_ SYSTEM LOGS</span>
                     <span id="terminal-toggle-indicator">[-]</span>
                 </div>
-                <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body p-4 h-32 overflow-y-auto border-t border-nesta-black">
-                    <div class="opacity-70">> Waiting for scan...</div>
-                </div>
+                <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body p-4 h-32 overflow-y-auto border-t border-nesta-black"></div>
             </div>
         </div>
 
@@ -360,7 +388,6 @@
         <div id="result-container" class="grid grid-cols-1 gap-8"></div>
         
         <div id="radar-container" class="hidden bg-white p-10 shadow-soft border border-gray-100 min-h-[600px] flex flex-col items-center justify-center rounded-xl relative">
-            <p class="text-xs text-gray-400 mb-4 uppercase tracking-widest mt-4">Click dots to view signal details</p>
             <div class="w-full h-[500px] relative"><canvas id="signalRadar"></canvas></div>
         </div>
 
@@ -368,7 +395,6 @@
             <div class="flex justify-between items-end mb-8">
                 <div>
                     <h2 class="text-2xl brand-font text-nesta-navy">Recent Discoveries</h2>
-                    <p class="text-sm text-nesta-darkgrey mt-1">Live updates from the shared database.</p>
                 </div>
                 <button onclick="openSavedSignals()" class="text-sm font-bold text-nesta-blue hover:text-nesta-navy transition flex items-center gap-1 group">
                     View All <span class="group-hover:translate-x-1 transition-transform">→</span>
@@ -377,9 +403,6 @@
             
             <div id="preview-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8 opacity-100">
                 <div class="h-64 bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4 animate-pulse">
-                    <div class="h-4 bg-gray-100 rounded w-1/3"></div>
-                    <div class="h-6 bg-gray-100 rounded w-3/4"></div>
-                    <div class="h-20 bg-gray-100 rounded"></div>
                 </div>
             </div>
         </section>
@@ -406,11 +429,90 @@
             <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
                 <div>
                     <h2 class="text-3xl brand-font text-nesta-navy">Signal Database</h2>
-                    <p class="text-xs text-nesta-blue font-bold uppercase tracking-wider mt-1">Manage & Curate</p>
                 </div>
                 <button onclick="closeSavedSignals()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
             </div>
             <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 gap-8"></div>
+        </div>
+    </div>
+
+    <div id="user-guide-modal" class="fixed inset-0 bg-nesta-navy/90 backdrop-blur-md z-[110] hidden flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-4xl h-[85vh] shadow-2xl flex flex-col overflow-hidden rounded-2xl animate-fade-in-up font-body">
+            <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                    <h2 class="text-3xl brand-font text-nesta-navy">Signal Scout: User Guide</h2>
+                </div>
+                <button onclick="closeUserGuide()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-10 space-y-10 text-sm text-nesta-navy">
+                <p class="text-sm text-nesta-darkgrey">[HEADER] Signal Scout: User Guide</p>
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 1: DASHBOARD VIEWS]</h3>
+                    <p class="font-bold">The Scout offers four distinct lenses on the data:</p>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="font-bold">• Current Scan</p>
+                            <p>The live feed. These results are generated in real-time by the AI, scanning the web for the latest developments based on your search query.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Recent DB (Database)</p>
+                            <p>The vault. These are signals that have already been scouted, verified, and saved to our internal database. Use this to check for duplicates or track progress over time.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Funding</p>
+                            <p>Follow the money. This view filters specifically for venture capital rounds, grant awards, and major financial acquisitions to identify where the market is placing its bets.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Emerging Tech</p>
+                            <p>The broad horizon view. A curated feed of high-growth technology trends, spanning both digital software and physical engineering.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 2: SCORING & METRICS]</h3>
+                    <p class="font-bold">Every signal is graded on a 0-10 scale to help you prioritize.</p>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="font-bold">• Novelty (0-10)</p>
+                            <p>How unique is this signal?</p>
+                            <p>(1 = Incremental update; 10 = A genuine paradigm shift or "black swan" event).</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Evidence (0-10)</p>
+                            <p>How reliable is the source?</p>
+                            <p>(1 = Rumour/Hypothetical; 10 = Verified product launch or peer-reviewed study).</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Evocativeness (0-10)</p>
+                            <p>Does it spark imagination?</p>
+                            <p>(1 = Dry technical update; 10 = Inspires new ways of thinking about the future).</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Total Score</p>
+                            <p>An aggregate rating (0-100). Signals scoring 80+ are considered high-priority "Must Watch" items.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 3: ACTIONS & FILTERS]</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="font-bold">• Deep Tech vs. Emerging Tech</p>
+                            <p>Use the toggle to switch scopes. "Deep Tech" restricts results to hard engineering and science (Atoms). "Emerging Tech" includes software and digital platforms (Bits).</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Export Selection</p>
+                            <p>Select individual cards and click "Export" to download a clean CSV or copy the data to your clipboard for mission reporting.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold">• Full Database</p>
+                            <p>Click this to access the raw master list of all tracked signals, useful for deep-dive analysis or bulk editing.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </div>
     </div>
 
@@ -592,7 +694,7 @@
             const terminal = document.getElementById('live-terminal');
             const indicator = document.getElementById('terminal-toggle-indicator');
             if (terminal) {
-                terminal.innerHTML = '';
+                terminal.innerHTML = '<div class="opacity-70">&gt; Waiting for scan...</div>';
                 terminal.classList.remove('hidden');
                 if (indicator) {
                     indicator.textContent = '[-]';
@@ -1251,6 +1353,9 @@
         }
 
         function closeSavedSignals() { document.getElementById('saved-modal').classList.add('hidden'); }
+
+        function openUserGuide() { document.getElementById('user-guide-modal').classList.remove('hidden'); }
+        function closeUserGuide() { document.getElementById('user-guide-modal').classList.add('hidden'); }
 
         async function updateSavedSignal(url, title, domIndex) {
             const shareVal = document.getElementById(`saved-shareable-${domIndex}`).value;
