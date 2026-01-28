@@ -154,6 +154,32 @@
         }
         select::-ms-expand { display: none; }
 
+        .tooltip {
+            position: relative;
+        }
+        .tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 8px);
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            font-family: 'Averta', sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            padding: 6px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 50;
+        }
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+
         @keyframes pulse-purple {
             0% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0.4); }
             70% { box-shadow: 0 0 0 6px rgba(154, 27, 190, 0); }
@@ -171,10 +197,12 @@
                 <div class="w-10 h-10 bg-white text-nesta-navy flex items-center justify-center text-xl font-bold rounded-sm brand-font shadow-md">N</div>
                 <div class="flex flex-col">
                     <h1 class="text-2xl leading-none tracking-tight">Signal Scout <span class="text-nesta-aqua">Pro</span></h1>
-                    <span class="text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">Discovery Hub</span>
                 </div>
             </div>
             <div class="flex gap-4">
+                <button onclick="openUserGuide()" class="btn-interactive px-4 py-2 text-sm font-bold text-nesta-navy bg-white border border-white/20 hover:bg-nesta-aqua hover:text-nesta-navy rounded-sm shadow-lg">
+                    User Guide
+                </button>
                 <button onclick="downloadCSV()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
                     <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Export
@@ -191,20 +219,7 @@
         
         <div class="bg-white rounded-xl shadow-soft p-10 space-y-10 relative overflow-hidden border border-gray-100">
             
-            <div class="relative group transition-all duration-300 ease-out hover:-translate-y-1">
-                <label for="topic-input" class="sr-only">Search</label>
-                <input type="text" id="topic-input" name="topic"
-                    class="w-full text-3xl md:text-4xl font-display text-nesta-navy placeholder-gray-300 border-2 border-gray-100 rounded-2xl py-6 px-8 shadow-soft focus:outline-none focus:border-nesta-blue focus:ring-4 focus:ring-nesta-blue/5 transition-all duration-300 bg-white hover:shadow-hover hover:border-nesta-blue/30 focus:scale-[1.01]"
-                    placeholder="Scanning for... (e.g. 'Synthetic Biology')"
-                    onkeypress="handleEnter(event)"
-                    oninput="toggleButtonState()">
-                <div class="absolute right-8 top-1/2 -translate-y-1/2 text-nesta-blue transition-all duration-500 ease-out group-focus-within:scale-110 group-focus-within:rotate-12 group-focus-within:text-nesta-aqua">
-                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-end">
-                
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                 <div class="md:col-span-4 space-y-3">
                     <label for="mission-select" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Nesta Mission</label>
                     <div class="relative group transition-all duration-300 ease-out hover:-translate-y-1 bg-white rounded-2xl">
@@ -220,10 +235,10 @@
                     </div>
                 </div>
 
-                <div class="md:col-span-12 space-y-3">
+                <div class="md:col-span-8 space-y-3">
                     <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</label>
                     <div class="flex flex-wrap gap-3">
-                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Mainstream tech journalism and industry reports.">
                             <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
                             📰 News
                         </label>
@@ -241,55 +256,96 @@
                         </label>
                     </div>
                 </div>
+            </div>
 
-                <div class="md:col-span-3 space-y-4">
-                    <div class="flex justify-between items-baseline px-1">
-                        <label for="signal-count" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Quantity</label>
-                        <span id="count-display" class="text-xs font-bold text-nesta-navy bg-nesta-aqua/20 px-3 py-1 rounded-full">5 Signals</span>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-4 space-y-4">
+                    <div class="space-y-2">
+                        <label for="topic-input" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Focus Topic (Optional)</label>
+                        <div class="relative group transition-all duration-300 ease-out hover:-translate-y-1">
+                            <input type="text" id="topic-input" name="topic"
+                                class="w-full text-lg font-display text-nesta-navy placeholder-gray-300 border-2 border-gray-100 rounded-2xl py-4 px-6 shadow-soft focus:outline-none focus:border-nesta-blue focus:ring-4 focus:ring-nesta-blue/5 transition-all duration-300 bg-white hover:shadow-hover hover:border-nesta-blue/30 focus:scale-[1.01]"
+                                placeholder="e.g. 'Generative AI' — or leave empty for Broad Scan"
+                                onkeypress="handleEnter(event)"
+                                oninput="toggleButtonState()">
+                            <div class="absolute right-6 top-1/2 -translate-y-1/2 text-nesta-blue transition-all duration-500 ease-out group-focus-within:scale-110 group-focus-within:rotate-12 group-focus-within:text-nesta-aqua">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </div>
+                        </div>
                     </div>
-                    <input type="range" id="signal-count" name="count" min="1" max="10" value="5" 
-                           oninput="document.getElementById('count-display').innerText = this.value + ' Signals'"
-                           class="w-full">
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-baseline px-1">
+                            <label for="signal-count" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Quantity</label>
+                            <span id="count-display" class="text-xs font-bold text-nesta-navy bg-nesta-aqua/20 px-3 py-1 rounded-full">5 Signals</span>
+                        </div>
+                        <input type="range" id="signal-count" name="count" min="1" max="10" value="5" 
+                               oninput="document.getElementById('count-display').innerText = this.value + ' Signals'"
+                               class="w-full">
+                    </div>
                 </div>
 
-                <div class="md:col-span-5 flex flex-wrap gap-4 justify-end">
-                    <div class="flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group">
-                        <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
-                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Hard Tech Only</label>
+                <div class="lg:col-span-8 space-y-3">
+                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">SOURCE FILTERS (Multi-Select)</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="source-bias-container">
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-policy" name="source_bias" value="Policy" class="peer sr-only">
+                            <label for="bias-policy" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🏛️ Policy</label>
+                        </div>
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-grants" name="source_bias" value="Grants" class="peer sr-only">
+                            <label for="bias-grants" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">💰 Grants</label>
+                        </div>
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only">
+                            <label for="bias-academia" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Scientific papers, journals, and university research.">🧪 Academia</label>
+                        </div>
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-emerging" name="source_bias" value="Emerging Tech" class="peer sr-only">
+                            <label for="bias-emerging" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Broad landscape of innovation, including software, AI, and apps. (Bits)">🚀 Emerging Tech</label>
+                        </div>
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-data" name="source_bias" value="Open Data" class="peer sr-only">
+                            <label for="bias-data" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">📊 Open Data</label>
+                        </div>
+                        <div class="bias-chip relative">
+                            <input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only">
+                            <label for="bias-niche" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🗣️ Niche Forums</label>
+                        </div>
                     </div>
-                    
+                </div>
+            </div>
+
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-2 border-t border-gray-100">
+                <div class="flex flex-wrap gap-4">
+                    <div class="tooltip flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group" data-tooltip="Tangible engineering and scientific breakthroughs. (Atoms)">
+                        <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
+                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Deep Tech</label>
+                    </div>
+
                     <div class="flex bg-gray-100 p-1 rounded-lg">
                         <button onclick="switchView('list')" id="btn-list" class="px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md hover:scale-105 active:scale-95">List</button>
                         <button onclick="switchView('radar')" id="btn-radar" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Radar</button>
                     </div>
                 </div>
-            </div>
 
-            <div class="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div class="flex flex-wrap gap-3" id="source-bias-container">
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-gtr" name="source_bias" value="Gateway to Research" class="peer sr-only"><label for="bias-gtr" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Gateway to Research</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only"><label for="bias-academia" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Academia</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-vc" name="source_bias" value="VC" class="peer sr-only"><label for="bias-vc" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">VC Blogs</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-scimags" name="source_bias" value="Scientific Magazines" class="peer sr-only"><label for="bias-scimags" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Sci Mags</label></div>
-                    <div class="bias-chip relative"><input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only"><label for="bias-niche" class="px-4 py-2 border border-nesta-sand rounded-full text-xs font-bold text-nesta-darkgrey cursor-pointer block">Niche Forums</label></div>
-                </div>
-                
-                <div class="flex gap-4 w-full md:w-auto items-center">
-                    
-                    <div class="relative group">
-                        <label for="time-filter" class="sr-only">Time Horizon</label>
-                        <select id="time-filter" name="time_filter" class="appearance-none bg-white border-2 border-gray-100 text-nesta-navy font-bold text-sm py-3 pl-5 pr-10 rounded-full focus:outline-none focus:border-nesta-blue focus:ring-2 focus:ring-nesta-blue/5 cursor-pointer hover:border-nesta-blue/30 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                            <option class="text-nesta-navy">Past Month</option>
-                            <option class="text-nesta-navy">Past 3 Months</option>
-                            <option class="text-nesta-navy">Past 6 Months</option>
-                            <option class="text-nesta-navy">Past Year</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors">
-                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <div class="flex flex-wrap gap-4 items-center">
+                    <div class="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-3">
+                        <label for="time-filter" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Time Horizon</label>
+                        <div class="relative group">
+                            <select id="time-filter" name="time_filter" class="appearance-none bg-transparent text-nesta-navy font-bold text-sm pr-6 focus:outline-none cursor-pointer">
+                                <option class="text-nesta-navy">Past Month</option>
+                                <option class="text-nesta-navy">Past 3 Months</option>
+                                <option class="text-nesta-navy">Past 6 Months</option>
+                                <option class="text-nesta-navy">Past Year</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors">
+                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="h-8 w-px bg-gray-200 mx-2"></div>
+                    <div class="h-8 w-px bg-gray-200 mx-2 hidden lg:block"></div>
                     
                     <button onclick="generateSignal(true)" id="broad-btn" class="btn-interactive px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-gray-50 rounded border border-transparent hover:border-nesta-blue/20">Broad Scan</button>
                     
@@ -308,16 +364,17 @@
                 </div>
             </div>
 
-            <div class="mt-6">
-                <div class="text-xs font-bold text-nesta-black uppercase tracking-widest mb-2">Live Terminal</div>
-                <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body rounded-xl p-4 h-32 overflow-y-auto border border-nesta-sand">
-                    <div class="opacity-70">> Waiting for scan...</div>
+            <div class="mt-6 border border-nesta-black rounded-lg overflow-hidden">
+                <div id="terminal-header" onclick="toggleTerminal()" class="bg-nesta-black text-white p-2 flex justify-between items-center cursor-pointer text-xs font-bold uppercase tracking-widest">
+                    <span class="text-nesta-green">&gt;_ SYSTEM LOGS</span>
+                    <span id="terminal-toggle-indicator">[-]</span>
                 </div>
+                <div id="live-terminal" class="bg-nesta-sand text-nesta-black text-xs font-body p-4 h-32 overflow-y-auto border-t border-nesta-black"></div>
             </div>
         </div>
 
         <div id="view-controls" class="flex justify-between items-center px-2">
-            <h3 id="view-title" class="text-2xl brand-font text-nesta-navy">Signal Results</h3>
+            <div></div>
             <div class="flex gap-2 bg-white p-1.5 rounded-full shadow-sm border border-gray-100">
                 <button onclick="switchFilter('scan')" id="filter-btn-scan" class="filter-view-btn active px-4 py-1.5 rounded-full text-xs font-bold border border-nesta-navy text-nesta-navy hover:bg-gray-100">Current Scan</button>
                 <div class="h-6 w-px bg-gray-200 mx-1"></div>
@@ -330,15 +387,12 @@
         <div id="result-container" class="grid grid-cols-1 gap-8"></div>
         
         <div id="radar-container" class="hidden bg-white p-10 shadow-soft border border-gray-100 min-h-[600px] flex flex-col items-center justify-center rounded-xl relative">
-            <p class="text-xs text-gray-400 mb-4 uppercase tracking-widest mt-4">Click dots to view signal details</p>
             <div class="w-full h-[500px] relative"><canvas id="signalRadar"></canvas></div>
         </div>
 
         <section id="preview-section" class="pt-12 border-t border-gray-200">
             <div class="flex justify-between items-end mb-8">
                 <div>
-                    <h2 class="text-2xl brand-font text-nesta-navy">Recent Discoveries</h2>
-                    <p class="text-sm text-nesta-darkgrey mt-1">Live updates from the shared database.</p>
                 </div>
                 <button onclick="openSavedSignals()" class="text-sm font-bold text-nesta-blue hover:text-nesta-navy transition flex items-center gap-1 group">
                     View All <span class="group-hover:translate-x-1 transition-transform">→</span>
@@ -347,9 +401,6 @@
             
             <div id="preview-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8 opacity-100">
                 <div class="h-64 bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4 animate-pulse">
-                    <div class="h-4 bg-gray-100 rounded w-1/3"></div>
-                    <div class="h-6 bg-gray-100 rounded w-3/4"></div>
-                    <div class="h-20 bg-gray-100 rounded"></div>
                 </div>
             </div>
         </section>
@@ -376,11 +427,52 @@
             <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
                 <div>
                     <h2 class="text-3xl brand-font text-nesta-navy">Signal Database</h2>
-                    <p class="text-xs text-nesta-blue font-bold uppercase tracking-wider mt-1">Manage & Curate</p>
                 </div>
                 <button onclick="closeSavedSignals()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
             </div>
             <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+        </div>
+    </div>
+
+    <div id="user-guide-modal" class="fixed inset-0 bg-nesta-navy/90 backdrop-blur-md z-[110] hidden flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-4xl h-[85vh] shadow-2xl flex flex-col overflow-hidden rounded-2xl animate-fade-in-up font-body">
+            <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                    <h2 class="text-3xl brand-font text-nesta-navy">Signal Scout: User Guide</h2>
+                </div>
+                <button onclick="closeUserGuide()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-10 space-y-10 text-sm text-nesta-navy">
+                <p class="text-sm text-nesta-darkgrey">[HEADER] Signal Scout: User Guide</p>
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 1: DASHBOARD VIEWS]</h3>
+                    <div class="space-y-3">
+                        <p>• Current Scan: Live AI-generated results from the web.</p>
+                        <p>• Recent DB: Validated signals from our internal vault.</p>
+                        <p>• Funding: Venture capital and grant data.</p>
+                        <p>• Emerging Tech: The broad view of all tech trends.</p>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 2: SCORING]</h3>
+                    <div class="space-y-3">
+                        <p>• Novelty (0-10): Uniqueness of the signal.</p>
+                        <p>• Evidence (0-10): Reliability of the source.</p>
+                        <p>• Evocativeness (0-10): Ability to inspire imagination.</p>
+                        <p>• Total Score: Aggregate rating (80+ = Must Watch).</p>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 3: FILTERS & ACTIONS]</h3>
+                    <div class="space-y-3">
+                        <p>• Deep Tech: Filters for hardware/science (Atoms).</p>
+                        <p>• Emerging Tech: Includes software/digital (Bits).</p>
+                        <p>• Export: Download selected signals to CSV.</p>
+                    </div>
+                </section>
+            </div>
         </div>
     </div>
 
@@ -560,8 +652,13 @@
 
         function startLiveTerminal() {
             const terminal = document.getElementById('live-terminal');
+            const indicator = document.getElementById('terminal-toggle-indicator');
             if (terminal) {
-                terminal.innerHTML = '';
+                terminal.innerHTML = '<div class="opacity-70">&gt; Waiting for scan...</div>';
+                terminal.classList.remove('hidden');
+                if (indicator) {
+                    indicator.textContent = '[-]';
+                }
             }
             const messages = [
                 'Initialising scout agent...',
@@ -720,6 +817,20 @@
             };
         }
 
+        function renderDatabase() {
+            const list = document.getElementById('saved-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!currentSaved || currentSaved.length === 0) {
+                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
+                return;
+            }
+            currentSaved.forEach((sig, i) => {
+                const normalized = normalizeSignal(sig);
+                createSignalCard(normalized, i, true, 'saved-list');
+            });
+        }
+
         // --- UNIFIED FILTER LOGIC ---
         async function switchFilter(type) {
             activeFilter = type;
@@ -861,6 +972,14 @@
             }
         }
 
+        function toggleTerminal() {
+            const terminal = document.getElementById('live-terminal');
+            const indicator = document.getElementById('terminal-toggle-indicator');
+            if (!terminal || !indicator) return;
+            terminal.classList.toggle('hidden');
+            indicator.textContent = terminal.classList.contains('hidden') ? '[+]' : '[-]';
+        }
+
         function stopScan() {
             if (scanController) {
                 scanController.abort();
@@ -981,7 +1100,7 @@
             }
         }
 
-        function createSignalCard(signal, index, isSavedView = false, containerId = 'result-container') {
+        function createSignalCard(signal, index, showActions = true, containerId = 'result-container') {
             const container = document.getElementById(containerId);
             const m = (signal.mission || "").toLowerCase();
             
@@ -1035,6 +1154,20 @@
             const linkStatusId = `${containerId}-link-status-${index}`;
             card.className = `${styles.cardBg} p-7 border border-black/5 flex flex-col h-full shadow-soft rounded-xl animate-fade-in-up transition-all duration-300 transform hover:-translate-y-1`;
 
+            const actionBar = `
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="px-3 py-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition text-xs font-bold" title="Reject">
+                        👎 Reject
+                    </button>
+                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
+                        📋 Copy (Slack)
+                    </button>
+                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
+                        ⭐ Keep
+                    </button>
+                </div>
+            `;
+
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-5">
                     <span class="px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-widest ${styles.badge}">
@@ -1076,36 +1209,7 @@
                     </a>
                 </div>
 
-                ${!isSavedView ? `
-                <div class="mt-4 flex items-center justify-between gap-3">
-                    <button type="button" onclick="rejectSignal('${signal.final_url || signal.url}', '${card.id}')" class="p-2 rounded-full text-nesta-darkgrey hover:text-nesta-red hover:bg-nesta-sand transition" title="Reject">
-                        👎
-                    </button>
-                    <button type="button" id="copy-slack-${card.id}" class="px-4 py-2 rounded-full bg-nesta-black text-white hover:bg-nesta-navy transition-all text-xs font-bold">
-                        📋 Copy for Slack
-                    </button>
-                    <button type="button" id="keep-btn-${card.id}" onclick="keepSignal('${signal.final_url || signal.url}', 'keep-btn-${card.id}')" class="px-3 py-2 rounded-full text-nesta-blue border border-nesta-blue hover:bg-nesta-sand transition text-xs font-bold" title="Keep">
-                        ☆ Keep
-                    </button>
-                </div>
-                ` : ''}
-
-                ${isSavedView ? `
-                <div class="mt-5 pt-5 border-t border-black/5 space-y-4">
-                    <div class="space-y-1">
-                        <label for="saved-shareable-${index}" class="${accentClass}">Status</label>
-                        <select id="saved-shareable-${index}" class="w-full text-xs rounded px-3 py-2 font-bold focus:ring-0 focus:border-current ${styles.selectBg}">
-                            <option value="Yes" ${signal.shareable === 'Yes' ? 'selected' : ''}>Yes - Shareable</option>
-                            <option value="Maybe" ${signal.shareable === 'Maybe' ? 'selected' : ''}>Maybe</option>
-                            <option value="No" ${signal.shareable === 'No' ? 'selected' : ''}>No - Reject</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                         <label for="saved-comment-${index}" class="${accentClass}">Notes</label>
-                         <input type="text" id="saved-comment-${index}" class="w-full text-xs px-3 py-2 rounded focus:ring-0 ${styles.inputBg}" placeholder="Add comment..." value="${signal.feedback || ''}">
-                    </div>
-                    <button onclick="updateSavedSignal('${signal.final_url || signal.url}', '${(signal.title || "").replace(/'/g, "\\'")}', ${index})" class="w-full py-2.5 text-xs font-bold uppercase rounded transition shadow-md ${styles.button}">Save Changes</button>
-                </div>` : ''}
+                ${showActions ? actionBar : ''}
             `;
             container.appendChild(card);
             const linkUrl = signal.final_url || signal.url;
@@ -1145,6 +1249,16 @@
             }
             currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
             lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
+            const normalizeUrl = (value) => {
+                if (!value) return '';
+                try {
+                    return decodeURIComponent(String(value)).trim().toLowerCase();
+                } catch (e) {
+                    return String(value).trim().toLowerCase();
+                }
+            };
+            const targetUrl = normalizeUrl(url);
+            currentSaved = currentSaved.filter(signal => normalizeUrl(signal.URL || signal.url) !== targetUrl); // Ensure case-insensitive comparison for consistency.
             updateDownloadButton();
             showToast('Signal rejected', 'normal');
         }
@@ -1158,7 +1272,7 @@
             await updateSignalStatus(url, 'Saved');
             const button = document.getElementById(buttonId);
             if (button) {
-                button.textContent = '★ Saved';
+                button.textContent = '⭐ Saved';
                 button.classList.add('bg-nesta-sand');
             }
             showToast('Signal saved', 'success');
@@ -1203,24 +1317,24 @@
                 list.innerHTML = '';
                 // NEWEST FIRST for full database view as well
                 currentSaved = data.reverse(); 
-                if(data.length === 0) { list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>'; return; }
-                
-                currentSaved.forEach((sig, i) => {
-                    const normalized = normalizeSignal(sig);
-                    createSignalCard(normalized, i, true, 'saved-list');
-                });
+                renderDatabase();
             } catch(e) { list.innerHTML = '<div class="col-span-full text-center text-nesta-red py-10 font-bold">Failed to load database.</div>'; }
         }
 
         function closeSavedSignals() { document.getElementById('saved-modal').classList.add('hidden'); }
 
+        function openUserGuide() { document.getElementById('user-guide-modal').classList.remove('hidden'); }
+        function closeUserGuide() { document.getElementById('user-guide-modal').classList.add('hidden'); }
+
         async function updateSavedSignal(url, title, domIndex) {
             const shareVal = document.getElementById(`saved-shareable-${domIndex}`).value;
             const commentVal = document.getElementById(`saved-comment-${domIndex}`)?.value || '';
+            const statusMap = { Yes: 'Shortlisted', Maybe: 'Saved', No: 'Rejected' };
+            const userStatus = statusMap[shareVal] || 'Saved';
             try {
                 const res = await fetch(`${API_BASE_URL}/api/update`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: shareVal === 'No' ? 'Rejected' : 'Accepted', user_comment: commentVal, feedback: commentVal })
+                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: userStatus, user_comment: commentVal, feedback: commentVal })
                 });
                 if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
                 else throw new Error();

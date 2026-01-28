@@ -123,6 +123,29 @@ MODE_PROMPTS = {
     "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run."
 }
 
+SOURCE_FILTERS = {
+    "Policy": "(site:gov.uk OR site:parliament.uk OR site:hansard.parliament.uk OR site:senedd.wales)",
+    "Grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)",
+    "Emerging Tech": "(site:techcrunch.com OR site:wired.com OR site:venturebeat.com OR site:technologyreview.com OR site:theregister.com OR site:arstechnica.com)",
+    "Open Data": "(site:theodi.org OR site:data.gov.uk OR site:kaggle.com OR site:paperswithcode.com OR site:europeandataportal.eu)",
+    "Academia": "(site:nature.com OR site:sciencemag.org OR site:arxiv.org OR site:sciencedirect.com OR site:.edu OR site:.ac.uk)",
+    "Niche Forums": "(site:reddit.com OR site:news.ycombinator.com)"
+}
+
+def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
+    source_types = source_types or []
+    scan_mode = (scan_mode or "general").lower()
+    mode_filter = MODE_FILTERS.get(scan_mode, "")
+    source_blocks = [SOURCE_FILTERS[source] for source in source_types if source in SOURCE_FILTERS]
+    combined_sources = ""
+    if source_blocks:
+        combined_sources = f"({' OR '.join(source_blocks)})"
+    exclusions = ""
+    if scan_mode != "community" and "Niche Forums" not in source_types:
+        exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com -site:reddit.com -site:quora.com"
+    parts = [query, mode_filter, combined_sources, exclusions]
+    return " ".join(part for part in parts if part)
+
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:
         return None
@@ -205,7 +228,21 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     sheet = get_google_sheet()
     if not sheet: return
     ensure_sheet_headers(sheet)
-    
+    incoming_status = str(signal.get("user_status") or signal.get("User_Status") or "").strip()
+    incoming_shareable = signal.get("shareable") or signal.get("Shareable") or "Maybe"
+    normalized_status = incoming_status.title() if incoming_status else "Pending"
+    normalized_shareable = incoming_shareable
+    status_key = normalized_status.lower()
+    if status_key == "shortlisted":
+        normalized_status = "Shortlisted"
+        normalized_shareable = "Yes"
+    elif status_key == "rejected":
+        normalized_status = "Rejected"
+    elif status_key == "saved":
+        normalized_status = "Saved"
+    elif status_key == "generated":
+        normalized_status = "Generated"
+
     row_data = [
         signal.get("title", ""), 
         signal.get("score", 0),
@@ -217,9 +254,9 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
         signal.get("score_novelty", 0), 
         signal.get("score_evidence", 0),
         signal.get("user_rating", 3), 
-        signal.get("user_status", "Pending"),
+        normalized_status,
         signal.get("user_comment", "") or signal.get("feedback", ""), 
-        signal.get("shareable", "Maybe"),
+        normalized_shareable,
         signal.get("feedback", ""),
         signal.get("source_date", "Recent")
     ]
@@ -241,15 +278,11 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     except Exception as e:
         print(f"Upsert Error: {e}")
 
-async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general"):
+async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general", source_types: Optional[List[str]] = None):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
     scan_mode = (scan_mode or "general").lower()
-    exclusions = ""
-    if scan_mode != "community":
-        exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com -site:reddit.com -site:quora.com"
-    mode_filter = MODE_FILTERS.get(scan_mode, "")
-    final_query = " ".join(part for part in [query, mode_filter, exclusions] if part)
+    final_query = construct_search_query(query, scan_mode, source_types)
     print(f"🔍 Searching: '{final_query}' ({date_restrict})...")
     url = "https://www.googleapis.com/customsearch/v1"
     results = []
@@ -269,6 +302,13 @@ async def perform_google_search(query, date_restrict="m1", requested_results: in
                     results.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nSnippet: {item.get('snippet', '')}")
                 if len(items) < 10: break
                 start_index += 10
+            if not results:
+                return json.dumps([{
+                    "title": "SYSTEM_MSG",
+                    "url": "ERROR",
+                    "hook": "No results found. Please RETRY with a broader query (remove specific dates or niche adjectives).",
+                    "score": 0
+                }])
             return "\n\n".join(results[:target_results])
         except Exception as e: return f"Search Exception: {str(e)}"
 
@@ -325,6 +365,7 @@ async def chat_endpoint(req: ChatRequest):
         prompt_parts = [
             user_request_block,
             f"CURRENT DATE: {today_str}",
+            f"SEARCH CONSTRAINT: Do NOT include the current year (e.g., '{request_date.year}') inside search query keywords. Rely ONLY on the time_filter tool parameter. Adding the year manually excludes valid results.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
             
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
@@ -375,15 +416,19 @@ async def chat_endpoint(req: ChatRequest):
             )
         if mode_prompt := MODE_PROMPTS.get(req.scan_mode):
             prompt_parts.append(mode_prompt)
+        if req.scan_mode == "grants":
+            prompt_parts.append(
+                "MODE ADAPTATION: GRANT STALKER.CRITICAL: You must TRANSLATE consumer/mission keywords into Academic/Scientific terminology before searching.\n"
+                "Input: 'School Readiness' → Search: ('Cognitive development' OR 'Pedagogical interventions')\n"
+                "Input: 'Healthy Snacking' → Search: ('Nutrient reformulation' OR 'Metabolic health')\n"
+                "SOURCE RULE: Apply these translated keywords to the User-Provided Source List (e.g., selected_sources). Do NOT hardcode site:ukri.org if the user has selected other filters (like VC Blogs or News)."
+            )
         prompt = "\n\n".join(prompt_parts)
         
         if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
         
         bias_sources = req.source_types
-        if "Gateway to Research" in bias_sources:
-            prompt += "\nCONSTRAINT: User selected 'Gateway to Research'. You MUST include searches using 'site:gtr.ukri.org' to find relevant projects."
-        
-        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Bias Source Types: {', '.join(bias_sources)}."
+        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Selected Source Filters: {', '.join(bias_sources)}."
         
         run = await asyncio.to_thread(
             client.beta.threads.create_and_run,
@@ -407,7 +452,12 @@ async def chat_endpoint(req: ChatRequest):
                         if tool.function.name == "perform_web_search":
                             args = json.loads(tool.function.arguments)
                             d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
-                            res = await perform_google_search(args.get("query"), d_map.get(req.time_filter, "m1"), scan_mode=req.scan_mode)
+                            res = await perform_google_search(
+                                args.get("query"),
+                                d_map.get(req.time_filter, "m1"),
+                                scan_mode=req.scan_mode,
+                                source_types=req.source_types
+                            )
                             tool_outputs.append({"tool_call_id": tool.id, "output": res})
                         elif tool.function.name == "fetch_article_text":
                             args = json.loads(tool.function.arguments)
@@ -433,6 +483,7 @@ async def chat_endpoint(req: ChatRequest):
                                 "score_evidence": args.get("score_evidence", 0),
                                 "score_evocativeness": args.get("score_evocativeness", 0),
                                 "source_date": published_date,
+                                "user_status": "Generated",
                                 "ui_type": "signal_card"
                             }
                             
