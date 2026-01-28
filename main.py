@@ -652,7 +652,7 @@ async def chat_endpoint(req: ChatRequest):
                         content_snippet = article_text[:2000]
                     except Exception as e:
                         content_snippet = f"Error fetching text: {str(e)}"
-                    messages.append(
+                    tool_messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tool_call.id,
