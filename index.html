@@ -430,7 +430,7 @@
                 </div>
                 <button onclick="closeSavedSignals()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
             </div>
-            <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 gap-8"></div>
+            <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
         </div>
     </div>
 
@@ -1249,7 +1249,16 @@
             }
             currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
             lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
-            currentSaved = currentSaved.filter(signal => (signal.URL || signal.url) !== url);
+            const normalizeUrl = (value) => {
+                if (!value) return '';
+                try {
+                    return decodeURIComponent(String(value)).trim().toLowerCase();
+                } catch (e) {
+                    return String(value).trim().toLowerCase();
+                }
+            };
+            const targetUrl = normalizeUrl(url);
+            currentSaved = currentSaved.filter(signal => normalizeUrl(signal.URL || signal.url) !== targetUrl); // Ensure case-insensitive comparison for consistency.
             updateDownloadButton();
             showToast('Signal rejected', 'normal');
         }
@@ -1321,10 +1330,11 @@
             const shareVal = document.getElementById(`saved-shareable-${domIndex}`).value;
             const commentVal = document.getElementById(`saved-comment-${domIndex}`)?.value || '';
             const statusMap = { Yes: 'Shortlisted', Maybe: 'Saved', No: 'Rejected' };
+            const userStatus = statusMap[shareVal] || 'Saved';
             try {
                 const res = await fetch(`${API_BASE_URL}/api/update`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: statusMap[shareVal] || 'Saved', user_comment: commentVal, feedback: commentVal })
+                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: userStatus, user_comment: commentVal, feedback: commentVal })
                 });
                 if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
                 else throw new Error();
