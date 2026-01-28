@@ -197,7 +197,6 @@
                 <div class="w-10 h-10 bg-white text-nesta-navy flex items-center justify-center text-xl font-bold rounded-sm brand-font shadow-md">N</div>
                 <div class="flex flex-col">
                     <h1 class="text-2xl leading-none tracking-tight">Signal Scout <span class="text-nesta-aqua">Pro</span></h1>
-                    <span class="text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">Discovery Hub</span>
                 </div>
             </div>
             <div class="flex gap-4">
@@ -239,7 +238,7 @@
                 <div class="md:col-span-8 space-y-3">
                     <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</label>
                     <div class="flex flex-wrap gap-3">
-                        <label class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition">
+                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Mainstream tech journalism and industry reports.">
                             <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
                             📰 News
                         </label>
@@ -291,27 +290,27 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="source-bias-container">
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-policy" name="source_bias" value="Policy" class="peer sr-only">
-                            <label for="bias-policy" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🏛️ Policy (Gov.uk, Hansard)</label>
+                            <label for="bias-policy" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🏛️ Policy</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-grants" name="source_bias" value="Grants" class="peer sr-only">
-                            <label for="bias-grants" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">💰 Grants (UKRI, NIH)</label>
+                            <label for="bias-grants" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">💰 Grants</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only">
-                            <label for="bias-academia" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🧪 Academia (Nature, Arxiv, Universities)</label>
+                            <label for="bias-academia" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Scientific papers, journals, and university research.">🧪 Academia</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-emerging" name="source_bias" value="Emerging Tech" class="peer sr-only">
-                            <label for="bias-emerging" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Broad landscape of innovation, including software, AI, and apps.">🚀 Emerging Tech (TechCrunch, Wired, MIT Tech Review)</label>
+                            <label for="bias-emerging" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Broad landscape of innovation, including software, AI, and apps. (Bits)">🚀 Emerging Tech</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-data" name="source_bias" value="Open Data" class="peer sr-only">
-                            <label for="bias-data" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">📊 Open Data (ODI, Data.gov, Kaggle)</label>
+                            <label for="bias-data" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">📊 Open Data</label>
                         </div>
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only">
-                            <label for="bias-niche" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🗣️ Niche Forums (Reddit, HackerNews - Disables Safety Filter)</label>
+                            <label for="bias-niche" class="px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block">🗣️ Niche Forums</label>
                         </div>
                     </div>
                 </div>
@@ -319,7 +318,7 @@
 
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-2 border-t border-gray-100">
                 <div class="flex flex-wrap gap-4">
-                    <div class="tooltip flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group" data-tooltip="Tangible engineering and scientific breakthroughs (Atoms, not just Bits).">
+                    <div class="tooltip flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group" data-tooltip="Tangible engineering and scientific breakthroughs. (Atoms)">
                         <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
                         <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Deep Tech</label>
                     </div>
@@ -375,7 +374,7 @@
         </div>
 
         <div id="view-controls" class="flex justify-between items-center px-2">
-            <h3 id="view-title" class="text-2xl brand-font text-nesta-navy">Signal Results</h3>
+            <div></div>
             <div class="flex gap-2 bg-white p-1.5 rounded-full shadow-sm border border-gray-100">
                 <button onclick="switchFilter('scan')" id="filter-btn-scan" class="filter-view-btn active px-4 py-1.5 rounded-full text-xs font-bold border border-nesta-navy text-nesta-navy hover:bg-gray-100">Current Scan</button>
                 <div class="h-6 w-px bg-gray-200 mx-1"></div>
@@ -394,7 +393,6 @@
         <section id="preview-section" class="pt-12 border-t border-gray-200">
             <div class="flex justify-between items-end mb-8">
                 <div>
-                    <h2 class="text-2xl brand-font text-nesta-navy">Recent Discoveries</h2>
                 </div>
                 <button onclick="openSavedSignals()" class="text-sm font-bold text-nesta-blue hover:text-nesta-navy transition flex items-center gap-1 group">
                     View All <span class="group-hover:translate-x-1 transition-transform">→</span>
@@ -448,68 +446,30 @@
                 <p class="text-sm text-nesta-darkgrey">[HEADER] Signal Scout: User Guide</p>
                 <section class="space-y-4">
                     <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 1: DASHBOARD VIEWS]</h3>
-                    <p class="font-bold">The Scout offers four distinct lenses on the data:</p>
-                    <div class="space-y-4">
-                        <div>
-                            <p class="font-bold">• Current Scan</p>
-                            <p>The live feed. These results are generated in real-time by the AI, scanning the web for the latest developments based on your search query.</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Recent DB (Database)</p>
-                            <p>The vault. These are signals that have already been scouted, verified, and saved to our internal database. Use this to check for duplicates or track progress over time.</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Funding</p>
-                            <p>Follow the money. This view filters specifically for venture capital rounds, grant awards, and major financial acquisitions to identify where the market is placing its bets.</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Emerging Tech</p>
-                            <p>The broad horizon view. A curated feed of high-growth technology trends, spanning both digital software and physical engineering.</p>
-                        </div>
+                    <div class="space-y-3">
+                        <p>• Current Scan: Live AI-generated results from the web.</p>
+                        <p>• Recent DB: Validated signals from our internal vault.</p>
+                        <p>• Funding: Venture capital and grant data.</p>
+                        <p>• Emerging Tech: The broad view of all tech trends.</p>
                     </div>
                 </section>
 
                 <section class="space-y-4">
-                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 2: SCORING & METRICS]</h3>
-                    <p class="font-bold">Every signal is graded on a 0-10 scale to help you prioritize.</p>
-                    <div class="space-y-4">
-                        <div>
-                            <p class="font-bold">• Novelty (0-10)</p>
-                            <p>How unique is this signal?</p>
-                            <p>(1 = Incremental update; 10 = A genuine paradigm shift or "black swan" event).</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Evidence (0-10)</p>
-                            <p>How reliable is the source?</p>
-                            <p>(1 = Rumour/Hypothetical; 10 = Verified product launch or peer-reviewed study).</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Evocativeness (0-10)</p>
-                            <p>Does it spark imagination?</p>
-                            <p>(1 = Dry technical update; 10 = Inspires new ways of thinking about the future).</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Total Score</p>
-                            <p>An aggregate rating (0-100). Signals scoring 80+ are considered high-priority "Must Watch" items.</p>
-                        </div>
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 2: SCORING]</h3>
+                    <div class="space-y-3">
+                        <p>• Novelty (0-10): Uniqueness of the signal.</p>
+                        <p>• Evidence (0-10): Reliability of the source.</p>
+                        <p>• Evocativeness (0-10): Ability to inspire imagination.</p>
+                        <p>• Total Score: Aggregate rating (80+ = Must Watch).</p>
                     </div>
                 </section>
 
                 <section class="space-y-4">
-                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 3: ACTIONS & FILTERS]</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <p class="font-bold">• Deep Tech vs. Emerging Tech</p>
-                            <p>Use the toggle to switch scopes. "Deep Tech" restricts results to hard engineering and science (Atoms). "Emerging Tech" includes software and digital platforms (Bits).</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Export Selection</p>
-                            <p>Select individual cards and click "Export" to download a clean CSV or copy the data to your clipboard for mission reporting.</p>
-                        </div>
-                        <div>
-                            <p class="font-bold">• Full Database</p>
-                            <p>Click this to access the raw master list of all tracked signals, useful for deep-dive analysis or bulk editing.</p>
-                        </div>
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">[TAB 3: FILTERS & ACTIONS]</h3>
+                    <div class="space-y-3">
+                        <p>• Deep Tech: Filters for hardware/science (Atoms).</p>
+                        <p>• Emerging Tech: Includes software/digital (Bits).</p>
+                        <p>• Export: Download selected signals to CSV.</p>
                     </div>
                 </section>
             </div>
