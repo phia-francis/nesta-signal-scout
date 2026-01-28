@@ -587,7 +587,11 @@ async def chat_endpoint(req: ChatRequest):
                     )
                 elif tool_name == "generate_broad_scan_queries":
                     num_signals = args.get("num_signals") or (req.signal_count or target_count)
-                    queries = generate_broad_scan_queries(CROSS_CUTTING_KEYWORDS, num_signals)
+                    queries = await asyncio.to_thread(
+                        generate_broad_scan_queries,
+                        CROSS_CUTTING_KEYWORDS,
+                        num_signals,
+                    )
                     tool_messages.append(
                         {
                             "role": "tool",
@@ -598,6 +602,13 @@ async def chat_endpoint(req: ChatRequest):
                 elif tool_name == "display_signal_card":
                     published_date = args.get("published_date", "")
                     if not is_date_within_time_filter(published_date, req.time_filter, request_date):
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "rejected_out_of_time_window",
+                            }
+                        )
                         continue
 
                     card = {
@@ -616,6 +627,13 @@ async def chat_endpoint(req: ChatRequest):
                     }
 
                     if len(accumulated_signals) >= (req.signal_count or target_count):
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "limit_reached",
+                            }
+                        )
                         continue
 
                     if card["url"] and card["url"] not in seen_urls:
@@ -625,8 +643,23 @@ async def chat_endpoint(req: ChatRequest):
                             await asyncio.to_thread(upsert_signal, card)
                         except Exception as e:
                             print(f"Error upserting signal {card.get('url')}: {e}")
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "displayed",
+                            }
+                        )
                         if len(accumulated_signals) >= (req.signal_count or target_count):
                             break
+                    else:
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "duplicate_skipped",
+                            }
+                        )
 
             if tool_messages:
                 messages.extend(tool_messages)
@@ -660,8 +693,8 @@ def update_sig(req: Dict[str, Any]):
 
 
 @app.post("/api/generate-queries")
-def generate_queries(req: GenerateQueriesRequest):
-    queries = generate_broad_scan_queries(req.keywords, req.count)
+async def generate_queries(req: GenerateQueriesRequest):
+    queries = await asyncio.to_thread(generate_broad_scan_queries, req.keywords, req.count)
     return {"queries": queries}
 
 # --- STATIC FILE SERVING ---

@@ -8,6 +8,8 @@ from typing import Dict, List
 
 from openai import APIError, OpenAI
 
+CLIENT = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 def _keywords(block: str) -> List[str]:
     """Return unique, ordered keywords from a newline-separated block."""
@@ -836,10 +838,8 @@ CROSS_CUTTING_KEYWORDS: List[str] = _keywords(
 )
 
 
-def generate_broad_scan_queries(source_keywords: list, num_signals: int = 5) -> list:
+def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5) -> List[str]:
     """Generates specific Google Search queries based on random keywords."""
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
     if num_signals > len(source_keywords):
         selected = source_keywords
     else:
@@ -848,7 +848,7 @@ def generate_broad_scan_queries(source_keywords: list, num_signals: int = 5) -> 
     queries = []
     for topic in selected:
         try:
-            response = client.chat.completions.create(
+            response = CLIENT.chat.completions.create(
                 model=QUERY_GENERATION_MODEL,
                 messages=[
                     {
