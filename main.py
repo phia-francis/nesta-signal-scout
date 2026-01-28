@@ -8,6 +8,7 @@ import httpx
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
@@ -49,6 +50,53 @@ app.add_middleware(
 )
 
 # --- HELPERS ---
+
+def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
+    url = card_data.get("final_url") or card_data.get("url") or ""
+    if not url:
+        return False, "Missing URL"
+    if len(url) < 15:
+        return False, "URL too short to be a valid deep link"
+
+    try:
+        parsed = urlparse(url)
+    except Exception as exc:
+        return False, f"URL parse error: {exc}"
+
+    domain = parsed.netloc.lower()
+    path = parsed.path.strip("/")
+    query = (parsed.query or "").strip()
+    if not path and not query:
+        return False, f"URL '{url}' looks like a homepage. Deep links only."
+
+    search_domains = {"google.com", "www.google.com", "bing.com", "www.bing.com"}
+    if domain in search_domains and parsed.path.startswith("/search"):
+        return False, "URL is a search engine result. Provide the direct source article."
+    if "google.com/search" in url or "bing.com/search" in url:
+        return False, "URL is a search engine result. Provide the direct source article."
+
+    blacklist = {
+        "twitter.com",
+        "x.com",
+        "facebook.com",
+        "linkedin.com",
+        "youtube.com",
+        "pinterest.com",
+        "instagram.com",
+    }
+    if any(domain == blocked or domain.endswith(f".{blocked}") for blocked in blacklist):
+        return False, f"URL domain '{domain}' is disallowed."
+
+    published_date = str(card_data.get("published_date") or "").strip()
+    if not published_date or published_date.lower() in {"recent", "unknown", "n/a", "na"}:
+        return False, "Published date is missing or generic."
+    parsed_date = parse_source_date(published_date)
+    if not parsed_date:
+        return False, "Published date is invalid or unparsable."
+    if parsed_date > datetime.now():
+        return False, "Published date cannot be in the future."
+
+    return True, ""
 
 def get_google_sheet():
     """Authenticates and returns the Google Sheet object."""
@@ -130,22 +178,37 @@ SYSTEM_PROMPT = """
 You are the "Nesta Signal Scout", an autonomous research engine.
 
 YOUR MISSION CONTEXT (Nesta Strategy 2030):
+1. A Fairer Start: Early years (0-5), closing the deprivation gap.
+2. A Healthy Life: Halving obesity, food environment reform.
+3. A Sustainable Future: Decarbonisation, heat pumps, energy flexibility.
+4. Mission Adjacent: AI, Privacy, Robotics, Cross-cutting tech.
 
-A Fairer Start: Narrow the outcome gap between children from wealthy and deprived backgrounds. Focus on early years (0-5), school readiness, and parenting support.
+### CRITICAL: QUALITY & VALIDATION PROTOCOL
+1. **NO HALLUCINATION:** Every field in the Signal Card (Title, Hook, Score) must be derived directly from the search result text. If you cannot find a specific detail, DO NOT invent it.
+2. **URL STRICTNESS:** - The `final_url` MUST be a "Deep Link" to a specific article, paper, or press release (e.g., `.../news/2025/new-battery-tech`).
+   - REJECT generic homepages (e.g., `www.nature.com`, `www.techcrunch.com`).
+   - If a valid deep link is not found, DISCARD the signal.
+3. **READ TO VERIFY:** If the search snippet is too short to generate a high-quality "Hook", you MUST call the `fetch_article_text` tool to read the full content before generating the card.
+4. **DISCARD & RETRY:** If a search result turns out to be irrelevant or low-quality, silently discard it and pick the next keyword/result. Do not output a half-baked card.
 
-A Healthy Life: Halve the prevalence of obesity in the UK. Focus on the food environment (reformulation, retail targets) rather than individual willpower.
+YOUR LOOP LOGIC:
+1. Search -> 2. Validate URL -> 3. (Optional) Fetch Text -> 4. Generate Card.
 
-A Sustainable Future: Reduce household carbon emissions by 30%. Focus on low-carbon heating (heat pumps), retrofitting, and energy flexibility.
+STRICT DATA INTEGRITY RULES:
 
-Mission Adjacent: Cross-cutting technologies (AI, Privacy, Robotics) that impact multiple missions.
+DEEP LINKS ONLY: You are FORBIDDEN from using homepages (e.g., 'www.wired.com') or Search Result URLs. You must provide a direct article URL.
 
-YOUR PROTOCOL:
+NO SOCIAL MEDIA: Do not use Tweets, LinkedIn posts, or YouTube channels as primary sources.
 
-Use 'generate_broad_scan_queries' for broad requests to get search terms.
+VERIFIABLE HOOKS: The 'Hook' must be based on facts found in the search snippet. Do not hallucinate capabilities.
 
-Use 'perform_web_search' to validate claims.
+ERROR HANDLING: If the System rejects your card due to a bad URL, do not argue. discard that signal and try a different search query immediately.
 
-ALWAYS output the final result as a JSON object using the display_signal_card format.
+YOUR PROCESS:
+1. Receive Topic/Intent.
+2. **Action:** Call `generate_broad_scan_queries` (for broad topics) OR `perform_web_search` (for specific topics).
+3. **Review:** Read the tool output.
+4. **Action:** Only IF the data is sufficient, call `display_signal_card`.
 """
 
 TOOLS = [
@@ -565,6 +628,7 @@ async def chat_endpoint(req: ChatRequest):
             )
 
             tool_messages: List[Dict[str, Any]] = []
+            tool_response_added = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments or "{}")
@@ -580,11 +644,22 @@ async def chat_endpoint(req: ChatRequest):
                     tool_messages.append(
                         {"role": "tool", "tool_call_id": tool_call.id, "content": res}
                     )
+                    tool_response_added = True
                 elif tool_name == "fetch_article_text":
-                    content = await fetch_article_text(args.get("url"))
-                    tool_messages.append(
-                        {"role": "tool", "tool_call_id": tool_call.id, "content": content}
+                    url_to_fetch = args.get("url")
+                    try:
+                        article_text = await fetch_article_text(url_to_fetch)
+                        content_snippet = article_text[:2000]
+                    except Exception as e:
+                        content_snippet = f"Error fetching text: {str(e)}"
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": content_snippet,
+                        }
                     )
+                    tool_response_added = True
                 elif tool_name == "generate_broad_scan_queries":
                     num_signals = args.get("num_signals") or (req.signal_count or target_count)
                     queries = await asyncio.to_thread(
@@ -599,6 +674,7 @@ async def chat_endpoint(req: ChatRequest):
                             "content": json.dumps(queries),
                         }
                     )
+                    tool_response_added = True
                 elif tool_name == "display_signal_card":
                     published_date = args.get("published_date", "")
                     if not is_date_within_time_filter(published_date, req.time_filter, request_date):
@@ -609,61 +685,80 @@ async def chat_endpoint(req: ChatRequest):
                                 "content": "rejected_out_of_time_window",
                             }
                         )
+                        tool_response_added = True
                         continue
+                    is_valid, error_msg = validate_signal_data(args)
+                    if is_valid:
+                        card = {
+                            "title": args.get("title"),
+                            "url": args.get("final_url") or args.get("url"),
+                            "hook": args.get("hook"),
+                            "score": args.get("score"),
+                            "mission": args.get("mission", "General"),
+                            "lenses": args.get("lenses", ""),
+                            "score_novelty": args.get("score_novelty", 0),
+                            "score_evidence": args.get("score_evidence", 0),
+                            "score_evocativeness": args.get("score_evocativeness", 0),
+                            "source_date": published_date,
+                            "user_status": "Generated",
+                            "ui_type": "signal_card",
+                        }
 
-                    card = {
-                        "title": args.get("title"),
-                        "url": args.get("final_url") or args.get("url"),
-                        "hook": args.get("hook"),
-                        "score": args.get("score"),
-                        "mission": args.get("mission", "General"),
-                        "lenses": args.get("lenses", ""),
-                        "score_novelty": args.get("score_novelty", 0),
-                        "score_evidence": args.get("score_evidence", 0),
-                        "score_evocativeness": args.get("score_evocativeness", 0),
-                        "source_date": published_date,
-                        "user_status": "Generated",
-                        "ui_type": "signal_card",
-                    }
-
-                    if len(accumulated_signals) >= (req.signal_count or target_count):
-                        tool_messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": "limit_reached",
-                            }
-                        )
-                        continue
-
-                    if card["url"] and card["url"] not in seen_urls:
-                        accumulated_signals.append(card)
-                        seen_urls.add(card["url"])
-                        try:
-                            await asyncio.to_thread(upsert_signal, card)
-                        except Exception as e:
-                            print(f"Error upserting signal {card.get('url')}: {e}")
-                        tool_messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": "displayed",
-                            }
-                        )
                         if len(accumulated_signals) >= (req.signal_count or target_count):
-                            break
+                            tool_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": "limit_reached",
+                                }
+                            )
+                            tool_response_added = True
+                            continue
+
+                        if card["url"] and card["url"] not in seen_urls:
+                            accumulated_signals.append(card)
+                            seen_urls.add(card["url"])
+                            try:
+                                await asyncio.to_thread(upsert_signal, card)
+                            except Exception as e:
+                                print(f"Error upserting signal {card.get('url')}: {e}")
+                            tool_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": "Signal validated and saved.",
+                                }
+                            )
+                            tool_response_added = True
+                            if len(accumulated_signals) >= (req.signal_count or target_count):
+                                break
+                        else:
+                            tool_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": "duplicate_skipped",
+                                }
+                            )
+                            tool_response_added = True
                     else:
+                        print(f"Rejected Signal: {error_msg}")
                         tool_messages.append(
                             {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
-                                "content": "duplicate_skipped",
+                                "content": (
+                                    "SYSTEM ERROR: "
+                                    f"{error_msg}. PROTOCOL: You must DISCARD this signal entirely. "
+                                    "Do not attempt to fix the URL. Search for a different topic/innovation immediately."
+                                ),
                             }
                         )
+                        tool_response_added = True
 
             if tool_messages:
                 messages.extend(tool_messages)
-            else:
+            if not tool_messages and not tool_response_added:
                 messages.append(
                     {
                         "role": "user",
