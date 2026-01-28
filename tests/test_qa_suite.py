@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 import asyncio
 import json
@@ -19,60 +18,14 @@ os.environ.setdefault("OPENAI_API_KEY", "test-key")
 import main
 
 
-@dataclass
-class FakeRun:
-    thread_id: str
-    id: str
-
-
-class FakeRuns:
-    def __init__(self, statuses):
-        self._statuses = iter(statuses)
-
-    def retrieve(self, thread_id, run_id):
-        return next(self._statuses)
-
-    def submit_tool_outputs(self, thread_id, run_id, tool_outputs):
-        return None
-
-    def cancel(self, thread_id, run_id):
-        return None
-
-
-class FakeMessages:
-    def list(self, thread_id):
-        content = SimpleNamespace(text=SimpleNamespace(value="ok"))
-        return SimpleNamespace(data=[SimpleNamespace(content=[content])])
-
-
-class FakeThreads:
-    def __init__(self, statuses, prompt_capture):
-        self.runs = FakeRuns(statuses)
-        self.messages = FakeMessages()
-        self._prompt_capture = prompt_capture
-
-    def create_and_run(self, assistant_id, thread):
-        self._prompt_capture["prompt"] = thread["messages"][0]["content"]
-        return FakeRun(thread_id="thread-1", id="run-1")
-
-
-class FakeClient:
-    def __init__(self, statuses, prompt_capture):
-        self.beta = SimpleNamespace(threads=FakeThreads(statuses, prompt_capture))
-
-
 def make_tool_call(tool_id, name, arguments):
     function = SimpleNamespace(name=name, arguments=json.dumps(arguments))
-    return SimpleNamespace(id=tool_id, function=function)
+    return SimpleNamespace(id=tool_id, type="function", function=function)
 
 
-def make_requires_action(tool_calls):
-    submit = SimpleNamespace(tool_calls=tool_calls)
-    return SimpleNamespace(status="requires_action", required_action=SimpleNamespace(submit_tool_outputs=submit))
-
-
-def make_completed():
-    return SimpleNamespace(status="completed")
+def make_response(tool_calls):
+    message = SimpleNamespace(content="", tool_calls=tool_calls)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
@@ -106,24 +59,22 @@ def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
         for idx in range(4, 6)
     ]
 
-    prompt_capture = {}
-    statuses = [
-        make_requires_action(tool_calls_batch_1),
-        make_requires_action(tool_calls_batch_2),
-        make_completed(),
-    ]
-    fake_client = FakeClient(statuses, prompt_capture)
-
     async def immediate(func, *args, **kwargs):
         return func(*args, **kwargs)
 
-    async def no_sleep(_):
-        return None
+    responses = [
+        make_response(tool_calls_batch_1),
+        make_response(tool_calls_batch_2),
+    ]
 
-    monkeypatch.setattr(main, "client", fake_client)
+    def fake_create(model, messages, tools):
+        return responses.pop(0)
+
+    monkeypatch.setattr(main.client.chat.completions, "create", fake_create)
     monkeypatch.setattr(main.asyncio, "to_thread", immediate)
-    monkeypatch.setattr(main.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(main, "get_sheet_records", lambda include_rejected=True: [])
     monkeypatch.setattr(main, "is_date_within_time_filter", lambda *_: True)
+    monkeypatch.setattr(main, "upsert_signal", lambda payload: None)
 
     request = main.ChatRequest(message="Find signals", signal_count=5, mission="All Missions")
     result = asyncio.run(main.chat_endpoint(request))
@@ -135,19 +86,17 @@ def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
 
 
 def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
-    prompt_capture = {}
-    statuses = [make_completed()]
-    fake_client = FakeClient(statuses, prompt_capture)
-
     async def immediate(func, *args, **kwargs):
         return func(*args, **kwargs)
+    prompt_capture = {}
 
-    async def no_sleep(_):
-        return None
+    def fake_create_first(model, messages, tools):
+        prompt_capture["prompt"] = messages[1]["content"]
+        return make_response([])
 
-    monkeypatch.setattr(main, "client", fake_client)
+    monkeypatch.setattr(main.client.chat.completions, "create", fake_create_first)
     monkeypatch.setattr(main.asyncio, "to_thread", immediate)
-    monkeypatch.setattr(main.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(main, "get_sheet_records", lambda include_rejected=True: [])
     monkeypatch.setattr(main, "is_date_within_time_filter", lambda *_: True)
 
     request = main.ChatRequest(message="Topic", signal_count=0, mission="Invalid Mission")
@@ -155,9 +104,12 @@ def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
     assert "exactly 5 seeds" in prompt_capture["prompt"]
 
     prompt_capture.clear()
-    statuses = [make_completed()]
-    fake_client = FakeClient(statuses, prompt_capture)
-    monkeypatch.setattr(main, "client", fake_client)
+
+    def fake_create_second(model, messages, tools):
+        prompt_capture["prompt"] = messages[1]["content"]
+        return make_response([])
+
+    monkeypatch.setattr(main.client.chat.completions, "create", fake_create_second)
 
     request = main.ChatRequest(message="Topic", signal_count=50, mission="Invalid Mission")
     asyncio.run(main.chat_endpoint(request))

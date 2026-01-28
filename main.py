@@ -7,24 +7,22 @@ import re
 import httpx
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from urllib.parse import urlparse
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
 from bs4 import BeautifulSoup
-from keywords import MISSION_KEYWORDS, CROSS_CUTTING_KEYWORDS
+from keywords import MISSION_KEYWORDS, CROSS_CUTTING_KEYWORDS, generate_broad_scan_queries
 
 # --- SETUP ---
 load_dotenv()
 
 # API KEYS
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # CONFIG
@@ -35,13 +33,8 @@ GOOGLE_SEARCH_KEY = os.getenv("Google_Search_API_KEY") or os.getenv("GOOGLE_SEAR
 GOOGLE_SEARCH_CX = os.getenv("Google_Search_CX") or os.getenv("GOOGLE_SEARCH_CX")
 
 DEFAULT_SIGNAL_COUNT = 5
-QUERY_GENERATION_BUFFER = 3
-
 # --- CLIENT INIT ---
-client = OpenAI(
-    api_key=OPENAI_API_KEY,
-    default_headers={"OpenAI-Beta": "assistants=v2"}
-)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI()
 
@@ -131,6 +124,101 @@ SOURCE_FILTERS = {
     "Academia": "(site:nature.com OR site:sciencemag.org OR site:arxiv.org OR site:sciencedirect.com OR site:.edu OR site:.ac.uk)",
     "Niche Forums": "(site:reddit.com OR site:news.ycombinator.com)"
 }
+
+SYSTEM_PROMPT = """
+You are the "Nesta Signal Scout", an autonomous research engine.
+
+YOUR MISSION CONTEXT (Nesta Strategy 2030):
+
+A Fairer Start: Narrow the outcome gap between children from wealthy and deprived backgrounds. Focus on early years (0-5), school readiness, and parenting support.
+
+A Healthy Life: Halve the prevalence of obesity in the UK. Focus on the food environment (reformulation, retail targets) rather than individual willpower.
+
+A Sustainable Future: Reduce household carbon emissions by 30%. Focus on low-carbon heating (heat pumps), retrofitting, and energy flexibility.
+
+Mission Adjacent: Cross-cutting technologies (AI, Privacy, Robotics) that impact multiple missions.
+
+YOUR PROTOCOL:
+
+Use 'generate_broad_scan_queries' for broad requests to get search terms.
+
+Use 'perform_web_search' to validate claims.
+
+ALWAYS output the final result as a JSON object using the display_signal_card format.
+"""
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "perform_web_search",
+            "description": "Search the web for relevant results.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "date_restrict": {"type": "string"},
+                    "requested_results": {"type": "integer"},
+                    "scan_mode": {"type": "string"},
+                    "source_types": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_article_text",
+            "description": "Fetch and extract article text from a URL.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "display_signal_card",
+            "description": "Return a structured signal card with scoring and source metadata.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "url": {"type": "string"},
+                    "final_url": {"type": "string"},
+                    "hook": {"type": "string"},
+                    "score": {"type": "number"},
+                    "mission": {"type": "string"},
+                    "lenses": {"type": "string"},
+                    "score_novelty": {"type": "number"},
+                    "score_evidence": {"type": "number"},
+                    "score_evocativeness": {"type": "number"},
+                    "published_date": {"type": "string"},
+                },
+                "required": ["title", "url", "hook", "score"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_broad_scan_queries",
+            "description": "Generate search queries from keywords",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "num_signals": {"type": "integer"},
+                },
+                "required": ["num_signals"],
+            },
+        },
+    },
+]
 
 def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
     source_types = source_types or []
@@ -322,10 +410,14 @@ class ChatRequest(BaseModel):
     signal_count: Optional[int] = None
     scan_mode: str = "general"
 
+
+class GenerateQueriesRequest(BaseModel):
+    keywords: List[str] = Field(default_factory=list)
+    count: int = 5
+
 @app.post("/chat")
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
-    run = None
     try:
         # 1. Get Current Date & Validation
         request_date = datetime.now()
@@ -430,109 +522,128 @@ async def chat_endpoint(req: ChatRequest):
         bias_sources = req.source_types
         prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Selected Source Filters: {', '.join(bias_sources)}."
         
-        run = await asyncio.to_thread(
-            client.beta.threads.create_and_run,
-            assistant_id=ASSISTANT_ID,
-            thread={"messages": [{"role": "user", "content": prompt}]}
-        )
-
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
         accumulated_signals = []
         seen_urls = set()
+        max_iterations = 10
+        iteration = 0
 
-        # Polling Loop
-        while True:
-            try:
-                run_status = await asyncio.to_thread(client.beta.threads.runs.retrieve, thread_id=run.thread_id, run_id=run.id)
-                
-                if run_status.status == 'requires_action':
-                    tool_calls = run_status.required_action.submit_tool_outputs.tool_calls
-                    tool_outputs = []
-                    
-                    for tool in tool_calls:
-                        if tool.function.name == "perform_web_search":
-                            args = json.loads(tool.function.arguments)
-                            d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
-                            res = await perform_google_search(
-                                args.get("query"),
-                                d_map.get(req.time_filter, "m1"),
-                                scan_mode=req.scan_mode,
-                                source_types=req.source_types
-                            )
-                            tool_outputs.append({"tool_call_id": tool.id, "output": res})
-                        elif tool.function.name == "fetch_article_text":
-                            args = json.loads(tool.function.arguments)
-                            content = await fetch_article_text(args.get("url"))
-                            tool_outputs.append({"tool_call_id": tool.id, "output": content})
-                        elif tool.function.name == "display_signal_card":
-                            args = json.loads(tool.function.arguments)
-                            published_date = args.get("published_date", "")
-                            
-                            # Validation Logic
-                            if not is_date_within_time_filter(published_date, req.time_filter, request_date):
-                                tool_outputs.append({"tool_call_id": tool.id, "output": "rejected_out_of_time_window"})
-                                continue
-                            
-                            card = {
-                                "title": args.get("title"), 
-                                "url": args.get("final_url") or args.get("url"),
-                                "hook": args.get("hook"), 
-                                "score": args.get("score"),
-                                "mission": args.get("mission", "General"),
-                                "lenses": args.get("lenses", ""),
-                                "score_novelty": args.get("score_novelty", 0),
-                                "score_evidence": args.get("score_evidence", 0),
-                                "score_evocativeness": args.get("score_evocativeness", 0),
-                                "source_date": published_date,
-                                "user_status": "Generated",
-                                "ui_type": "signal_card"
-                            }
-                            
-                            if len(accumulated_signals) >= target_count:
-                                tool_outputs.append({"tool_call_id": tool.id, "output": "limit_reached"})
-                                continue
+        while len(accumulated_signals) < target_count and iteration < max_iterations:
+            iteration += 1
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model="gpt-4o",
+                messages=messages,
+                tools=TOOLS,
+            )
+            message = response.choices[0].message
+            tool_calls = message.tool_calls or []
 
-                            if card["url"] and card["url"] not in seen_urls:
-                                accumulated_signals.append(card)
-                                seen_urls.add(card["url"])
-                                try: await asyncio.to_thread(upsert_signal, card)
-                                except Exception as e:
-                                    print(f"Error upserting signal {card.get('url')}: {e}")
-                                tool_outputs.append({"tool_call_id": tool.id, "output": "displayed"})
-                            else:
-                                tool_outputs.append({"tool_call_id": tool.id, "output": "duplicate_skipped"})
+            if not tool_calls:
+                return {"ui_type": "signal_list", "items": accumulated_signals}
 
-                    await asyncio.to_thread(client.beta.threads.runs.submit_tool_outputs, thread_id=run.thread_id, run_id=run.id, tool_outputs=tool_outputs)
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        {
+                            "id": tool_call.id,
+                            "type": tool_call.type,
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments,
+                            },
+                        }
+                        for tool_call in tool_calls
+                    ],
+                }
+            )
 
-                elif run_status.status == 'completed':
-                    if accumulated_signals:
-                        return {"ui_type": "signal_list", "items": accumulated_signals[:target_count]}
-                    else:
-                        msgs = await asyncio.to_thread(client.beta.threads.messages.list, thread_id=run.thread_id)
-                        return {"ui_type": "text", "content": msgs.data[0].content[0].text.value}
-                
-                elif run_status.status in ['failed', 'expired', 'cancelled']:
-                    return {"ui_type": "text", "content": f"System Error: {run_status.last_error}"}
-                
-                await asyncio.sleep(1)
+            tool_messages: List[Dict[str, Any]] = []
+            for tool_call in tool_calls:
+                tool_name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments or "{}")
 
-            except asyncio.CancelledError:
-                print(f"🛑 Scan cancelled by user. Terminating Run {run.id}...")
-                try:
-                    await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
-                except Exception as e:
-                    print(f"Error cancelling run: {e}")
-                raise 
-            except Exception as e:
-                logging.exception("Polling loop error: %s", e)
-                raise
+                if tool_name == "perform_web_search":
+                    d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
+                    res = await perform_google_search(
+                        args.get("query"),
+                        d_map.get(req.time_filter, "m1"),
+                        scan_mode=req.scan_mode,
+                        source_types=req.source_types,
+                    )
+                    tool_messages.append(
+                        {"role": "tool", "tool_call_id": tool_call.id, "content": res}
+                    )
+                elif tool_name == "fetch_article_text":
+                    content = await fetch_article_text(args.get("url"))
+                    tool_messages.append(
+                        {"role": "tool", "tool_call_id": tool_call.id, "content": content}
+                    )
+                elif tool_name == "generate_broad_scan_queries":
+                    num_signals = args.get("num_signals") or (req.signal_count or target_count)
+                    queries = generate_broad_scan_queries(CROSS_CUTTING_KEYWORDS, num_signals)
+                    tool_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(queries),
+                        }
+                    )
+                elif tool_name == "display_signal_card":
+                    published_date = args.get("published_date", "")
+                    if not is_date_within_time_filter(published_date, req.time_filter, request_date):
+                        continue
+
+                    card = {
+                        "title": args.get("title"),
+                        "url": args.get("final_url") or args.get("url"),
+                        "hook": args.get("hook"),
+                        "score": args.get("score"),
+                        "mission": args.get("mission", "General"),
+                        "lenses": args.get("lenses", ""),
+                        "score_novelty": args.get("score_novelty", 0),
+                        "score_evidence": args.get("score_evidence", 0),
+                        "score_evocativeness": args.get("score_evocativeness", 0),
+                        "source_date": published_date,
+                        "user_status": "Generated",
+                        "ui_type": "signal_card",
+                    }
+
+                    if len(accumulated_signals) >= (req.signal_count or target_count):
+                        continue
+
+                    if card["url"] and card["url"] not in seen_urls:
+                        accumulated_signals.append(card)
+                        seen_urls.add(card["url"])
+                        try:
+                            await asyncio.to_thread(upsert_signal, args)
+                        except Exception as e:
+                            print(f"Error upserting signal {card.get('url')}: {e}")
+                        if len(accumulated_signals) >= (req.signal_count or target_count):
+                            break
+                    continue
+
+            if tool_messages:
+                messages.extend(tool_messages)
+            else:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Continue generating additional valid signals.",
+                    }
+                )
+            if len(accumulated_signals) >= (req.signal_count or target_count):
+                break
+
+        return {"ui_type": "signal_list", "items": accumulated_signals}
 
     except Exception as e:
         print(f"Server Error: {e}")
-        if isinstance(e, asyncio.CancelledError) and run:
-            try:
-                await asyncio.to_thread(client.beta.threads.runs.cancel, thread_id=run.thread_id, run_id=run.id)
-            except Exception:
-                pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/saved")
@@ -546,6 +657,12 @@ def update_sig(req: Dict[str, Any]):
     except Exception as e:
         print(f"Update Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate-queries")
+def generate_queries(req: GenerateQueriesRequest):
+    queries = generate_broad_scan_queries(req.keywords, req.count)
+    return {"queries": queries}
 
 # --- STATIC FILE SERVING ---
 @app.get("/")

@@ -1,7 +1,12 @@
 """Plain keyword lists for Nesta mission-aligned horizon scanning."""
 
 from __future__ import annotations
+
+import os
+import random
 from typing import Dict, List
+
+from openai import OpenAI
 
 
 def _keywords(block: str) -> List[str]:
@@ -827,3 +832,31 @@ CROSS_CUTTING_KEYWORDS: List[str] = _keywords(
     training
     """
 )
+
+
+def generate_broad_scan_queries(source_keywords: list, num_signals: int = 5) -> list:
+    """Generates specific Google Search queries based on random keywords."""
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    if num_signals > len(source_keywords):
+        selected = source_keywords
+    else:
+        selected = random.sample(source_keywords, num_signals)
+
+    queries = []
+    for topic in selected:
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Convert topic to 1 search query for innovations. No quotes.",
+                    },
+                    {"role": "user", "content": f"Topic: {topic}"},
+                ],
+            )
+            queries.append(response.choices[0].message.content.strip())
+        except Exception:
+            queries.append(f"latest innovations in {topic}")
+    return queries
