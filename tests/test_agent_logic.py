@@ -76,7 +76,7 @@ def test_chat_endpoint_handles_display_signal_card(monkeypatch):
         scan_mode="general",
     )
 
-    response = asyncio.run(main.chat_endpoint(req))
+    response = asyncio.run(main.chat_endpoint(req, stream=False))
 
     assert response["ui_type"] == "signal_list"
     assert len(response["items"]) == 1

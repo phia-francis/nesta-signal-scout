@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -479,21 +479,20 @@ class GenerateQueriesRequest(BaseModel):
     keywords: List[str] = Field(default_factory=list)
     count: int = 5
 
-@app.post("/chat")
-@app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest):
+async def stream_chat_generator(req: ChatRequest):
     try:
         # 1. Get Current Date & Validation
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
         existing_records = await asyncio.to_thread(get_sheet_records, include_rejected=True)
         known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
-        
+
         # Default to 5 signals if not specified
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else 5
-        
+
         print(f"Incoming: {req.message} | Target: {target_count} | Mission: {req.mission} | Date: {today_str}")
-        
+        yield json.dumps({"type": "progress", "message": "Initialising Scout Agent..."}) + "\n"
+
         # 2. Select Keywords
         relevant_keywords_set = set()
         if req.mission in MISSION_KEYWORDS:
@@ -501,10 +500,10 @@ async def chat_endpoint(req: ChatRequest):
         elif req.mission == "All Missions":
             for key in MISSION_KEYWORDS:
                 relevant_keywords_set.update(MISSION_KEYWORDS[key])
-        
+
         relevant_keywords_set.update(CROSS_CUTTING_KEYWORDS)
         relevant_keywords_list = list(relevant_keywords_set)
-        
+
         # Select diversity seeds
         if not relevant_keywords_list:
             selected_keywords = [req.mission or "General"] * target_count
@@ -513,7 +512,7 @@ async def chat_endpoint(req: ChatRequest):
             selected_keywords = random.sample(relevant_keywords_list, num_to_select)
             while len(selected_keywords) < target_count:
                 selected_keywords.append(random.choice(relevant_keywords_list))
-            
+
         keywords_str = ", ".join(selected_keywords)
 
         # 3. Construct Prompt (DEEP-LINK ENFORCED)
@@ -523,13 +522,13 @@ async def chat_endpoint(req: ChatRequest):
             f"CURRENT DATE: {today_str}",
             f"SEARCH CONSTRAINT: Do NOT include the current year (e.g., '{request_date.year}') inside search query keywords. Rely ONLY on the time_filter tool parameter. Adding the year manually excludes valid results.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
-            
+
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
             f"DIVERSITY SEEDS: {keywords_str}",
 
             "Core Directive: YOU ARE A RESEARCH ENGINE, NOT A WRITER.",
             "- NO SEARCH = NO SIGNAL: If you cannot find a direct URL, the signal does not exist.",
-            
+
             "- QUALITY CONTROL (CRITICAL - DEEP LINKS ONLY):",
             "  1. NO HOMEPAGES: You must NEVER output a root domain (e.g., 'www.bbc.co.uk') or a generic category page.",
             "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., 'youtube.com/c/NewsChannel'). You must find the specific VIDEO link (e.g., 'youtube.com/watch?v=...').",
@@ -580,12 +579,13 @@ async def chat_endpoint(req: ChatRequest):
                 "SOURCE RULE: Apply these translated keywords to the User-Provided Source List (e.g., selected_sources). Do NOT hardcode site:ukri.org if the user has selected other filters (like VC Blogs or News)."
             )
         prompt = "\n\n".join(prompt_parts)
-        
-        if req.tech_mode: prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
-        
+
+        if req.tech_mode:
+            prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
+
         bias_sources = req.source_types
         prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Selected Source Filters: {', '.join(bias_sources)}."
-        
+
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -597,6 +597,7 @@ async def chat_endpoint(req: ChatRequest):
 
         while len(accumulated_signals) < target_count and iteration < max_iterations:
             iteration += 1
+            yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=CHAT_MODEL,
@@ -607,7 +608,7 @@ async def chat_endpoint(req: ChatRequest):
             tool_calls = message.tool_calls or []
 
             if not tool_calls:
-                return {"ui_type": "signal_list", "items": accumulated_signals}
+                break
 
             messages.append(
                 {
@@ -634,6 +635,7 @@ async def chat_endpoint(req: ChatRequest):
                 args = json.loads(tool_call.function.arguments or "{}")
 
                 if tool_name == "perform_web_search":
+                    yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
                     d_map = {"Past Month": "m1", "Past 3 Months": "m3", "Past 6 Months": "m6", "Past Year": "y1"}
                     res = await perform_google_search(
                         args.get("query"),
@@ -718,6 +720,7 @@ async def chat_endpoint(req: ChatRequest):
                         if card["url"] and card["url"] not in seen_urls:
                             accumulated_signals.append(card)
                             seen_urls.add(card["url"])
+                            yield json.dumps({"type": "signal", "data": card}) + "\n"
                             try:
                                 await asyncio.to_thread(upsert_signal, card)
                             except Exception as e:
@@ -768,11 +771,36 @@ async def chat_endpoint(req: ChatRequest):
             if len(accumulated_signals) >= (req.signal_count or target_count):
                 break
 
-        return {"ui_type": "signal_list", "items": accumulated_signals}
+        yield json.dumps({"type": "done"}) + "\n"
 
     except Exception as e:
         print(f"Server Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.exception("Unhandled exception in stream_chat_generator")
+        yield json.dumps({"type": "error", "message": "An internal error has occurred."}) + "\n"
+        yield json.dumps({"type": "done"}) + "\n"
+
+async def collect_chat_response(req: ChatRequest) -> Dict[str, Any]:
+    accumulated_signals = []
+    async for line in stream_chat_generator(req):
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if message.get("type") == "signal":
+            accumulated_signals.append(message.get("data"))
+        elif message.get("type") == "error":
+            break
+    return {"ui_type": "signal_list", "items": accumulated_signals}
+
+@app.post("/chat")
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest, stream: bool = True):
+    if not stream:
+        return await collect_chat_response(req)
+    return StreamingResponse(
+        stream_chat_generator(req),
+        media_type="application/x-ndjson",
+    )
 
 @app.get("/api/saved")
 def get_saved(): return get_sheet_records()
