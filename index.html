@@ -1126,6 +1126,7 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    console.log("Received Chunk:", value.length, "bytes");
                     
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
@@ -1137,13 +1138,15 @@
                             const msg = JSON.parse(line);
                             
                             if (msg.type === 'progress') {
-                                document.getElementById('loading-status-text').innerText = msg.message;
+                                const statusEl = document.getElementById('loading-status-text');
+                                if (statusEl) statusEl.innerText = msg.message;
                             } else if (msg.type === 'signal') {
                                 // Add signal immediately to the list
                                 const norm = normalizeSignal(msg.data);
                                 currentSignals.push(norm);
                                 createSignalCard(norm, currentSignals.length - 1);
                                 lastScanResults = currentSignals;
+                                updateDownloadButton();
                             } else if (msg.type === 'error') {
                                 showToast(msg.message, 'error');
                             }
@@ -1151,8 +1154,9 @@
                     }
                 }
                 stopLoadingSimulation();
-                container.innerHTML = ''; // Clear loading view if not already cleared
-                renderList(); // Re-render to ensure order
+                const loader = document.querySelector('.radar-loader');
+                if (loader) loader.parentElement.remove();
+                // Signals already streamed in; avoid clearing the container.
             } catch (error) {
                 stopLoadingSimulation();
                 if (error.name === 'AbortError') {
