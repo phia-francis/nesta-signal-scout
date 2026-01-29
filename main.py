@@ -792,14 +792,16 @@ async def collect_chat_response(req: ChatRequest) -> Dict[str, Any]:
             break
     return {"ui_type": "signal_list", "items": accumulated_signals}
 
-@app.post("/chat")
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest, stream: bool = True):
-    if not stream:
-        return await collect_chat_response(req)
+async def chat_endpoint(req: ChatRequest):
     return StreamingResponse(
         stream_chat_generator(req),
         media_type="application/x-ndjson",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
     )
 
 @app.get("/api/saved")
