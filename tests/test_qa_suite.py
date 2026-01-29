@@ -75,7 +75,7 @@ def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
     monkeypatch.setattr(main, "upsert_signal", lambda payload: None)
 
     request = main.ChatRequest(message="Find signals", signal_count=5, mission="All Missions")
-    result = asyncio.run(main.chat_endpoint(request))
+    result = asyncio.run(main.chat_endpoint(request, stream=False))
 
     assert result["ui_type"] == "signal_list"
     assert len(result["items"]) == 5
@@ -98,7 +98,7 @@ def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
     monkeypatch.setattr(main, "is_date_within_time_filter", lambda *_: True)
 
     request = main.ChatRequest(message="Topic", signal_count=0, mission="Invalid Mission")
-    asyncio.run(main.chat_endpoint(request))
+    asyncio.run(main.chat_endpoint(request, stream=False))
     assert "exactly 5 seeds" in prompt_capture["prompt"]
 
     prompt_capture.clear()
@@ -110,7 +110,7 @@ def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
     monkeypatch.setattr(main.client.chat.completions, "create", fake_create_second)
 
     request = main.ChatRequest(message="Topic", signal_count=50, mission="Invalid Mission")
-    asyncio.run(main.chat_endpoint(request))
+    asyncio.run(main.chat_endpoint(request, stream=False))
     assert "exactly 50 seeds" in prompt_capture["prompt"]
 
 

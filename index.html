@@ -483,6 +483,7 @@
         <div class="w-2 h-2 rounded-full bg-nesta-aqua shrink-0"></div><span id="toast-msg">Action Successful</span>
     </div>
 
+    <script src="friction-config.js"></script>
     <script>
         const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
             ? 'http://127.0.0.1:8000' 
@@ -594,33 +595,14 @@
         }
 
         function generateFrictionQuery() {
-            const TOPICS = [
-                "early years literacy",
-                "childcare affordability",
-                "parenting support",
-                "school readiness",
-                "healthy snacking",
-                "obesity prevention",
-                "food reformulation",
-                "active travel",
-                "heat pumps",
-                "home retrofit",
-                "energy storage",
-                "decarbonised housing"
-            ];
-            const FRICTION_MODIFIERS = [
-                "unregulated",
-                "lawsuit",
-                "black market",
-                "homebrew",
-                "banned",
-                "shortage",
-                "loophole",
-                "counterfeit"
-            ];
-
-            const topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-            const modifier = FRICTION_MODIFIERS[Math.floor(Math.random() * FRICTION_MODIFIERS.length)];
+            const topics = window.FRICTION_TOPICS || [];
+            const modifiers = window.FRICTION_MODIFIERS || [];
+            if (!topics.length || !modifiers.length) {
+                console.warn("Friction query lists are missing.");
+                return;
+            }
+            const topic = topics[Math.floor(Math.random() * topics.length)];
+            const modifier = modifiers[Math.floor(Math.random() * modifiers.length)];
             const input = document.getElementById('topic-input');
             input.value = `${topic} + "${modifier}"`;
             toggleButtonState();

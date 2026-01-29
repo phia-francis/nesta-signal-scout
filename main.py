@@ -775,12 +775,28 @@ async def stream_chat_generator(req: ChatRequest):
 
     except Exception as e:
         print(f"Server Error: {e}")
-        yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+        logging.exception("Unhandled exception in stream_chat_generator")
+        yield json.dumps({"type": "error", "message": "An internal error has occurred."}) + "\n"
         yield json.dumps({"type": "done"}) + "\n"
+
+async def collect_chat_response(req: ChatRequest) -> Dict[str, Any]:
+    accumulated_signals = []
+    async for line in stream_chat_generator(req):
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if message.get("type") == "signal":
+            accumulated_signals.append(message.get("data"))
+        elif message.get("type") == "error":
+            break
+    return {"ui_type": "signal_list", "items": accumulated_signals}
 
 @app.post("/chat")
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, stream: bool = True):
+    if not stream:
+        return await collect_chat_response(req)
     return StreamingResponse(
         stream_chat_generator(req),
         media_type="application/x-ndjson",
