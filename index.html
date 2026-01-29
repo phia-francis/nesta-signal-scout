@@ -268,6 +268,10 @@
                                 placeholder="e.g. 'Generative AI' — or leave empty for Broad Scan"
                                 onkeypress="handleEnter(event)"
                                 oninput="toggleButtonState()">
+                            <button type="button" onclick="generateFrictionQuery()" title="Generate Friction Query"
+                                class="absolute right-16 top-1/2 -translate-y-1/2 text-nesta-navy/70 hover:text-nesta-blue text-xl transition-transform duration-200 ease-out hover:scale-110">
+                                🎲
+                            </button>
                             <div class="absolute right-6 top-1/2 -translate-y-1/2 text-nesta-blue transition-all duration-500 ease-out group-focus-within:scale-110 group-focus-within:rotate-12 group-focus-within:text-nesta-aqua">
                                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </div>
@@ -587,6 +591,39 @@
                 broadBtn.classList.remove('hidden');
                 searchBtn.classList.add('hidden');
             }
+        }
+
+        function generateFrictionQuery() {
+            const TOPICS = [
+                "early years literacy",
+                "childcare affordability",
+                "parenting support",
+                "school readiness",
+                "healthy snacking",
+                "obesity prevention",
+                "food reformulation",
+                "active travel",
+                "heat pumps",
+                "home retrofit",
+                "energy storage",
+                "decarbonised housing"
+            ];
+            const FRICTION_MODIFIERS = [
+                "unregulated",
+                "lawsuit",
+                "black market",
+                "homebrew",
+                "banned",
+                "shortage",
+                "loophole",
+                "counterfeit"
+            ];
+
+            const topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+            const modifier = FRICTION_MODIFIERS[Math.floor(Math.random() * FRICTION_MODIFIERS.length)];
+            const input = document.getElementById('topic-input');
+            input.value = `${topic} + "${modifier}"`;
+            toggleButtonState();
         }
 
         // --- LOADING ANIMATION LOGIC ---
@@ -1056,26 +1093,46 @@
                     body: JSON.stringify(payload),
                     signal: signal 
                 });
-                
-                if(!res.ok) throw new Error();
-                const data = await res.json();
-                
-                stopLoadingSimulation();
-                container.innerHTML = '';
 
-                if (data.ui_type === 'signal_list') {
-                    currentSignals = data.items.map(normalizeSignal);
-                    lastScanResults = currentSignals; 
+                if(!res.ok) throw new Error();
+
+                currentSignals = [];
+                lastScanResults = [];
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
                     
-                    data.items.forEach((item, index) => {
-                        setTimeout(() => createSignalCard(item, index), index * 100);
-                    });
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete chunk
                     
-                    setTimeout(loadPreview, 2000);
-                    updateDownloadButton();
-                } else {
-                    container.innerHTML = `<div class="p-10 bg-white border border-gray-100 rounded-xl text-center text-nesta-navy shadow-sm">${data.content}</div>`;
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const msg = JSON.parse(line);
+                            
+                            if (msg.type === 'progress') {
+                                document.getElementById('loading-status-text').innerText = msg.message;
+                            } else if (msg.type === 'signal') {
+                                // Add signal immediately to the list
+                                const norm = normalizeSignal(msg.data);
+                                currentSignals.push(norm);
+                                createSignalCard(norm, currentSignals.length - 1);
+                                lastScanResults = currentSignals;
+                            } else if (msg.type === 'error') {
+                                showToast(msg.message, 'error');
+                            }
+                        } catch (e) { console.error('Stream parse error', e); }
+                    }
                 }
+                stopLoadingSimulation();
+                container.innerHTML = ''; // Clear loading view if not already cleared
+                renderList(); // Re-render to ensure order
             } catch (error) {
                 stopLoadingSimulation();
                 if (error.name === 'AbortError') {
