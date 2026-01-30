@@ -341,6 +341,37 @@ def update_local_csv(url: str, analysis: str, implication: str, csv_path: str = 
     df.to_csv(csv_path, index=False)
     return True
 
+
+def update_local_signal_by_url(req: "UpdateSignalRequest", csv_path: str = "Nesta Signal Vault - Sheet1.csv") -> bool:
+    if not os.path.exists(csv_path):
+        return False
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as exc:
+        logging.error(f"CSV read error: {exc}")
+        return False
+    if "URL" not in df.columns:
+        return False
+    for column in ["Hook", "Analysis", "Implication"]:
+        if column not in df.columns:
+            df[column] = ""
+    normalized_url = str(req.url or "").strip().lower()
+    if not normalized_url:
+        return False
+    url_series = df["URL"].astype(str).str.strip().str.lower()
+    matches = df.index[url_series == normalized_url].tolist()
+    if not matches:
+        return False
+    idx = matches[0]
+    if req.hook is not None:
+        df.at[idx, "Hook"] = req.hook
+    if req.analysis is not None:
+        df.at[idx, "Analysis"] = req.analysis
+    if req.implication is not None:
+        df.at[idx, "Implication"] = req.implication
+    df.to_csv(csv_path, index=False)
+    return True
+
 def update_sheet_enrichment(url: str, analysis: str, implication: str) -> bool:
     sheet = get_google_sheet()
     if not sheet:
@@ -1174,13 +1205,19 @@ def update_sig(req: Dict[str, Any]):
 @app.post("/api/update_signal")
 async def update_signal(req: UpdateSignalRequest):
     """Finds the row with the matching URL and updates select fields."""
+    local_updated = await asyncio.to_thread(update_local_signal_by_url, req)
     try:
-        return await asyncio.to_thread(update_signal_by_url, req)
-    except HTTPException:
-        raise
+        response = await asyncio.to_thread(update_signal_by_url, req)
+    except HTTPException as exc:
+        if local_updated:
+            return {"status": "success", "message": "Signal updated locally"}
+        raise exc
     except Exception as e:
-        print(f"Update Signal Error: {e}")
+        logging.error(f"Update Signal Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    if local_updated:
+        response["message"] = f"{response.get('message', 'Signal updated')} + local CSV updated"
+    return response
 
 @app.post("/api/enrich_signal")
 async def enrich_signal(req: EnrichRequest):
