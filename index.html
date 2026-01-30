@@ -14,7 +14,10 @@
     </script>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.min.js" integrity="sha512-n/G+dROKbKL3GVngGWmWfwK0yPctjZQM752diVYnXZtD/48agpUKLIn0xDQL9ydZ91x6BiOmTIFwWjjFi2kEFg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/standalone/umd/vis-network.min.js" integrity="sha512-9YVQZyV2hlSqEXZDwSEVia7u4T+qBkLE7KYG24LalL3J1zoQJXAiWpobprig/vGhV1VCfPIxF4EvHDYCSrSpmw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js" integrity="sha512-+EeCylkt9WHJk5tGJxYdecHOcXFRME7qnbsfeMsdQL6NUPYm2+uGFmyleEqsmVoap/f3dN/sc3BX9t9kHXkHHg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>#
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
     <script>
         tailwind.config = {
@@ -207,6 +210,9 @@
                     <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Export
                 </button>
+                <button onclick="generateBriefing()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
+                    📄 Briefing PDF
+                </button>
                 <button onclick="openSavedSignals()" class="btn-interactive px-6 py-2 bg-white text-nesta-navy text-sm font-bold rounded-sm hover:bg-nesta-aqua hover:text-nesta-navy shadow-lg">
                     Full Database
                 </button>
@@ -330,6 +336,7 @@
                     <div class="flex bg-gray-100 p-1 rounded-lg">
                         <button onclick="switchView('list')" id="btn-list" class="px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md hover:scale-105 active:scale-95">List</button>
                         <button onclick="switchView('radar')" id="btn-radar" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Radar</button>
+                        <button onclick="switchView('network')" id="btn-network" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Network</button>
                     </div>
                 </div>
 
@@ -378,7 +385,11 @@
         </div>
 
         <div id="view-controls" class="flex justify-between items-center px-2">
-            <div></div>
+            <div>
+                <button onclick="synthesizeTrend()" class="btn-interactive px-5 py-2 text-xs font-bold bg-nesta-purple text-white rounded-full shadow-sm hover:bg-nesta-blue transition">
+                    ✨ Synthesise
+                </button>
+            </div>
             <div class="flex gap-2 bg-white p-1.5 rounded-full shadow-sm border border-gray-100">
                 <button onclick="switchFilter('scan')" id="filter-btn-scan" class="filter-view-btn active px-4 py-1.5 rounded-full text-xs font-bold border border-nesta-navy text-nesta-navy hover:bg-gray-100">Current Scan</button>
                 <div class="h-6 w-px bg-gray-200 mx-1"></div>
@@ -392,6 +403,10 @@
         
         <div id="radar-container" class="hidden bg-white p-10 shadow-soft border border-gray-100 min-h-[600px] flex flex-col items-center justify-center rounded-xl relative">
             <div class="w-full h-[500px] relative"><canvas id="signalRadar"></canvas></div>
+        </div>
+
+        <div id="network-container" class="hidden bg-white p-6 shadow-soft border border-gray-100 h-[600px] rounded-xl relative">
+            <div id="signalNetwork" class="w-full h-full"></div>
         </div>
 
         <section id="preview-section" class="pt-12 border-t border-gray-200">
@@ -446,35 +461,104 @@
                 </div>
                 <button onclick="closeUserGuide()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
             </div>
-            <div class="flex-1 overflow-y-auto p-10 space-y-10 text-sm text-nesta-navy">
-                <section class="space-y-4">
-                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">Dashboard Views</h3>
-                    <div class="space-y-3">
-                        <p>• Current Scan: Live AI-generated results from the web.</p>
-                        <p>• Recent DB: Validated signals from our internal vault.</p>
-                        <p>• Funding: Venture capital and grant data.</p>
-                        <p>• Emerging Tech: The broad view of all tech trends.</p>
+            <div class="flex-1 overflow-y-auto p-10 space-y-12 text-nesta-navy font-body">
+                
+                <div class="text-center space-y-4 border-b border-gray-100 pb-10">
+                    <div class="w-16 h-16 bg-nesta-blue text-white rounded-2xl flex items-center justify-center text-3xl font-bold mx-auto shadow-lg mb-4 brand-font">N</div>
+                    <h3 class="text-4xl brand-font text-nesta-navy">Welcome to Signal Scout</h3>
+                    <p class="text-lg max-w-2xl mx-auto text-gray-500">Your autonomous AI agent for discovering weak signals, emerging trends, and hidden innovations.</p>
+                </div>
+
+                <section>
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 border-b border-gray-100 pb-2">How It Works</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
+                            <div class="text-4xl mb-4">🔍</div>
+                            <h5 class="font-bold text-nesta-navy text-lg mb-2">1. Scan</h5>
+                            <p class="text-sm text-gray-600 leading-relaxed">The agent generates "High Entropy" queries (e.g. <em>"biotech + unregulated"</em>) to bypass mainstream news and find hidden gems.</p>
+                        </div>
+                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
+                            <div class="text-4xl mb-4">🧠</div>
+                            <h5 class="font-bold text-nesta-navy text-lg mb-2">2. Analyse</h5>
+                            <p class="text-sm text-gray-600 leading-relaxed">It reads articles in real-time, verifying facts and scoring them on Novelty, Evidence, and Impact.</p>
+                        </div>
+                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
+                            <div class="text-4xl mb-4">💎</div>
+                            <h5 class="font-bold text-nesta-navy text-lg mb-2">3. Synthesise</h5>
+                            <p class="text-sm text-gray-600 leading-relaxed">It produces a concise "Signal Card" with a strategic hook, ready for your research database.</p>
+                        </div>
                     </div>
                 </section>
 
-                <section class="space-y-4">
-                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">Scoring</h3>
-                    <div class="space-y-3">
-                        <p>• Novelty (0-10): Uniqueness of the signal.</p>
-                        <p>• Evidence (0-10): Reliability of the source.</p>
-                        <p>• Evocativeness (0-10): Ability to inspire imagination.</p>
-                        <p>• Total Score: Aggregate rating (80+ = Must Watch).</p>
+                <section>
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 border-b border-gray-100 pb-2">Interface Guide</h4>
+                    <div class="space-y-8">
+                        
+                        <div class="flex flex-col sm:flex-row items-start gap-6">
+                            <div class="shrink-0 w-16 flex justify-center pt-2">
+                                <span class="text-2xl shadow-sm border border-gray-200 rounded-lg p-2 bg-white">🎲</span>
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-nesta-navy text-lg">The "Inspire Me" Button</h5>
+                                <p class="text-sm text-gray-600 mt-1 max-w-xl">Stuck for ideas? Click the dice to instantly generate a <strong>"Friction Query"</strong>. This creates random collisions (e.g. <em>"heat pumps + lawsuit"</em>) that often lead to the most surprising discoveries.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row items-start gap-6">
+                            <div class="shrink-0 w-16 flex justify-center pt-2">
+                                <div class="scale-75 origin-top">
+                                    <div class="flex items-center gap-2 bg-gray-50 px-3 py-2 border border-nesta-sand rounded-lg shadow-sm w-max">
+                                        <input type="checkbox" checked class="text-nesta-orange rounded focus:ring-0 cursor-default" onclick="return false;">
+                                        <span class="text-xs font-bold text-nesta-navy">Deep Tech</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-nesta-navy text-lg">Deep Tech Mode</h5>
+                                <p class="text-sm text-gray-600 mt-1 max-w-xl">Restricts results to <strong>"Atoms"</strong> (Hardware, Biotech, Energy, Materials). Use this when you want to filter out software apps and focus on tangible engineering breakthroughs.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row items-start gap-6">
+                            <div class="shrink-0 w-16 flex justify-center gap-1 pt-2">
+                                <span class="w-2 h-2 rounded-full bg-nesta-red"></span>
+                                <span class="w-2 h-2 rounded-full bg-nesta-blue"></span>
+                                <span class="w-2 h-2 rounded-full bg-nesta-green"></span>
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-nesta-navy text-lg">Signal Actions</h5>
+                                <ul class="text-sm text-gray-600 mt-2 space-y-1 list-disc pl-4">
+                                    <li><strong>Reject:</strong> Discards the signal (helps train the filter).</li>
+                                    <li><strong>Copy:</strong> Copies a formatted summary to your clipboard for Slack/Teams.</li>
+                                    <li><strong>Star:</strong> Saves the signal to the "Shortlist" in the permanent database.</li>
+                                </ul>
+                            </div>
+                        </div>
+
                     </div>
                 </section>
 
-                <section class="space-y-4">
-                    <h3 class="text-lg font-bold uppercase tracking-widest text-nesta-darkgrey">Filters & Actions</h3>
-                    <div class="space-y-3">
-                        <p>• Deep Tech: Filters for hardware and scientific breakthroughs.</p>
-                        <p>• Emerging Tech: Includes software, AI, and digital innovation.</p>
-                        <p>• Export: Download selected signals to CSV.</p>
+                <section class="bg-nesta-navy text-white p-10 rounded-2xl shadow-soft">
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-nesta-aqua mb-8 border-b border-white/10 pb-4">The Scoring Framework</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-white/10">
+                        <div class="pt-4 md:pt-0">
+                            <div class="text-5xl font-bold brand-font text-nesta-yellow mb-3">0-10</div>
+                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Novelty</div>
+                            <p class="text-sm opacity-70 px-4">"Distance from Mainstream"<br><br>High score = Obscure academic paper or niche forum.<br>Low score = BBC News or TechCrunch.</p>
+                        </div>
+                        <div class="pt-8 md:pt-0 md:pl-8">
+                            <div class="text-5xl font-bold brand-font text-nesta-pink mb-3">0-10</div>
+                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Evidence</div>
+                            <p class="text-sm opacity-70 px-4">"Reality Factor"<br><br>High score = A launched pilot, a passed law, or published data.<br>Low score = A "concept" or "vision".</p>
+                        </div>
+                        <div class="pt-8 md:pt-0 md:pl-8">
+                            <div class="text-5xl font-bold brand-font text-nesta-aqua mb-3">0-10</div>
+                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Impact</div>
+                            <p class="text-sm opacity-70 px-4">"The What!? Factor"<br><br>High score = Fundamentally changes a system or behaviour.<br>Low score = Incremental improvement.</p>
+                        </div>
                     </div>
                 </section>
+
             </div>
         </div>
     </div>
@@ -485,6 +569,17 @@
 
     <script src="friction-config.js"></script>
     <script>
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
         const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
             ? 'http://127.0.0.1:8000' 
             : 'https://nesta-signal-backend.onrender.com';
@@ -501,6 +596,8 @@
         let loadIntervals = [];
         let liveTerminalInterval = null;
         let liveTerminalIndex = 0;
+        let networkChart = null;
+        let currentSynth = null;
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
@@ -993,19 +1090,190 @@
         function switchView(view) {
             const list = document.getElementById('result-container');
             const radar = document.getElementById('radar-container');
+            const network = document.getElementById('network-container');
             const btnList = document.getElementById('btn-list');
             const btnRadar = document.getElementById('btn-radar');
+            const btnNetwork = document.getElementById('btn-network');
             
             if(view === 'list') {
-                list.classList.remove('hidden'); radar.classList.add('hidden');
+                list.classList.remove('hidden');
+                radar.classList.add('hidden');
+                network.classList.add('hidden');
                 btnList.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
                 btnRadar.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-            } else {
-                list.classList.add('hidden'); radar.classList.remove('hidden');
+                btnNetwork.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
+            } else if (view === 'radar') {
+                list.classList.add('hidden');
+                radar.classList.remove('hidden');
+                network.classList.add('hidden');
                 btnRadar.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
                 btnList.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                renderRadar(); // Ensure radar renders when switched to
+                btnNetwork.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
+                renderRadar();
+            } else {
+                list.classList.add('hidden');
+                radar.classList.add('hidden');
+                network.classList.remove('hidden');
+                btnNetwork.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
+                btnList.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
+                btnRadar.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
+                renderNetwork();
             }
+        }
+
+        function renderNetwork() {
+            const container = document.getElementById('signalNetwork');
+            if (!container) return;
+            if (!currentSignals.length) {
+                container.innerHTML = '<div class="text-center text-gray-400 font-bold py-10">No signals to visualise.</div>';
+                return;
+            }
+
+            const nodes = new vis.DataSet(
+                currentSignals.map((signal, index) => ({
+                    id: index,
+                    label: signal.title || `Signal ${index + 1}`,
+                    title: signal.hook || '',
+                }))
+            );
+
+            const edges = [];
+            const sanitize = (text) =>
+                (text || '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s]/g, ' ')
+                    .split(/\s+/) 
+
+            for (let i = 0; i < currentSignals.length; i++) {
+                const signalA = currentSignals[i];
+                const wordsA = new Set(sanitize(signalA.title));
+                for (let j = i + 1; j < currentSignals.length; j++) {
+                    const signalB = currentSignals[j];
+                    const wordsB = sanitize(signalB.title);
+                    const sharedWord = wordsB.find((word) => wordsA.has(word));
+                    const shareMission = signalA.mission && signalB.mission && signalA.mission === signalB.mission;
+                    if (shareMission || sharedWord) {
+                        edges.push({ from: i, to: j });
+                    }
+                }
+            }
+
+            const data = { nodes, edges };
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 14,
+                    color: {
+                        background: '#0F294A',
+                        border: '#0F294A',
+                        highlight: {
+                            background: '#F6A4B7',
+                            border: '#F6A4B7',
+                        },
+                    },
+                    font: { color: '#0F294A', size: 12 },
+                },
+                edges: {
+                    color: { color: '#D1D5DB' },
+                    width: 1,
+                    smooth: true,
+                },
+                interaction: {
+                    hover: true,
+                },
+                physics: {
+                    stabilization: true,
+                },
+            };
+
+            if (networkChart) {
+                networkChart.destroy();
+            }
+            networkChart = new vis.Network(container, data, options);
+        }
+
+        async function synthesizeTrend() {
+            if (!currentSignals.length) {
+                showToast('No signals to synthesise.', 'error');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/synthesize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ signals: currentSignals }),
+                });
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                currentSynth = data;
+
+                const container = document.getElementById('result-container');
+                if (!container) return;
+                const existing = document.getElementById('synth-card');
+                if (existing) existing.remove();
+
+                const card = document.createElement('div');
+                card.id = 'synth-card';
+                card.className = 'bg-gradient-to-r from-nesta-purple to-nesta-blue text-white rounded-xl p-8 shadow-soft';
+                card.innerHTML = `
+                    <div class="text-xs uppercase tracking-widest text-white/70 mb-3">Meta-Analysis</div>
+                    <h3 class="text-3xl font-bold brand-font mb-3">${escapeHtml(data.trend_name || 'Emerging Trend')}</h3>
+                    <p class="text-sm leading-relaxed mb-4">${escapeHtml(data.analysis || '')}</p>
+                    <div class="text-sm font-semibold">Implication: <span class="font-normal">${escapeHtml(data.implication || '')}</span></div>
+                `;
+                container.prepend(card);
+            } catch (error) {
+                showToast('Synthesis failed. Please retry.', 'error');
+            }
+        }
+
+        function generateBriefing() {
+            if (!currentSignals.length) {
+                showToast('No signals to export.', 'error');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const now = new Date();
+            const dateLabel = now.toLocaleDateString('en-GB');
+            const filenameDate = now.toISOString().split('T')[0];
+
+            let y = 16;
+            doc.setFontSize(14);
+            doc.text('Nesta Signal Scout // Intelligence Briefing', 14, y);
+            y += 8;
+            doc.setFontSize(10);
+            doc.text(`Date: ${dateLabel}`, 14, y);
+            y += 10;
+
+            if (currentSynth) {
+                doc.setFontSize(12);
+                doc.text('Executive Summary', 14, y);
+                y += 6;
+                doc.setFontSize(10);
+                const summary = `${currentSynth.trend_name || ''} — ${currentSynth.analysis || ''} ${currentSynth.implication || ''}`.trim();
+                const summaryLines = doc.splitTextToSize(summary, 180);
+                doc.text(summaryLines, 14, y);
+                y += summaryLines.length * 5 + 4;
+            }
+
+            doc.setFontSize(12);
+            doc.text('Signals', 14, y);
+            y += 6;
+            doc.setFontSize(10);
+
+            currentSignals.slice(0, 6).forEach((signal) => {
+                const block = `${signal.title || 'Untitled'} (Score: ${signal.score || '-'})\n${signal.hook || ''}`;
+                const lines = doc.splitTextToSize(block, 180);
+                if (y + lines.length * 5 > 280) {
+                    doc.addPage();
+                    y = 16;
+                }
+                doc.text(lines, 14, y);
+                y += lines.length * 5 + 6;
+            });
+
+            doc.save(`Nesta_Briefing_${filenameDate}.pdf`);
         }
 
         function setScanningState(isScanning) {
@@ -1129,18 +1397,15 @@
                     
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep incomplete chunk
+                    buffer = lines.pop();
                     
                     for (const line of lines) {
                         if (!line.trim()) continue;
                         try {
                             const msg = JSON.parse(line);
-                            
                             if (msg.type === 'progress') {
-                                const statusEl = document.getElementById('loading-status-text');
-                                if (statusEl) statusEl.innerText = msg.message;
+                                document.getElementById('loading-status-text').innerText = msg.message;
                             } else if (msg.type === 'signal') {
-                                // Add signal immediately to the list
                                 const norm = normalizeSignal(msg.data);
                                 currentSignals.push(norm);
                                 createSignalCard(norm, currentSignals.length - 1);
