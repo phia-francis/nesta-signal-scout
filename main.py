@@ -12,7 +12,7 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urlunparse
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
@@ -157,7 +157,7 @@ def ensure_sheet_headers(sheet):
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
 
-def validate_url(url: str):
+def validate_url(url: str) -> tuple:
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -165,17 +165,33 @@ def validate_url(url: str):
         hostname = parsed.hostname
         if not hostname:
             raise ValueError("No hostname")
-        ip = socket.gethostbyname(hostname)
-        if ipaddress.ip_address(ip).is_private:
-            raise ValueError("Private IP access blocked")
+        addr_info = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            ip_obj = ipaddress.ip_address(ip_str)
+            if (
+                ip_obj.is_private
+                or ip_obj.is_loopback
+                or ip_obj.is_link_local
+                or ip_obj.is_multicast
+                or ip_obj.is_unspecified
+                or ip_obj.is_reserved
+            ):
+                raise ValueError("Non-public IP access blocked")
+        ip = addr_info[0][4][0]
+        return parsed, ip
     except Exception as e:
         raise ValueError(f"Security Check Failed: {e}")
 
 async def fetch_article_text(url: str) -> str:
-    validate_url(url)
-    headers = {"User-Agent": "NestaSignalScout/1.0"}
+    parsed, ip = validate_url(url)
+    headers = {"User-Agent": "NestaSignalScout/1.0", "Host": parsed.hostname}
+    netloc = ip if not parsed.port else f"{ip}:{parsed.port}"
+    request_url = urlunparse(
+        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
     async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-        resp = await client.get(url, headers=headers)
+        resp = await client.get(request_url, headers=headers)
         return resp.text
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
