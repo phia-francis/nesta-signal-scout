@@ -348,7 +348,7 @@ def update_local_signal_by_url(req: "UpdateSignalRequest", csv_path: str = "Nest
     try:
         df = pd.read_csv(csv_path)
     except Exception as exc:
-        print(f"CSV read error: {exc}")
+        logging.error(f"CSV read error: {exc}")
         return False
     if "URL" not in df.columns:
         return False
