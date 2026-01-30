@@ -1213,7 +1213,7 @@ async def update_signal(req: UpdateSignalRequest):
             return {"status": "success", "message": "Signal updated locally"}
         raise exc
     except Exception as e:
-        print(f"Update Signal Error: {e}")
+        logging.error(f"Update Signal Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     if local_updated:
         response["message"] = f"{response.get('message', 'Signal updated')} + local CSV updated"
