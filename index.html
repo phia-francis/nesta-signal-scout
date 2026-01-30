@@ -569,6 +569,17 @@
 
     <script src="friction-config.js"></script>
     <script>
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
         const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
             ? 'http://127.0.0.1:8000' 
             : 'https://nesta-signal-backend.onrender.com';
@@ -1206,9 +1217,9 @@
                 card.className = 'bg-gradient-to-r from-nesta-purple to-nesta-blue text-white rounded-xl p-8 shadow-soft';
                 card.innerHTML = `
                     <div class="text-xs uppercase tracking-widest text-white/70 mb-3">Meta-Analysis</div>
-                    <h3 class="text-3xl font-bold brand-font mb-3">${data.trend_name || 'Emerging Trend'}</h3>
-                    <p class="text-sm leading-relaxed mb-4">${data.analysis || ''}</p>
-                    <div class="text-sm font-semibold">Implication: <span class="font-normal">${data.implication || ''}</span></div>
+                    <h3 class="text-3xl font-bold brand-font mb-3">${escapeHtml(data.trend_name || 'Emerging Trend')}</h3>
+                    <p class="text-sm leading-relaxed mb-4">${escapeHtml(data.analysis || '')}</p>
+                    <div class="text-sm font-semibold">Implication: <span class="font-normal">${escapeHtml(data.implication || '')}</span></div>
                 `;
                 container.prepend(card);
             } catch (error) {
