@@ -4,6 +4,8 @@ import asyncio
 import logging
 import random
 import re
+import socket
+import ipaddress
 import httpx
 import openai
 import pandas as pd
@@ -70,6 +72,29 @@ def call_openai_with_retry(messages, tools=None, response_format=None):
     if response_format is not None:
         payload["response_format"] = response_format
     return client.chat.completions.create(**payload)
+
+def validate_url(url: str):
+    """
+    Security Gatekeeper: Ensures URL is http/https and resolves to a PUBLIC IP.
+    Raises ValueError if the URL targets private networks (localhost, 127.0.0.1, 192.168.x.x, etc).
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Invalid scheme. Only http/https allowed.")
+
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid hostname.")
+
+        ip_str = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(ip_str)
+
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            raise ValueError(f"Blocked access to internal resource: {hostname} ({ip_str})")
+
+    except Exception as e:
+        raise ValueError(f"Security Check Failed: {str(e)}")
 
 def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     url = card_data.get("final_url") or card_data.get("url") or ""
@@ -155,25 +180,52 @@ def ensure_sheet_headers(sheet):
         print(f"⚠️ Header Check Failed: {e}")
 
 async def fetch_article_text(url: str) -> str:
-    """Scrapes the URL to get the actual content for better hooks/validation."""
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code >= 400:
-                return f"Error: Could not read page (Status {resp.status_code})"
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            for script in soup(["script", "style", "nav", "footer", "header"]):
-                script.decompose()
-            
-            text = soup.get_text()
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            text = '\n'.join(chunk for chunk in chunks if chunk)
-            return text[:2500] + "..."
-    except Exception as e:
-        return f"Error reading article: {str(e)}"
+    """
+    Securely fetches article text.
+    - Disables auto-redirects to prevent bypassing validation.
+    - Manually follows redirects (max 3) and re-validates each new URL.
+    """
+    validate_url(url)
+
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+
+    async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
+        current_url = url
+        for _ in range(3):
+            try:
+                resp = await client.get(current_url, headers=headers)
+
+                if resp.is_redirect:
+                    next_url = resp.headers.get("Location")
+                    if next_url.startswith("/"):
+                        parsed_base = urlparse(current_url)
+                        next_url = f"{parsed_base.scheme}://{parsed_base.netloc}{next_url}"
+
+                    print(f"Redirecting to: {next_url}")
+                    validate_url(next_url)
+
+                    current_url = next_url
+                    continue
+
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for script in soup(["script", "style", "nav", "footer", "header"]):
+                        script.decompose()
+
+                    text = soup.get_text()
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    text = "\n".join(chunk for chunk in chunks if chunk)
+                    return text[:2500] + "..."
+
+                return f"Error: Status {resp.status_code}"
+
+            except ValueError as ve:
+                return f"Security Error: {ve}"
+            except Exception as e:
+                return f"Fetch Error: {e}"
+
+        return "Error: Too many redirects"
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
     system_prompt = (
@@ -231,9 +283,13 @@ def update_local_csv(url: str, analysis: str, implication: str, csv_path: str = 
     if not matches:
         return False
     idx = matches[0]
-    if "Analysis" in df.columns:
+    has_analysis = "Analysis" in df.columns
+    has_implication = "Implication" in df.columns
+    if not has_analysis and not has_implication:
+        return False
+    if has_analysis:
         df.at[idx, "Analysis"] = analysis
-    if "Implication" in df.columns:
+    if has_implication:
         df.at[idx, "Implication"] = implication
     df.to_csv(csv_path, index=False)
     return True
@@ -1083,6 +1139,14 @@ async def enrich_signal(req: EnrichRequest):
         raise HTTPException(status_code=400, detail="URL is required")
     print(f"Enriching signal: {req.url}")
     article_text = await fetch_article_text(req.url)
+    if "Security Error" in article_text:
+        raise HTTPException(status_code=403, detail=article_text)
+    if (
+        article_text.startswith("Error:")
+        or article_text.startswith("Fetch Error:")
+        or not article_text.strip()
+    ):
+        raise HTTPException(status_code=502, detail=article_text or "Failed to fetch article content.")
     try:
         enriched = await asyncio.to_thread(generate_enriched_fields, article_text, req.url)
     except ValueError as exc:
