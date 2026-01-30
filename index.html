@@ -1755,10 +1755,7 @@
             }
         }
 
-        function createSignalCard(signal, index, showActions, containerId) {
-            const container = document.getElementById(containerId || 'result-container');
-            const cardHTML = renderCard({ ...signal, id: `card-${index}` });
-            
+            const cardHTML = renderCard({ ...signal, id: `card-${index}`, url: signal.final_url || signal.url });
             // Create a temporary container to convert string to DOM node
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = cardHTML.trim();
