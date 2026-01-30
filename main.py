@@ -468,10 +468,6 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
 
     headers = sheet.row_values(1)
     header_lookup = {header: idx for idx, header in enumerate(headers)}
-    row_values = sheet.row_values(match_row)
-    while len(row_values) < len(headers):
-        row_values.append("")
-
     field_map = {
         "title": "Title",
         "hook": "Hook",
@@ -484,16 +480,17 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
         "source_date": "Source_Date",
     }
 
+    cells = []
     for field_name, header in field_map.items():
         value = getattr(req, field_name)
         if value is None:
             continue
         col_idx = header_lookup.get(header)
         if col_idx is not None:
-            row_values[col_idx] = value
+            cells.append(gspread.Cell(match_row, col_idx + 1, value))
 
-    end_cell = gspread.utils.rowcol_to_a1(match_row, len(headers))
-    sheet.update(f"A{match_row}:{end_cell}", [row_values])
+    if cells:
+        sheet.update_cells(cells)
     return {"status": "success", "message": "Signal autosaved"}
 
 async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general", source_types: Optional[List[str]] = None):
