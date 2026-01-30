@@ -9,21 +9,20 @@ import ipaddress
 import httpx
 import openai
 import pandas as pd
-from dataclasses import dataclass
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse, urljoin
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
-from bs4 import BeautifulSoup
 from keywords import MISSION_KEYWORDS, CROSS_CUTTING_KEYWORDS, generate_broad_scan_queries
 
 # --- SETUP ---
@@ -45,6 +44,7 @@ DEFAULT_SIGNAL_COUNT = 5
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="."), name="static")
 
 # ✅ STRONG CORS CONFIGURATION
 app.add_middleware(
@@ -157,122 +157,26 @@ def ensure_sheet_headers(sheet):
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
 
-async def validate_url(url: str) -> None:
-    """
-    Validate a URL to reduce the risk of SSRF.
-
-    - Only allow http/https schemes.
-    - Require a hostname.
-    - Resolve hostname and reject private, loopback, link-local, multicast, or unspecified IPs.
-    """
-    if not url:
-        raise ValueError("URL is empty")
-
-    parsed = urlparse(url)
-
-    # Only allow HTTP(S) schemes
-    if parsed.scheme not in ("http", "https"):
-        raise ValueError(f"Disallowed URL scheme: {parsed.scheme or 'missing'}")
-
-    hostname = parsed.hostname
-    if not hostname:
-        raise ValueError("URL must include a hostname")
-
-    # Basic guard against obvious internal hostnames like 'localhost'
-    if hostname.lower() in ("localhost",):
-        raise ValueError("Access to localhost is not allowed")
-
+def validate_url(url: str):
     try:
-        addr_info = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Invalid scheme")
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("No hostname")
+        ip = socket.gethostbyname(hostname)
+        if ipaddress.ip_address(ip).is_private:
+            raise ValueError("Private IP access blocked")
     except Exception as e:
-        raise ValueError(f"Failed to resolve hostname: {e}")
+        raise ValueError(f"Security Check Failed: {e}")
 
-    for family, _, _, _, sockaddr in addr_info:
-        ip_str = sockaddr[0]
-        try:
-            ip_obj = ipaddress.ip_address(ip_str)
-        except ValueError:
-            # Skip unparseable addresses, but continue validating others
-            continue
-
-        if (
-            ip_obj.is_private
-            or ip_obj.is_loopback
-            or ip_obj.is_link_local
-            or ip_obj.is_multicast
-            or ip_obj.is_unspecified
-        ):
-            raise ValueError("Access to internal or non-routable addresses is not allowed")
-
-@dataclass
-class FetchResult:
-    status: Literal["ok", "security_error", "http_error", "redirect_error", "fetch_error"]
-    content: str
-
-async def fetch_article_text(url: str) -> FetchResult:
-    """
-    Securely fetches article text.
-    - Disables auto-redirects to prevent bypassing validation.
-    - Manually follows redirects (max 3) and re-validates each new URL.
-    """
-
-    # 1. Validate Initial URL
-    await validate_url(url)
-
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-
-    async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
-        current_url = url
-        for _ in range(3): # Max 3 redirects
-            try:
-                resp = await client.get(current_url, headers=headers)
-
-                # If it's a redirect (301, 302, 307, 308)
-                if resp.is_redirect:
-                    next_url = resp.headers.get("Location")
-
-                    # Handle relative redirects (e.g., "/login")
-                    if next_url and next_url.startswith('/'):
-                        parsed_base = urlparse(current_url)
-                        next_url = f"{parsed_base.scheme}://{parsed_base.netloc}{next_url}"
-
-                    if not next_url:
-                        logging.warning(f"Redirect with no Location header: {current_url}")
-                        return FetchResult(
-                            status="redirect_error",
-                            content="Redirect response missing Location header.",
-                        )
-
-                    # CRITICAL: Re-validate the new URL before following
-                    logging.info(f"Redirecting to: {next_url}")
-                    await validate_url(next_url)
-
-                    current_url = next_url
-                    continue
-
-                # If success
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "html.parser")
-                    for script in soup(["script", "style", "nav", "footer", "header"]):
-                        script.decompose()
-
-                    text = soup.get_text()
-                    lines = (line.strip() for line in text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    text = "\n".join(chunk for chunk in chunks if chunk)
-                    return FetchResult(status="ok", content=text[:2500] + "...")
-
-                logging.warning(f"Failed to fetch {current_url}: Status {resp.status_code}")
-                return FetchResult(status="http_error", content=f"Status {resp.status_code}")
-
-            except ValueError as ve:
-                logging.error(f"Security Block: {ve}")
-                return FetchResult(status="security_error", content=str(ve))
-            except Exception as e:
-                logging.error(f"Fetch Error for {current_url}: {e}")
-                return FetchResult(status="fetch_error", content=str(e))
-
-        return FetchResult(status="redirect_error", content="Too many redirects")
+async def fetch_article_text(url: str) -> str:
+    validate_url(url)
+    headers = {"User-Agent": "NestaSignalScout/1.0"}
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+        resp = await client.get(url, headers=headers)
+        return resp.text
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
     system_prompt = (
@@ -829,10 +733,10 @@ class SynthesisRequest(BaseModel):
 
 class UpdateSignalRequest(BaseModel):
     url: str
+    hook: str
+    analysis: str
+    implication: str
     title: Optional[str] = None
-    hook: Optional[str] = None
-    analysis: Optional[str] = None
-    implication: Optional[str] = None
     score: Optional[int] = None
     score_novelty: Optional[int] = None
     score_evidence: Optional[int] = None
@@ -1018,11 +922,8 @@ async def stream_chat_generator(req: ChatRequest):
                 elif tool_name == "fetch_article_text":
                     url_to_fetch = args.get("url")
                     try:
-                        fetch_result = await fetch_article_text(url_to_fetch)
-                        if fetch_result.status == "ok":
-                            content_snippet = fetch_result.content[:2000]
-                        else:
-                            content_snippet = f"{fetch_result.status}: {fetch_result.content}"
+                        article_text = await fetch_article_text(url_to_fetch)
+                        content_snippet = article_text[:2000]
                     except Exception as e:
                         content_snippet = f"Error fetching text: {str(e)}"
                     tool_messages.append(
@@ -1204,20 +1105,20 @@ def update_sig(req: Dict[str, Any]):
 
 @app.post("/api/update_signal")
 async def update_signal(req: UpdateSignalRequest):
-    """Finds the row with the matching URL and updates select fields."""
-    local_updated = await asyncio.to_thread(update_local_signal_by_url, req)
     try:
-        response = await asyncio.to_thread(update_signal_by_url, req)
-    except HTTPException as exc:
-        if local_updated:
-            return {"status": "success", "message": "Signal updated locally"}
-        raise exc
+        df = pd.read_csv("Nesta Signal Vault - Sheet1.csv")
+        if req.url in df["URL"].values:
+            idx = df.index[df["URL"] == req.url].tolist()[0]
+            df.at[idx, "Hook"] = req.hook
+            df.at[idx, "Analysis"] = req.analysis
+            df.at[idx, "Implication"] = req.implication
+            df.to_csv("Nesta Signal Vault - Sheet1.csv", index=False)
+            return {"status": "success"}
+        raise HTTPException(status_code=404, detail="Signal not found")
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Update Signal Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    if local_updated:
-        response["message"] = f"{response.get('message', 'Signal updated')} + local CSV updated"
-    return response
 
 @app.post("/api/enrich_signal")
 async def enrich_signal(req: EnrichRequest):
@@ -1225,16 +1126,19 @@ async def enrich_signal(req: EnrichRequest):
     if not req.url:
         raise HTTPException(status_code=400, detail="URL is required")
     print(f"Enriching signal: {req.url}")
-    fetch_result = await fetch_article_text(req.url)
-    if fetch_result.status == "security_error":
-        raise HTTPException(status_code=403, detail=fetch_result.content)
-    if fetch_result.status != "ok" or not fetch_result.content.strip():
+    try:
+        article_text = await fetch_article_text(req.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if not article_text.strip():
         raise HTTPException(
             status_code=502,
-            detail=fetch_result.content or "Failed to fetch article content.",
+            detail="Failed to fetch article content.",
         )
     try:
-        enriched = await asyncio.to_thread(generate_enriched_fields, fetch_result.content, req.url)
+        enriched = await asyncio.to_thread(generate_enriched_fields, article_text, req.url)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     analysis = enriched["analysis"]
