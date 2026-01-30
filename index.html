@@ -1010,7 +1010,7 @@
                 
                 <div class="flex justify-between items-center border-b border-black/10 pb-4">
                     <span class="px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${style.tag} rounded-sm font-display shadow-sm">
-                        ${missionInfo.label}
+                        ${escapeHtml(missionInfo.label)}
                     </span>
                     <button onclick="toggleEdit('${data.id}', this)" aria-label="Edit content" class="text-xs font-bold uppercase text-black/40 hover:text-black transition-colors font-display">
                         ✎ Edit
