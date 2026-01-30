@@ -6,6 +6,7 @@ import random
 import re
 import httpx
 import openai
+import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any
@@ -385,6 +386,13 @@ def get_sheet_records(include_rejected: bool = False) -> List[Dict[str, Any]]:
         print(f"Read Error: {e}")
         return []
 
+def get_existing_urls(csv_path: str = "Nesta Signal Vault - Sheet1.csv") -> set[str]:
+    try:
+        df = pd.read_csv(csv_path)
+        return set(df["URL"].astype(str).str.strip().str.rstrip("/"))
+    except (FileNotFoundError, KeyError):
+        return set()
+
 def upsert_signal(signal: Dict[str, Any]) -> None:
     sheet = get_google_sheet()
     if not sheet: return
@@ -598,6 +606,7 @@ async def stream_chat_generator(req: ChatRequest):
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
         existing_records = await asyncio.to_thread(get_sheet_records, include_rejected=True)
+        existing_urls = await asyncio.to_thread(get_existing_urls)
         known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
 
         # Default to 5 signals if not specified
@@ -834,6 +843,18 @@ async def stream_chat_generator(req: ChatRequest):
                             tool_response_added = True
                             continue
 
+                        normalized_url = card["url"].strip().rstrip("/") if card["url"] else ""
+                        if normalized_url in existing_urls:
+                            print(f"🚫 DUPLICATE DETECTED: {normalized_url} - Skipping...")
+                            tool_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": "duplicate_skipped",
+                                }
+                            )
+                            tool_response_added = True
+                            continue
                         if card["url"] and card["url"] not in seen_urls:
                             accumulated_signals.append(card)
                             seen_urls.add(card["url"])
