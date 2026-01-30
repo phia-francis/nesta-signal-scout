@@ -9,10 +9,11 @@ import ipaddress
 import httpx
 import openai
 import pandas as pd
+from dataclasses import dataclass
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from typing import Optional, List, Dict, Any
-from urllib.parse import urlparse
+from typing import Optional, List, Dict, Any, Literal
+from urllib.parse import urlparse, urljoin
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
@@ -72,29 +73,6 @@ def call_openai_with_retry(messages, tools=None, response_format=None):
     if response_format is not None:
         payload["response_format"] = response_format
     return client.chat.completions.create(**payload)
-
-def validate_url(url: str):
-    """
-    Security Gatekeeper: Ensures URL is http/https and resolves to a PUBLIC IP.
-    Raises ValueError if the URL targets private networks (localhost, 127.0.0.1, 192.168.x.x, etc).
-    """
-    try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("Invalid scheme. Only http/https allowed.")
-
-        hostname = parsed.hostname
-        if not hostname:
-            raise ValueError("Invalid hostname.")
-
-        ip_str = socket.gethostbyname(hostname)
-        ip = ipaddress.ip_address(ip_str)
-
-        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
-            raise ValueError(f"Blocked access to internal resource: {hostname} ({ip_str})")
-
-    except Exception as e:
-        raise ValueError(f"Security Check Failed: {str(e)}")
 
 def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     url = card_data.get("final_url") or card_data.get("url") or ""
@@ -179,7 +157,7 @@ def ensure_sheet_headers(sheet):
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
 
-def validate_url(url: str) -> None:
+async def validate_url(url: str) -> None:
     """
     Validate a URL to reduce the risk of SSRF.
 
@@ -205,7 +183,7 @@ def validate_url(url: str) -> None:
         raise ValueError("Access to localhost is not allowed")
 
     try:
-        addr_info = socket.getaddrinfo(hostname, None)
+        addr_info = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
     except Exception as e:
         raise ValueError(f"Failed to resolve hostname: {e}")
 
@@ -226,30 +204,37 @@ def validate_url(url: str) -> None:
         ):
             raise ValueError("Access to internal or non-routable addresses is not allowed")
 
-async def fetch_article_text(url: str) -> str:
+@dataclass
+class FetchResult:
+    status: Literal["ok", "security_error", "http_error", "redirect_error", "fetch_error"]
+    content: str
+
+async def fetch_article_text(url: str) -> FetchResult:
     """
     Securely fetches article text.
     - Disables auto-redirects to prevent bypassing validation.
     - Manually follows redirects (max 3) and re-validates each new URL.
     """
-    validate_url(url)
-
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
 
     async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
         current_url = url
         for _ in range(3):
             try:
+                await validate_url(current_url)
                 resp = await client.get(current_url, headers=headers)
 
                 if resp.is_redirect:
                     next_url = resp.headers.get("Location")
-                    if next_url.startswith("/"):
-                        parsed_base = urlparse(current_url)
-                        next_url = f"{parsed_base.scheme}://{parsed_base.netloc}{next_url}"
+                    if not next_url:
+                        return FetchResult(
+                            status="redirect_error",
+                            content="Redirect response missing Location header.",
+                        )
+                    next_url = urljoin(current_url, next_url)
 
                     print(f"Redirecting to: {next_url}")
-                    validate_url(next_url)
+                    await validate_url(next_url)
 
                     current_url = next_url
                     continue
@@ -263,16 +248,16 @@ async def fetch_article_text(url: str) -> str:
                     lines = (line.strip() for line in text.splitlines())
                     chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
                     text = "\n".join(chunk for chunk in chunks if chunk)
-                    return text[:2500] + "..."
+                    return FetchResult(status="ok", content=text[:2500] + "...")
 
-                return f"Error: Status {resp.status_code}"
+                return FetchResult(status="http_error", content=f"Status {resp.status_code}")
 
             except ValueError as ve:
-                return f"Security Error: {ve}"
+                return FetchResult(status="security_error", content=str(ve))
             except Exception as e:
-                return f"Fetch Error: {e}"
+                return FetchResult(status="fetch_error", content=str(e))
 
-        return "Error: Too many redirects"
+        return FetchResult(status="redirect_error", content="Too many redirects")
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
     system_prompt = (
@@ -987,8 +972,11 @@ async def stream_chat_generator(req: ChatRequest):
                 elif tool_name == "fetch_article_text":
                     url_to_fetch = args.get("url")
                     try:
-                        article_text = await fetch_article_text(url_to_fetch)
-                        content_snippet = article_text[:2000]
+                        fetch_result = await fetch_article_text(url_to_fetch)
+                        if fetch_result.status == "ok":
+                            content_snippet = fetch_result.content[:2000]
+                        else:
+                            content_snippet = f"{fetch_result.status}: {fetch_result.content}"
                     except Exception as e:
                         content_snippet = f"Error fetching text: {str(e)}"
                     tool_messages.append(
@@ -1185,17 +1173,16 @@ async def enrich_signal(req: EnrichRequest):
     if not req.url:
         raise HTTPException(status_code=400, detail="URL is required")
     print(f"Enriching signal: {req.url}")
-    article_text = await fetch_article_text(req.url)
-    if "Security Error" in article_text:
-        raise HTTPException(status_code=403, detail=article_text)
-    if (
-        article_text.startswith("Error:")
-        or article_text.startswith("Fetch Error:")
-        or not article_text.strip()
-    ):
-        raise HTTPException(status_code=502, detail=article_text or "Failed to fetch article content.")
+    fetch_result = await fetch_article_text(req.url)
+    if fetch_result.status == "security_error":
+        raise HTTPException(status_code=403, detail=fetch_result.content)
+    if fetch_result.status != "ok" or not fetch_result.content.strip():
+        raise HTTPException(
+            status_code=502,
+            detail=fetch_result.content or "Failed to fetch article content.",
+        )
     try:
-        enriched = await asyncio.to_thread(generate_enriched_fields, article_text, req.url)
+        enriched = await asyncio.to_thread(generate_enriched_fields, fetch_result.content, req.url)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     analysis = enriched["analysis"]
