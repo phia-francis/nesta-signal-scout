@@ -934,75 +934,144 @@
         }
 
         function renderCard(data) {
-            // A. Normalizer: Fixes "Grey Card" bug by mapping CSV text to strict Mission names
+            
+            // --- 1. DATA NORMALIZER & BRAND MAPPING ---
+            // Maps loose CSV text to strict Nesta Mission categories and Colors
             const normalizeMission = (raw) => {
-                if (!raw) return "⚡ Mission Adjacent";
+                if (!raw) return { name: "⚡ Mission Adjacent", theme: "blue", emoji: "⚡" };
                 const lower = raw.toLowerCase();
-                if (lower.includes('sustainable') || lower.includes('net zero')) return "🌳 A Sustainable Future";
-                if (lower.includes('fairer') || lower.includes('start')) return "📚 A Fairer Start";
-                if (lower.includes('healthy') || lower.includes('health')) return "❤️‍🩹 A Healthy Life";
-                return lower.includes('adjacent') ? raw : `⚡ Mission Adjacent - ${raw}`;
+                
+                // 🌳 Sustainable Future -> GREEN
+                if (lower.includes('sustainable') || lower.includes('net zero') || lower.includes('climate')) {
+                    return { name: "🌳 A Sustainable Future", theme: "green", emoji: "🌳" };
+                }
+                // 📚 Fairer Start -> PURPLE
+                if (lower.includes('fairer') || lower.includes('start') || lower.includes('education')) {
+                    return { name: "📚 A Fairer Start", theme: "purple", emoji: "📚" };
+                }
+                // ❤️‍🩹 Healthy Life -> PINK (Brand Guide Requirement)
+                if (lower.includes('healthy') || lower.includes('health') || lower.includes('wellbeing')) {
+                    return { name: "❤️‍🩹 A Healthy Life", theme: "pink", emoji: "❤️‍🩹" };
+                }
+                
+                // Default / Adjacent -> BLUE
+                // Preserve specific adjacent topics if they exist (e.g. "Mission Adjacent - AI")
+                const cleanName = lower.includes('adjacent') ? raw : `⚡ Mission Adjacent`;
+                return { name: cleanName, theme: "blue", emoji: "⚡" };
             };
-            const cleanMission = normalizeMission(data.mission);
 
-            // B. Style Map: Uses Repo's Tailwind Config
-            const missionStyles = {
-                '🌳 A Sustainable Future': { border: 'border-nesta-green', bg: 'bg-nesta-green/10', tag: 'bg-nesta-green text-white' },
-                '📚 A Fairer Start': { border: 'border-nesta-purple', bg: 'bg-nesta-purple/10', tag: 'bg-nesta-purple text-white' },
-                '❤️‍🩹 A Healthy Life': { border: 'border-nesta-red', bg: 'bg-nesta-red/10', tag: 'bg-nesta-red text-white' },
-                '⚡ Mission Adjacent': { border: 'border-nesta-blue', bg: 'bg-nesta-blue/10', tag: 'bg-nesta-blue text-white' }
+            const missionData = normalizeMission(data.mission);
+
+            // --- 2. STYLE DEFINITIONS (Tailwind Classes) ---
+            // We use specific Nesta class combinations for each theme
+            const themes = {
+                green:  { border: 'border-nesta-green',  bg: 'bg-nesta-green/10',  tag: 'bg-nesta-green text-white', icon: 'text-nesta-green' },
+                purple: { border: 'border-nesta-purple', bg: 'bg-nesta-purple/10', tag: 'bg-nesta-purple text-white', icon: 'text-nesta-purple' },
+                pink:   { border: 'border-nesta-pink',   bg: 'bg-nesta-pink/20',   tag: 'bg-nesta-pink text-nesta-navy', icon: 'text-nesta-pink' }, // Pink needs Navy text for AA contrast
+                blue:   { border: 'border-nesta-blue',   bg: 'bg-nesta-blue/10',   tag: 'bg-nesta-blue text-white', icon: 'text-nesta-blue' }
             };
-            const style = missionStyles[cleanMission] || missionStyles['⚡ Mission Adjacent'];
+            
+            const style = themes[missionData.theme];
 
-            // C. Helpers
-            const getDomain = (url) => { try { return new URL(url).hostname.replace('www.','').toUpperCase(); } catch { return "SOURCE"; } };
+            // --- 3. HELPERS ---
+            const getDomain = (url) => {
+                try { return new URL(url).hostname.replace('www.', '').toUpperCase(); } 
+                catch { return "SOURCE"; }
+            };
+            
+            // Format text with paragraph breaks
             const formatText = (text) => text ? text.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('') : "";
 
-            // D. Content Logic
+            // --- 4. SECTION LOGIC (Deep Dive vs. Generate Button) ---
             const hasDeepDive = (data.analysis && data.analysis.length > 10);
-            const analysisContent = hasDeepDive
-                ? `<div class="text-nesta-black text-sm font-body space-y-2 editable-analysis">${formatText(data.analysis)}</div>`
-                : `<div class="py-4 text-center"><button onclick="triggerEnrichment('${data.url}', '${data.id}')" class="px-4 py-2 bg-white border-2 border-nesta-black font-display font-bold text-xs hover:bg-nesta-yellow transition-colors">🪄 Generate Deep Dive</button></div>`;
+            
+            let analysisHTML, implicationHTML;
+            
+            if (hasDeepDive) {
+                // The Shift: Black text on the tinted card background
+                analysisHTML = `<div class="text-nesta-navy text-sm font-body leading-relaxed space-y-2 editable-analysis">${formatText(data.analysis)}</div>`;
+                
+                // Why It Matters: White text on Dark Grey (High Contrast Brand Rule)
+                implicationHTML = `
+                    <div class="bg-nesta-darkgrey p-4 border-l-4 border-white mt-4">
+                        <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
+                        <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>
+                    </div>`;
+            } else {
+                // "Generate" Button State
+                analysisHTML = `
+                    <div id="enrich-container-${data.id}" class="py-6 text-center">
+                        <button onclick="triggerEnrichment('${data.url}', '${data.id}')" 
+                            class="px-5 py-2 bg-white border-2 border-nesta-navy text-nesta-navy font-display font-bold text-xs uppercase hover:bg-nesta-yellow hover:text-nesta-navy transition-colors shadow-sm">
+                            🪄 Generate Deep Dive
+                        </button>
+                    </div>`;
+                implicationHTML = `<div id="implication-placeholder-${data.id}" class="mt-4 p-4 border border-dashed border-gray-300 text-gray-400 text-xs italic text-center">Waiting for analysis...</div>`;
+            }
 
-            const implicationContent = hasDeepDive
-                ? `<p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>`
-                : `<p class="text-nesta-sand text-xs italic font-body">Waiting for analysis...</p>`;
-
-            // E. Render HTML
+            // --- 5. RENDER HTML ---
             return `
-    <div id="card-${data.id}" class="signal-card bg-white border-2 border-nesta-black p-6 flex flex-col gap-6 relative transition-all hover:shadow-hover" data-mission="${cleanMission}" data-url="${data.url}">
-        
-        <div class="flex justify-between items-start">
-            <span class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${style.tag} rounded-sm font-display shadow-sm">${cleanMission}</span>
-            <button onclick="toggleEdit('${data.id}')" aria-label="Edit content" class="text-xs font-bold uppercase text-nesta-darkgrey hover:text-nesta-black border-b-2 border-transparent hover:border-nesta-black font-display transition-colors">✎ Edit</button>
-        </div>
+            <div id="card-${data.id}" class="signal-card ${style.bg} border-2 ${style.border} p-6 flex flex-col gap-4 relative transition-all duration-300 hover:shadow-hover group" 
+                 data-mission="${missionData.name}" data-url="${data.url}">
+                
+                <div class="flex justify-between items-start border-b border-black/5 pb-4 mb-2">
+                    <span class="px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest ${style.tag} rounded-sm font-display shadow-sm">
+                        ${escapeHtml(missionData.name)}
+                    </span>
+                    
+                    <div class="flex items-center gap-3">
+                         <button onclick="toggleEdit('${data.id}', this)" aria-label="Edit content" 
+                            class="text-xs font-bold uppercase text-gray-400 hover:text-nesta-navy transition-colors font-display">
+                            ✎ Edit
+                        </button>
+                        <div class="w-8 h-8 rounded-full bg-nesta-navy text-white flex items-center justify-center font-bold font-display text-sm shadow-sm" title="Signal Score">
+                            ${data.score || '-'}
+                        </div>
+                    </div>
+                </div>
 
-        <div>
-            <h4 class="font-display font-bold text-nesta-black uppercase tracking-widest text-xs mb-2 border-b-4 ${style.border} inline-block pb-1">🤖 The Signal</h4>
-            <p class="text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook">${escapeHtml(data.hook)}</p>
-        </div>
+                <div>
+                    <h4 class="font-display font-bold text-nesta-navy uppercase tracking-widest text-xs mb-2 border-b-2 ${style.border} inline-block pb-1">
+                        🤖 The Signal
+                    </h4>
+                    <p class="text-nesta-navy text-base font-medium leading-relaxed font-body editable-hook">
+                        ${escapeHtml(data.hook)}
+                    </p>
+                </div>
 
-        <div class="${style.bg} p-5 border-l-8 ${style.border}">
-            <h4 class="font-display font-bold text-nesta-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
-            ${analysisContent}
-        </div>
+                <div class="mt-2">
+                    <h4 class="font-display font-bold text-nesta-navy uppercase tracking-widest text-xs mb-2 opacity-70">
+                        🔍 The Shift
+                    </h4>
+                    ${analysisHTML}
+                </div>
 
-        <div class="bg-nesta-darkgrey p-4 border-l-8 border-nesta-black">
-            <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
-            <div id="implication-container-${data.id}">${implicationContent}</div>
-        </div>
+                <div id="implication-container-${data.id}">
+                    ${implicationHTML}
+                </div>
 
-        <div class="flex flex-wrap justify-between items-center pt-4 border-t border-gray-200 mt-auto gap-4">
-            <a href="${data.url}" target="_blank" class="text-xs font-bold text-nesta-darkgrey hover:text-nesta-black uppercase tracking-wider flex items-center gap-1 font-display">🔗 ${getDomain(data.url)} ↗</a>
-            <div class="flex gap-3 text-xs font-bold text-nesta-black font-display">
-                <span>Nov: ${data.score_novelty || '-'}/10</span> <span class="text-gray-300">|</span>
-                <span>Ev: ${data.score_evidence || '-'}/10</span> <span class="text-gray-300">|</span>
-                <span>Imp: ${data.score_impact || '-'}/10</span>
+                <div class="flex flex-wrap justify-between items-center pt-4 border-t border-black/5 mt-auto gap-4">
+                    
+                    <a href="${data.url}" target="_blank" rel="noopener noreferrer"
+                       class="text-xs font-bold text-nesta-darkgrey hover:text-nesta-blue uppercase tracking-wider flex items-center gap-1 transition-colors font-display">
+                       🔗 ${getDomain(data.url)} ↗
+                    </a>
+
+                    <div class="flex gap-3 text-[10px] font-bold text-nesta-darkgrey font-display uppercase tracking-wider">
+                        <span title="Novelty">Nov: ${data.score_novelty || '-'}/10</span>
+                        <span class="text-gray-300">|</span>
+                        <span title="Evidence">Ev: ${data.score_evidence || '-'}/10</span>
+                        <span class="text-gray-300">|</span>
+                        <span title="Impact">Imp: ${data.score_impact || '-'}/10</span>
+                    </div>
+                </div>
+                
+                <button onclick="copyFormattedCard(data)" 
+                    class="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-nesta-navy text-white px-4 py-2 text-xs font-bold uppercase font-display shadow-lg hover:bg-nesta-blue hover:-translate-y-1">
+                    Copy to Slack
+                </button>
             </div>
-        </div>
-        
-        <button onclick="copyFormattedCard('${data.id}')" class="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity bg-nesta-black text-white px-3 py-1 text-xs font-bold uppercase font-display shadow-lg">Copy</button>
-    </div>`;
+            `;
         }
 
         function getLensBadges(lensesStr, styleClass) {
