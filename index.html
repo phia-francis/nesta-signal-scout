@@ -1403,7 +1403,7 @@
                             } else if (msg.type === 'error') {
                                 showToast(msg.message, 'error');
                             }
-                        } catch (e) { console.error(e); }
+                        } catch (e) { console.error('Stream parse error', e); }
                     }
                 }
                 stopLoadingSimulation();
