@@ -131,7 +131,7 @@ def get_google_sheet():
 
 def ensure_sheet_headers(sheet):
     expected_headers = [
-        "Title", "Score", "Hook", "URL", "Mission", "Lenses",
+        "Title", "Score", "Hook", "Analysis", "Implication", "URL", "Mission", "Lenses",
         "Score_Evocativeness", "Score_Novelty", "Score_Evidence",
         "User_Rating", "User_Status", "User_Comment", "Shareable", "Feedback", "Source_Date"
     ]
@@ -191,25 +191,30 @@ SOURCE_FILTERS = {
 }
 
 SYSTEM_PROMPT = """
-You are an expert Signal Scout for Nesta. Your goal is to identify EMERGING opportunities, not summarize history.
+You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
 
-When analyzing a URL, adhere to these strict rules:
+For the content provided, generate a JSON object with these strict components:
 
-1. **FIND THE "NEW":** - Ignore when a program *started* (e.g., "launched in 2021"). 
-   - Look for the *latest* update, funding round, deadline, or amendment (e.g., "Jan 2026 update adds £5m funding").
-   - If the date is recent (2025/2026), your Hook MUST explain what happened *this week/month*.
+1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of..." or "Introduction to...".
+2. **HOOK (The Signal):** Max 20 words. State the *factual event* or trigger (e.g., "New legislation bans X...").
+3. **ANALYSIS (The Shift):** Max 40 words. Explain the structural change. 
+   - **MANDATORY FORMAT:** "Old View: [Previous assumption]. New Insight: [What has changed/Second-order effect]."
+4. **IMPLICATION (Why it matters):** Max 30 words. Explain the consequence for the UK or Policy. 
+   - Focus on *systemic* impacts (e.g., market failure, inequality, new regulatory needs).
+5. **MISSION CLASSIFICATION:**
+   - You MUST classify the signal into exactly one of these strings:
+     - "🌳 A Sustainable Future" (Net Zero, Energy, Decarbonization)
+     - "📚 A Fairer Start" (Education, Early Years, Childcare, Inequality)
+     - "❤️‍🩹 A Healthy Life" (Health, Obesity, Food Systems, Longevity)
+   - If it does NOT fit the above, output: "Mission Adjacent - [Topic]" (e.g., "Mission Adjacent - AI Ethics" or "Mission Adjacent - Quantum Computing").
+   - DO NOT output plain text like "Healthy Life" or "Sustainable Future". You MUST include the emoji.
 
-2. **THE "HOOK" (Crucial):**
-   - MAX 15 words. 
-   - MUST be forward-looking. 
-   - BAD: "The Heat Pump Ready Programme was launched to reduce costs." (History)
-   - GOOD: "New 2026 provisions unlock grid flexibility payments for households." (News)
+SCORING:
+- Novelty (1-10): 10 = Completely new paradigm. 1 = Mainstream news.
+- Evidence (1-10): 10 = Academic paper/Legislation. 1 = Opinion blog.
+- Impact (1-10): 10 = Systemic change/Market failure correction. 1 = Minor incremental update.
 
-3. **SCORING:**
-   - If the content is old (older than 6 months) but reposted, penalize the "Novelty" score.
-   - If the content is a generic landing page, hunt for the "Latest News" section or specific 2026 deadlines.
-
-Input: {text_content}
+Input Text: {text_content}
 """
 
 TOOLS = [
@@ -257,15 +262,18 @@ TOOLS = [
                     "url": {"type": "string"},
                     "final_url": {"type": "string"},
                     "hook": {"type": "string"},
+                    "analysis": {"type": "string"},
+                    "implication": {"type": "string"},
                     "score": {"type": "number"},
                     "mission": {"type": "string"},
                     "lenses": {"type": "string"},
                     "score_novelty": {"type": "number"},
                     "score_evidence": {"type": "number"},
+                    "score_impact": {"type": "number"},
                     "score_evocativeness": {"type": "number"},
                     "published_date": {"type": "string"},
                 },
-                "required": ["title", "url", "hook", "score"],
+                "required": ["title", "url", "hook", "analysis", "implication", "score"],
             },
         },
     },
@@ -399,11 +407,13 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     row_data = [
         signal.get("title", ""), 
         signal.get("score", 0),
-        signal.get("hook", ""), 
-        signal.get("url", ""), 
+        signal.get("hook", ""),
+        signal.get("analysis", ""),
+        signal.get("implication", ""),
+        signal.get("url", ""),
         signal.get("mission", ""),
         signal.get("lenses", ""), 
-        signal.get("score_evocativeness", 0),
+        signal.get("score_impact", signal.get("score_evocativeness", 0)),
         signal.get("score_novelty", 0), 
         signal.get("score_evidence", 0),
         signal.get("user_rating", 3), 
@@ -425,7 +435,7 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
                 break
         
         if match_row:
-            sheet.update(f"A{match_row}:O{match_row}", [row_data])
+            sheet.update(f"A{match_row}:Q{match_row}", [row_data])
         else:
             sheet.append_row(row_data)
     except Exception as e:
@@ -450,10 +460,12 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
             req.title or "",
             req.score if req.score is not None else 0,
             req.hook or "",
+            req.analysis or "",
+            req.implication or "",
             req.url,
             req.mission or "",
             req.lenses or "",
-            req.score_evocativeness if req.score_evocativeness is not None else 0,
+            req.score_impact if req.score_impact is not None else (req.score_evocativeness if req.score_evocativeness is not None else 0),
             req.score_novelty if req.score_novelty is not None else 0,
             req.score_evidence if req.score_evidence is not None else 0,
             3,
@@ -471,9 +483,12 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
     field_map = {
         "title": "Title",
         "hook": "Hook",
+        "analysis": "Analysis",
+        "implication": "Implication",
         "score": "Score",
         "score_novelty": "Score_Novelty",
         "score_evidence": "Score_Evidence",
+        "score_impact": "Score_Evocativeness",
         "score_evocativeness": "Score_Evocativeness",
         "mission": "Mission",
         "lenses": "Lenses",
@@ -542,6 +557,23 @@ class GenerateQueriesRequest(BaseModel):
     keywords: List[str] = Field(default_factory=list)
     count: int = 5
 
+class Signal(BaseModel):
+    title: str
+    hook: str
+    analysis: str
+    implication: str
+    score_novelty: int
+    score_evidence: int
+    score_impact: int
+    mission: str = Field(
+        description=(
+            "One of: '🌳 A Sustainable Future', '📚 A Fairer Start', "
+            "'❤️‍🩹 A Healthy Life', or 'Mission Adjacent - [Topic]'"
+        )
+    )
+    url: Optional[str] = None
+    source_date: Optional[str] = None
+
 class SynthesisRequest(BaseModel):
     signals: List[Dict]
 
@@ -549,9 +581,12 @@ class UpdateSignalRequest(BaseModel):
     url: str
     title: Optional[str] = None
     hook: Optional[str] = None
+    analysis: Optional[str] = None
+    implication: Optional[str] = None
     score: Optional[int] = None
     score_novelty: Optional[int] = None
     score_evidence: Optional[int] = None
+    score_impact: Optional[int] = None
     score_evocativeness: Optional[int] = None
     mission: Optional[str] = None
     lenses: Optional[str] = None
@@ -774,11 +809,14 @@ async def stream_chat_generator(req: ChatRequest):
                             "title": args.get("title"),
                             "url": args.get("final_url") or args.get("url"),
                             "hook": args.get("hook"),
+                            "analysis": args.get("analysis"),
+                            "implication": args.get("implication"),
                             "score": args.get("score"),
                             "mission": args.get("mission", "General"),
                             "lenses": args.get("lenses", ""),
                             "score_novelty": args.get("score_novelty", 0),
                             "score_evidence": args.get("score_evidence", 0),
+                            "score_impact": args.get("score_impact", args.get("score_evocativeness", 0)),
                             "score_evocativeness": args.get("score_evocativeness", 0),
                             "source_date": published_date,
                             "user_status": "Generated",

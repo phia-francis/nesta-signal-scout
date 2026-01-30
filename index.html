@@ -952,11 +952,14 @@
                 title: sig.Title || sig.title, 
                 score: sig.Score || sig.score, 
                 hook: sig.Hook || sig.hook, 
+                analysis: sig.Analysis || sig.analysis,
+                implication: sig.Implication || sig.implication,
                 final_url: sig.URL || sig.final_url || sig.url,
                 mission: sig.Mission || sig.mission, 
                 lenses: sig.Lenses || sig.lenses, 
                 score_novelty: sig.Score_Novelty || sig.score_novelty, 
                 score_evidence: sig.Score_Evidence || sig.score_evidence, 
+                score_impact: sig.Score_Evocativeness || sig.score_impact || sig.score_evocativeness,
                 score_evocativeness: sig.Score_Evocativeness || sig.score_evocativeness,
                 shareable: sig.Shareable || sig.shareable, 
                 feedback: sig.Feedback || sig.User_Comment || sig.feedback,
@@ -1496,7 +1499,11 @@
             const sourceName = formatSource(signal.final_url || signal.url);
             const lensTags = getLensBadges(signal.lenses || '', styles.lens);
             const cleanHook = cleanText(signal.hook);
+            const cleanAnalysis = cleanText(signal.analysis);
+            const cleanImplication = cleanText(signal.implication);
             const accentClass = `text-[9px] uppercase font-bold mb-1 tracking-wider ${styles.accentLabel}`;
+            const signalTextClass = isDarkCard ? "text-white" : "text-gray-900";
+            const implicationTextClass = isDarkCard ? "text-white" : "text-gray-800";
 
             const card = document.createElement('div');
             card.id = `${containerId}-card-${index}`;
@@ -1533,7 +1540,26 @@
                 
                 ${lensTags}
 
-                <p class="text-sm mb-6 leading-relaxed flex-grow font-body ${styles.desc}">${cleanHook}</p>
+                <div class="mb-4">
+                    <span class="text-xs font-bold text-nesta-purple uppercase tracking-wider">The Signal</span>
+                    <p class="${signalTextClass} text-sm mt-1 font-medium leading-relaxed border-l-2 border-nesta-purple pl-3">
+                        ${cleanHook}
+                    </p>
+                </div>
+
+                <div class="mb-4 bg-gray-50 p-3 rounded-md">
+                    <span class="text-xs font-bold text-nesta-blue uppercase tracking-wider">The Shift</span>
+                    <p class="text-gray-800 text-sm mt-1 leading-relaxed">
+                        ${cleanAnalysis || 'Analysis not available.'}
+                    </p>
+                </div>
+
+                <div class="mb-4">
+                    <span class="text-xs font-bold text-green-600 uppercase tracking-wider">Why it matters</span>
+                    <p class="${implicationTextClass} text-sm mt-1 italic">
+                        "${cleanImplication || ''}"
+                    </p>
+                </div>
                 
                 <div class="grid grid-cols-3 gap-2 py-4 border-t border-b mb-5 rounded-sm ${styles.gridBg}">
                      <div class="text-center">
@@ -1546,7 +1572,7 @@
                      </div>
                      <div class="text-center border-l border-black/5">
                         <div class="${accentClass}">Impact</div>
-                        <div class="font-bold text-lg ${styles.scoreVal}">${signal.score_evocativeness}/10</div>
+                        <div class="font-bold text-lg ${styles.scoreVal}">${signal.score_impact ?? signal.score_evocativeness}/10</div>
                      </div>
                 </div>
                 
@@ -1686,6 +1712,7 @@
             const implication = signalData?.implication;
             const scoreNovelty = signalData?.score_novelty ?? 'N/A';
             const scoreEvidence = signalData?.score_evidence ?? 'N/A';
+            const scoreImpact = signalData?.score_impact ?? signalData?.score_evocativeness ?? 'N/A';
 
             let text = `${emoji} ${signalData?.mission || 'Signal Scout'}\n`;
             text += `*${title}*\n\n`;
@@ -1699,7 +1726,7 @@
                 text += `🚀 *Why it matters*\n`;
                 text += `${implication}\n\n`;
             }
-            text += `*Score:* Novelty: ${scoreNovelty}/10 | Evidence: ${scoreEvidence}/10\n`;
+            text += `*Score:* Novelty: ${scoreNovelty}/10 | Evidence: ${scoreEvidence}/10 | Impact: ${scoreImpact}/10\n`;
             text += `${url}`;
             try {
                 await navigator.clipboard.writeText(text);
