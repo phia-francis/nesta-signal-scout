@@ -980,7 +980,7 @@
                 catch { return "SOURCE"; }
             };
             
-            const formatText = (text) => text ? text.split('\n').map(l => `<p>${l}</p>`).join('') : "";
+            const formatText = (text) => text ? text.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('') : "";
 
             // --- 4. CONTENT LOGIC ---
             const hasDeepDive = (data.analysis && data.analysis.length > 10);
