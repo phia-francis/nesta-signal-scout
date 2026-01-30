@@ -5,6 +5,7 @@ import logging
 import random
 import re
 import httpx
+import openai
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any
@@ -14,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from openai import OpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
@@ -50,6 +52,20 @@ app.add_middleware(
 )
 
 # --- HELPERS ---
+
+@retry(
+    retry=retry_if_exception_type(openai.RateLimitError),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    stop=stop_after_attempt(6),
+)
+def call_openai_with_retry(messages, tools=None):
+    """Retries the API call if a 429 Rate Limit error occurs."""
+    return client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        tools=tools,
+        stream=False,
+    )
 
 def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     url = card_data.get("final_url") or card_data.get("url") or ""
@@ -479,6 +495,9 @@ class GenerateQueriesRequest(BaseModel):
     keywords: List[str] = Field(default_factory=list)
     count: int = 5
 
+class SynthesisRequest(BaseModel):
+    signals: List[Dict]
+
 async def stream_chat_generator(req: ChatRequest):
     try:
         # 1. Get Current Date & Validation
@@ -598,12 +617,7 @@ async def stream_chat_generator(req: ChatRequest):
         while len(accumulated_signals) < target_count and iteration < max_iterations:
             iteration += 1
             yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=CHAT_MODEL,
-                messages=messages,
-                tools=TOOLS,
-            )
+            response = await asyncio.to_thread(call_openai_with_retry, messages, TOOLS)
             message = response.choices[0].message
             tool_calls = message.tool_calls or []
 
@@ -646,6 +660,12 @@ async def stream_chat_generator(req: ChatRequest):
                     tool_messages.append(
                         {"role": "tool", "tool_call_id": tool_call.id, "content": res}
                     )
+                    yield json.dumps(
+                        {
+                            "type": "progress",
+                            "message": f"Searching: {args.get('query')}...",
+                        }
+                    ) + "\n"
                     tool_response_added = True
                 elif tool_name == "fetch_article_text":
                     url_to_fetch = args.get("url")
@@ -821,6 +841,33 @@ def update_sig(req: Dict[str, Any]):
 async def generate_queries(req: GenerateQueriesRequest):
     queries = await asyncio.to_thread(generate_broad_scan_queries, req.keywords, req.count)
     return {"queries": queries}
+
+@app.post("/api/synthesize")
+@retry(retry=retry_if_exception_type(openai.RateLimitError), stop=stop_after_attempt(3))
+async def synthesize_signals(req: SynthesisRequest):
+    """Generates a meta-analysis of the provided signals."""
+    if not req.signals:
+        return {"content": "No signals to analyse."}
+
+    context = "\n".join([f"- {s.get('title')}: {s.get('hook')}" for s in req.signals[:10]])
+
+    prompt = f"""
+    Analyse these {len(req.signals)} signals and identify the ONE dominant emerging trend connecting them.
+    Output a JSON object with:
+    - "trend_name": A punchy, 3-5 word title (e.g. "Decentralised Heat Networks").
+    - "analysis": A 2-sentence insight explaining the shift.
+    - "implication": One strategic implication for policymakers.
+
+    Signals:
+    {context}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+    return json.loads(response.choices[0].message.content)
 
 # --- STATIC FILE SERVING ---
 @app.get("/")
