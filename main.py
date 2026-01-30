@@ -233,7 +233,7 @@ async def fetch_article_text(url: str) -> FetchResult:
                         )
                     next_url = urljoin(current_url, next_url)
 
-                    print(f"Redirecting to: {next_url}")
+logging.info(f"Redirecting to: {next_url}")
                     await validate_url(next_url)
 
                     current_url = next_url
