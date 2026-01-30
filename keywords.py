@@ -850,7 +850,7 @@ def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5
     system_msg = (
         "Generate exactly "
         f"{len(selected)} high-intent Google Search queries for innovations related "
-        "to these topics. Output as a JSON list of strings (e.g. ['query1', 'query2']). "
+        "to these topics. Output as a JSON list of strings (e.g. [\"query1\", \"query2\"]). "
         "No markdown."
     )
 
