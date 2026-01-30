@@ -76,9 +76,9 @@
 
     <style>
         /* FONTS */
-        @font-face { font-family: 'Zosia Display'; src: url('Zosia-Display.woff2') format('woff2'); font-weight: bold; font-style: normal; }
-        @font-face { font-family: 'Averta'; src: url('Averta-Regular.otf') format('opentype'); font-weight: normal; font-style: normal; }
-        @font-face { font-family: 'Averta'; src: url('Averta-Semibold.otf') format('opentype'); font-weight: bold; font-style: normal; }
+        @font-face { font-family: 'Zosia Display'; src: url('/static/Zosia-Display.woff2') format('woff2'); font-weight: bold; font-style: normal; }
+        @font-face { font-family: 'Averta'; src: url('/static/Averta-Regular.otf') format('opentype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Averta'; src: url('/static/Averta-Semibold.otf') format('opentype'); font-weight: bold; font-style: normal; }
 
         body { font-family: 'Averta', sans-serif; background-color: #F9FAFB; color: #0F294A; }
         h1, h2, h3, .brand-font { font-family: 'Zosia Display', sans-serif; }
@@ -934,90 +934,75 @@
         }
 
         function renderCard(data) {
-            let html = '';
-
-            const missionStyles = {
-                '🌳 A Sustainable Future': { accent: 'border-[#009688]', bg: 'bg-[#E0F2F1]', text: 'text-[#00695C]' },
-                '📚 A Fairer Start': { accent: 'border-[#7B1FA2]', bg: 'bg-[#F3E5F5]', text: 'text-[#4A148C]' },
-                '❤️‍🩹 A Healthy Life': { accent: 'border-[#D32F2F]', bg: 'bg-[#FFEBEE]', text: 'text-[#B71C1C]' },
-                default: { accent: 'border-[#0000FF]', bg: 'bg-[#E3F2FD]', text: 'text-[#0D47A1]' }
+            // A. Normalizer: Fixes "Grey Card" bug by mapping CSV text to strict Mission names
+            const normalizeMission = (raw) => {
+                if (!raw) return "⚡ Mission Adjacent";
+                const lower = raw.toLowerCase();
+                if (lower.includes('sustainable') || lower.includes('net zero')) return "🌳 A Sustainable Future";
+                if (lower.includes('fairer') || lower.includes('start')) return "📚 A Fairer Start";
+                if (lower.includes('healthy') || lower.includes('health')) return "❤️‍🩹 A Healthy Life";
+                return lower.includes('adjacent') ? raw : `⚡ Mission Adjacent - ${raw}`;
             };
-            const style = missionStyles[data.mission] || missionStyles.default;
+            const cleanMission = normalizeMission(data.mission);
 
-            const analysisHTML = data.analysis
-                ? `
-                    <div class="text-gray-900 text-sm leading-relaxed space-y-2">
-                        ${formatAnalysis(data.analysis)}
-                    </div>
-                `
-                : `
-                    <div id="enrich-container-${data.id}" class="text-center py-4">
-                        <p class="text-gray-500 text-xs mb-2 italic">Analysis not generated yet.</p>
-                        <button data-url="${escapeHtml(data.url)}" onclick="triggerEnrichment(this.dataset.url, '${data.id}')" class="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors border border-black">
-                            🪄 Generate Analysis
-                        </button>
-                    </div>
-                `;
+            // B. Style Map: Uses Repo's Tailwind Config
+            const missionStyles = {
+                '🌳 A Sustainable Future': { border: 'border-nesta-green', bg: 'bg-nesta-green/10', tag: 'bg-nesta-green text-white' },
+                '📚 A Fairer Start': { border: 'border-nesta-purple', bg: 'bg-nesta-purple/10', tag: 'bg-nesta-purple text-white' },
+                '❤️‍🩹 A Healthy Life': { border: 'border-nesta-red', bg: 'bg-nesta-red/10', tag: 'bg-nesta-red text-white' },
+                '⚡ Mission Adjacent': { border: 'border-nesta-blue', bg: 'bg-nesta-blue/10', tag: 'bg-nesta-blue text-white' }
+            };
+            const style = missionStyles[cleanMission] || missionStyles['⚡ Mission Adjacent'];
 
-            const implicationHTML = data.implication
-                ? `
-                    <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed editable-implication">
-                        "${escapeHtml(data.implication)}"
-                    </p>
-                `
-                : `
-                    <div id="implication-container-${data.id}" class="text-center py-3">
-                        <p class="text-gray-500 text-xs italic">Implication not generated yet.</p>
-                    </div>
-                `;
+            // C. Helpers
+            const getDomain = (url) => { try { return new URL(url).hostname.replace('www.','').toUpperCase(); } catch { return "SOURCE"; } };
+            const formatText = (text) => text ? text.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('') : "";
 
-            html += `
-                <div class="mb-6">
-                    <div class="flex items-center gap-3 mb-2">
-                        <h4 class="font-extrabold text-black uppercase tracking-widest text-xs border-b-4 ${style.accent} inline-block pb-1">
-                            🤖 The Signal
-                        </h4>
-                        <button onclick="toggleEdit('${data.id}', this)"
-                            class="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black border-b-2 border-transparent hover:border-black transition-all ml-auto">
-                            ✎ Edit
-                        </button>
-                    </div>
-                    <p class="text-black text-base font-medium leading-relaxed mt-2 editable-hook">
-                        ${escapeHtml(data.hook)}
-                    </p>
-                </div>
+            // D. Content Logic
+            const hasDeepDive = (data.analysis && data.analysis.length > 10);
+            const analysisContent = hasDeepDive
+                ? `<div class="text-nesta-black text-sm font-body space-y-2 editable-analysis">${formatText(data.analysis)}</div>`
+                : `<div class="py-4 text-center"><button onclick="triggerEnrichment('${data.url}', '${data.id}')" class="px-4 py-2 bg-white border-2 border-nesta-black font-display font-bold text-xs hover:bg-nesta-yellow transition-colors">🪄 Generate Deep Dive</button></div>`;
 
-                <div class="mb-6 ${style.bg} p-5 border-l-8 ${style.accent}">
-                    <h4 class="font-bold text-black uppercase tracking-wider text-xs mb-3">
-                        🔍 The Shift
-                    </h4>
-                    <div class="analysis-content">
-                        ${analysisHTML}
-                    </div>
-                </div>
+            const implicationContent = hasDeepDive
+                ? `<p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>`
+                : `<p class="text-nesta-sand text-xs italic font-body">Waiting for analysis...</p>`;
 
-                <div class="mb-4">
-                    <h4 class="font-bold text-black uppercase tracking-wider text-xs mb-2">
-                        🚀 Why It Matters
-                    </h4>
-                    ${implicationHTML}
-                </div>
+            // E. Render HTML
+            return `
+    <div id="card-${data.id}" class="signal-card bg-white border-2 border-nesta-black p-6 flex flex-col gap-6 relative transition-all hover:shadow-hover" data-mission="${cleanMission}" data-url="${data.url}">
+        
+        <div class="flex justify-between items-start">
+            <span class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${style.tag} rounded-sm font-display shadow-sm">${cleanMission}</span>
+            <button onclick="toggleEdit('${data.id}')" aria-label="Edit content" class="text-xs font-bold uppercase text-nesta-darkgrey hover:text-nesta-black border-b-2 border-transparent hover:border-nesta-black font-display transition-colors">✎ Edit</button>
+        </div>
 
-                <div class="flex flex-wrap justify-between items-center mt-6 pt-4 border-t border-gray-200">
-                    <a href="${data.url}" target="_blank" rel="noopener noreferrer"
-                       class="text-xs font-bold text-gray-500 hover:text-black uppercase tracking-wider flex items-center gap-1 transition-colors">
-                       🔗 ${getDomain(data.url)} ↗
-                    </a>
+        <div>
+            <h4 class="font-display font-bold text-nesta-black uppercase tracking-widest text-xs mb-2 border-b-4 ${style.border} inline-block pb-1">🤖 The Signal</h4>
+            <p class="text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook">${escapeHtml(data.hook)}</p>
+        </div>
 
-                    <div class="flex gap-2">
-                        <span class="px-2 py-1 bg-black text-white text-xs font-bold uppercase" title="Novelty">Nov: ${data.score_novelty || '-'}/10</span>
-                        <span class="px-2 py-1 bg-black text-white text-xs font-bold uppercase" title="Evidence">Ev: ${data.score_evidence || '-'}/10</span>
-                        <span class="px-2 py-1 bg-black text-white text-xs font-bold uppercase" title="Impact">Imp: ${data.score_impact || '-'}/10</span>
-                    </div>
-                </div>
-            `;
+        <div class="${style.bg} p-5 border-l-8 ${style.border}">
+            <h4 class="font-display font-bold text-nesta-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
+            ${analysisContent}
+        </div>
 
-            return html;
+        <div class="bg-nesta-darkgrey p-4 border-l-8 border-nesta-black">
+            <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
+            <div id="implication-container-${data.id}">${implicationContent}</div>
+        </div>
+
+        <div class="flex flex-wrap justify-between items-center pt-4 border-t border-gray-200 mt-auto gap-4">
+            <a href="${data.url}" target="_blank" class="text-xs font-bold text-nesta-darkgrey hover:text-nesta-black uppercase tracking-wider flex items-center gap-1 font-display">🔗 ${getDomain(data.url)} ↗</a>
+            <div class="flex gap-3 text-xs font-bold text-nesta-black font-display">
+                <span>Nov: ${data.score_novelty || '-'}/10</span> <span class="text-gray-300">|</span>
+                <span>Ev: ${data.score_evidence || '-'}/10</span> <span class="text-gray-300">|</span>
+                <span>Imp: ${data.score_impact || '-'}/10</span>
+            </div>
+        </div>
+        
+        <button onclick="copyFormattedCard('${data.id}')" class="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity bg-nesta-black text-white px-3 py-1 text-xs font-bold uppercase font-display shadow-lg">Copy</button>
+    </div>`;
         }
 
         function getLensBadges(lensesStr, styleClass) {
@@ -1187,65 +1172,57 @@
             textarea.value = value;
             textarea.dataset.field = field;
             textarea.setAttribute('aria-label', ariaLabel);
-            textarea.className = 'w-full border-2 border-black bg-white text-black text-sm p-3 focus:outline-none focus:ring-4 focus:ring-yellow-400';
+            textarea.className = 'w-full border-2 border-nesta-black bg-white text-nesta-black text-sm p-3 font-body focus:outline-none focus:ring-4 focus:ring-nesta-yellow';
             return textarea;
         }
 
-        async function toggleEdit(cardId, button) {
-            const card = document.getElementById(cardId);
-            if (!card || !button) return;
+        function toggleEdit(cardId) {
+            const card = document.getElementById(`card-${cardId}`);
+            if (!card) return;
+            const button = card.querySelector('button[aria-label="Edit content"]');
+            if (!button) return;
 
             const isEditing = button.dataset.editing === 'true';
-            const hookEl = card.querySelector('.editable-hook');
-            const analysisContainer = card.querySelector('.analysis-content');
-            const implicationEl = card.querySelector('.editable-implication');
-            const implicationContainer = card.querySelector(`#implication-container-${cardId}`);
-
-            if (!isEditing) {
-                button.dataset.editing = 'true';
-                button.textContent = '💾 Save';
-
-                if (hookEl) {
-                    const hookInput = document.createElement('textarea');
-                    hookInput.value = hookEl.textContent.trim();
-                    hookInput.dataset.field = 'hook';
-                    hookInput.setAttribute('aria-label', 'Edit signal hook');
-                    hookInput.className = 'w-full border-2 border-black bg-white text-black text-sm p-3 focus:outline-none focus:ring-4 focus:ring-yellow-400';
-                    hookEl.replaceWith(hookInput);
-                }
-
-                if (analysisContainer) {
-                    const analysisText = Array.from(card.querySelectorAll('.editable-analysis'))
-                        .map(p => p.textContent.trim())
-                        .filter(Boolean)
-                        .join('\n');
-                    const analysisInput = document.createElement('textarea');
-                    analysisInput.value = analysisText;
-                    analysisInput.dataset.field = 'analysis';
-                    analysisInput.setAttribute('aria-label', 'Edit analysis');
-                    analysisInput.className = 'w-full border-2 border-black bg-white text-black text-sm p-3 focus:outline-none focus:ring-4 focus:ring-yellow-400';
-                    analysisContainer.innerHTML = '';
-                    analysisContainer.appendChild(analysisInput);
-                }
-
-                if (implicationEl || implicationContainer) {
-                    const implicationInput = document.createElement('textarea');
-                    implicationInput.value = implicationEl
-                        ? implicationEl.textContent.replace(/^"|"$/g, '').trim()
-                        : '';
-                    implicationInput.dataset.field = 'implication';
-                    implicationInput.setAttribute('aria-label', 'Edit implication');
-                    implicationInput.className = 'w-full border-2 border-black bg-white text-black text-sm p-3 focus:outline-none focus:ring-4 focus:ring-yellow-400';
-                    if (implicationEl) {
-                        implicationEl.replaceWith(implicationInput);
-                    } else {
-                        implicationContainer.innerHTML = '';
-                        implicationContainer.appendChild(implicationInput);
-                    }
-                }
-
+            if (isEditing) {
+                saveEdits(cardId, button);
                 return;
             }
+
+            button.dataset.editing = 'true';
+            button.textContent = '💾 Save';
+
+            const hookEl = card.querySelector('.editable-hook');
+            if (hookEl) {
+                const hookInput = createEditableTextarea(hookEl.textContent.trim(), 'hook', 'Edit signal hook');
+                hookEl.replaceWith(hookInput);
+            }
+
+            const analysisBlock = card.querySelector('.editable-analysis') || card.querySelector(`#enrich-container-${cardId}`);
+            if (analysisBlock) {
+                const analysisText = analysisBlock.id && analysisBlock.id.startsWith('enrich-container')
+                    ? ''
+                    : analysisBlock.textContent.trim();
+                const analysisInput = createEditableTextarea(analysisText, 'analysis', 'Edit analysis');
+                analysisBlock.replaceWith(analysisInput);
+            }
+
+            const implicationBlock = card.querySelector('.editable-implication');
+            const implicationContainer = card.querySelector(`#implication-container-${cardId}`);
+            const implicationText = implicationBlock
+                ? implicationBlock.textContent.replace(/^"|"$/g, '').trim()
+                : '';
+            const implicationInput = createEditableTextarea(implicationText, 'implication', 'Edit implication');
+            if (implicationBlock) {
+                implicationBlock.replaceWith(implicationInput);
+            } else if (implicationContainer) {
+                implicationContainer.innerHTML = '';
+                implicationContainer.appendChild(implicationInput);
+            }
+        }
+
+        async function saveEdits(cardId, button) {
+            const card = document.getElementById(`card-${cardId}`);
+            if (!card) return;
 
             const hookInput = card.querySelector('textarea[data-field="hook"]');
             const analysisInput = card.querySelector('textarea[data-field="analysis"]');
@@ -1275,36 +1252,45 @@
 
             if (hookInput) {
                 const hookParagraph = document.createElement('p');
-                hookParagraph.className = 'text-black text-base font-medium leading-relaxed mt-2 editable-hook';
+                hookParagraph.className = 'text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook';
                 hookParagraph.textContent = hook || '';
                 hookInput.replaceWith(hookParagraph);
             }
 
-            if (analysisContainer) {
-                if (analysis) {
-                    analysisContainer.innerHTML = `
-                        <div class="text-gray-900 text-sm leading-relaxed space-y-2">
-                            ${analysis.split('\n').map(line => `<p class="editable-analysis">${escapeHtml(line)}</p>`).join('')}
+            const analysisSection = analysisInput?.parentElement || card.querySelector(`#enrich-container-${cardId}`)?.parentElement;
+            if (analysisSection) {
+                const analysisHeading = analysisSection.querySelector('h4');
+                const headingMarkup = analysisHeading ? analysisHeading.outerHTML : '';
+                const hasDeepDive = analysis.length > 10;
+                if (hasDeepDive) {
+                    const analysisHtml = analysis
+                        .split('\n')
+                        .map(line => `<p>${escapeHtml(line)}</p>`)
+                        .join('');
+                    analysisSection.innerHTML = `
+                        ${headingMarkup}
+                        <div class="text-nesta-black text-sm font-body space-y-2 editable-analysis">
+                            ${analysisHtml}
                         </div>
                     `;
                 } else {
-                    analysisContainer.innerHTML = '<p class="italic text-gray-500">Analysis pending...</p>';
+                    analysisSection.innerHTML = `
+                        ${headingMarkup}
+                        <div id="enrich-container-${cardId}" class="py-4 text-center">
+                            <button onclick="triggerEnrichment('${url}', '${cardId}')" class="px-4 py-2 bg-white border-2 border-nesta-black font-display font-bold text-xs hover:bg-nesta-yellow transition-colors">🪄 Generate Deep Dive</button>
+                        </div>
+                    `;
                 }
             }
 
-            if (implicationInput) {
-                if (implication) {
-                    implicationInput.outerHTML = `
-                        <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed editable-implication">
-                            "${escapeHtml(implication)}"
-                        </p>
+            const implicationContainer = card.querySelector(`#implication-container-${cardId}`);
+            if (implicationContainer) {
+                if (analysis.length > 10) {
+                    implicationContainer.innerHTML = `
+                        <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(implication)}"</p>
                     `;
                 } else {
-                    implicationInput.outerHTML = `
-                        <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed editable-implication">
-                            "Implication pending..."
-                        </p>
-                    `;
+                    implicationContainer.innerHTML = '<p class="text-nesta-sand text-xs italic font-body">Waiting for analysis...</p>';
                 }
             }
 
@@ -1856,9 +1842,9 @@
                     // 1. Update Analysis (The Shift)
                     const parentDiv = container.parentElement;
                     parentDiv.innerHTML = `
-                        <h4 class="font-bold text-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
-                        <div class="text-gray-900 text-sm leading-relaxed space-y-2 fade-in">
-                            ${result.analysis.split('\n').map(l => `<p class="editable-analysis">${escapeHtml(l)}</p>`).join('')}
+                        <h4 class="font-display font-bold text-nesta-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
+                        <div class="text-nesta-black text-sm font-body space-y-2 fade-in editable-analysis">
+                            ${result.analysis.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('')}
                         </div>
                     `;
 
@@ -1866,9 +1852,7 @@
                     const impContainer = document.getElementById(`implication-container-${cardId}`);
                     if (impContainer) {
                         impContainer.innerHTML = `
-                            <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed fade-in editable-implication">
-                                "${escapeHtml(result.implication)}"
-                            </p>
+                            <p class="text-white text-sm italic font-body fade-in editable-implication">"${escapeHtml(result.implication)}"</p>
                         `;
                     }
                 } else {
@@ -1899,7 +1883,9 @@
             const basePayload = {
                 url,
                 title: signal?.title,
-                hook: signal?.hook,
+                hook: signal?.hook ?? '',
+                analysis: signal?.analysis ?? '',
+                implication: signal?.implication ?? '',
                 score: signal?.score,
                 score_novelty: signal?.score_novelty,
                 score_evidence: signal?.score_evidence,
@@ -1908,8 +1894,9 @@
                 lenses: signal?.lenses,
                 source_date: signal?.source_date
             };
+            const requiredFields = new Set(['url', 'hook', 'analysis', 'implication']);
             const payload = Object.fromEntries(
-                Object.entries(basePayload).filter(([, value]) => value != null && value !== '')
+                Object.entries(basePayload).filter(([key, value]) => requiredFields.has(key) || (value != null && value !== ''))
             );
             try {
                 const res = await fetch(`${API_BASE_URL}/api/update_signal`, {
