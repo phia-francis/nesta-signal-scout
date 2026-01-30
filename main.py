@@ -179,6 +179,53 @@ def ensure_sheet_headers(sheet):
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
 
+def validate_url(url: str) -> None:
+    """
+    Validate a URL to reduce the risk of SSRF.
+
+    - Only allow http/https schemes.
+    - Require a hostname.
+    - Resolve hostname and reject private, loopback, link-local, multicast, or unspecified IPs.
+    """
+    if not url:
+        raise ValueError("URL is empty")
+
+    parsed = urlparse(url)
+
+    # Only allow HTTP(S) schemes
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Disallowed URL scheme: {parsed.scheme or 'missing'}")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL must include a hostname")
+
+    # Basic guard against obvious internal hostnames like 'localhost'
+    if hostname.lower() in ("localhost",):
+        raise ValueError("Access to localhost is not allowed")
+
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+    except Exception as e:
+        raise ValueError(f"Failed to resolve hostname: {e}")
+
+    for family, _, _, _, sockaddr in addr_info:
+        ip_str = sockaddr[0]
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+        except ValueError:
+            # Skip unparseable addresses, but continue validating others
+            continue
+
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_unspecified
+        ):
+            raise ValueError("Access to internal or non-routable addresses is not allowed")
+
 async def fetch_article_text(url: str) -> str:
     """
     Securely fetches article text.
