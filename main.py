@@ -215,30 +215,42 @@ async def fetch_article_text(url: str) -> FetchResult:
     - Disables auto-redirects to prevent bypassing validation.
     - Manually follows redirects (max 3) and re-validates each new URL.
     """
+
+    # 1. Validate Initial URL
+    await validate_url(url)
+
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
 
     async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
         current_url = url
-        for _ in range(3):
+        for _ in range(3): # Max 3 redirects
             try:
-                await validate_url(current_url)
                 resp = await client.get(current_url, headers=headers)
 
+                # If it's a redirect (301, 302, 307, 308)
                 if resp.is_redirect:
                     next_url = resp.headers.get("Location")
+
+                    # Handle relative redirects (e.g., "/login")
+                    if next_url and next_url.startswith('/'):
+                        parsed_base = urlparse(current_url)
+                        next_url = f"{parsed_base.scheme}://{parsed_base.netloc}{next_url}"
+
                     if not next_url:
+                        logging.warning(f"Redirect with no Location header: {current_url}")
                         return FetchResult(
                             status="redirect_error",
                             content="Redirect response missing Location header.",
                         )
-                    next_url = urljoin(current_url, next_url)
 
-logging.info(f"Redirecting to: {next_url}")
+                    # CRITICAL: Re-validate the new URL before following
+                    logging.info(f"Redirecting to: {next_url}")
                     await validate_url(next_url)
 
                     current_url = next_url
                     continue
 
+                # If success
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, "html.parser")
                     for script in soup(["script", "style", "nav", "footer", "header"]):
@@ -250,11 +262,14 @@ logging.info(f"Redirecting to: {next_url}")
                     text = "\n".join(chunk for chunk in chunks if chunk)
                     return FetchResult(status="ok", content=text[:2500] + "...")
 
+                logging.warning(f"Failed to fetch {current_url}: Status {resp.status_code}")
                 return FetchResult(status="http_error", content=f"Status {resp.status_code}")
 
             except ValueError as ve:
+                logging.error(f"Security Block: {ve}")
                 return FetchResult(status="security_error", content=str(ve))
             except Exception as e:
+                logging.error(f"Fetch Error for {current_url}: {e}")
                 return FetchResult(status="fetch_error", content=str(e))
 
         return FetchResult(status="redirect_error", content="Too many redirects")
