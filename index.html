@@ -1673,7 +1673,7 @@
                     if (implicationContainer && result.implication) {
                         implicationContainer.outerHTML = `
                             <p class="text-gray-900 text-sm mt-1 italic">
-                                "${cleanText(result.implication)}"
+                                "${escapeHtml(cleanText(result.implication))}"
                             </p>
                         `;
                     }
