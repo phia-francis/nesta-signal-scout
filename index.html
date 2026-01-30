@@ -999,7 +999,7 @@
             const implicationHTML = hasDeepDive
                 ? `<div class="bg-nesta-darkgrey p-4 border-l-4 border-white mt-4 shadow-sm">
                      <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
-                     <p class="text-white text-sm italic font-body editable-implication">"${data.implication || ''}"</p>
+                     <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>
                    </div>`
                 : `<p id="implication-placeholder-${data.id}" class="text-black/50 text-xs italic mt-2 text-center">Waiting for analysis...</p>`;
 
