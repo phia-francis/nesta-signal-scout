@@ -1130,9 +1130,8 @@
             const sanitize = (text) =>
                 (text || '')
                     .toLowerCase()
-                    .replace(/[^a-z0-9\\s]/g, ' ')
-                    .split(/\\s+/)
-                    .filter((word) => word.length > 3);
+                    .replace(/[^a-z0-9\s]/g, ' ')
+                    .split(/\s+/) 
 
             for (let i = 0; i < currentSignals.length; i++) {
                 const signalA = currentSignals[i];
