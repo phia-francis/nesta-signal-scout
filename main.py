@@ -6,6 +6,7 @@ import random
 import re
 import socket
 import ipaddress
+import fcntl
 import httpx
 import openai
 import pandas as pd
@@ -44,7 +45,7 @@ DEFAULT_SIGNAL_COUNT = 5
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="."), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ✅ STRONG CORS CONFIGURATION
 app.add_middleware(
@@ -157,7 +158,7 @@ def ensure_sheet_headers(sheet):
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
 
-def validate_url(url: str) -> tuple:
+async def validate_url(url: str) -> tuple:
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -165,7 +166,7 @@ def validate_url(url: str) -> tuple:
         hostname = parsed.hostname
         if not hostname:
             raise ValueError("No hostname")
-        addr_info = socket.getaddrinfo(hostname, None)
+        addr_info = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
         for _, _, _, _, sockaddr in addr_info:
             ip_str = sockaddr[0]
             ip_obj = ipaddress.ip_address(ip_str)
@@ -179,20 +180,33 @@ def validate_url(url: str) -> tuple:
             ):
                 raise ValueError("Non-public IP access blocked")
         ip = addr_info[0][4][0]
-        return parsed, ip
+        return parsed, ip, hostname
     except Exception as e:
         raise ValueError(f"Security Check Failed: {e}")
 
 async def fetch_article_text(url: str) -> str:
-    parsed, ip = validate_url(url)
-    headers = {"User-Agent": "NestaSignalScout/1.0", "Host": parsed.hostname}
-    netloc = ip if not parsed.port else f"{ip}:{parsed.port}"
-    request_url = urlunparse(
-        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
-    )
-    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-        resp = await client.get(request_url, headers=headers)
-        return resp.text
+    async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
+        current_url = url
+        for _ in range(3):
+            parsed, ip, hostname = await validate_url(current_url)
+            host_header = hostname
+            ip_host = f"[{ip}]" if ":" in ip else ip
+            netloc = ip_host if not parsed.port else f"{ip_host}:{parsed.port}"
+            request_url = urlunparse(
+                (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+            )
+            headers = {"User-Agent": "NestaSignalScout/1.0", "Host": host_header}
+            resp = await client.get(request_url, headers=headers)
+            if resp.is_redirect:
+                next_url = resp.headers.get("Location")
+                if not next_url:
+                    raise RuntimeError("Redirect response missing Location header.")
+                current_url = urljoin(current_url, next_url)
+                continue
+            if resp.status_code == 200:
+                return resp.text
+            raise RuntimeError(f"Status {resp.status_code}")
+        raise RuntimeError("Too many redirects")
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
     system_prompt = (
@@ -1122,15 +1136,19 @@ def update_sig(req: Dict[str, Any]):
 @app.post("/api/update_signal")
 async def update_signal(req: UpdateSignalRequest):
     try:
-        df = pd.read_csv("Nesta Signal Vault - Sheet1.csv")
-        if req.url in df["URL"].values:
-            idx = df.index[df["URL"] == req.url].tolist()[0]
-            df.at[idx, "Hook"] = req.hook
-            df.at[idx, "Analysis"] = req.analysis
-            df.at[idx, "Implication"] = req.implication
-            df.to_csv("Nesta Signal Vault - Sheet1.csv", index=False)
-            return {"status": "success"}
-        raise HTTPException(status_code=404, detail="Signal not found")
+        csv_path = "Nesta Signal Vault - Sheet1.csv"
+        lock_path = f"{csv_path}.lock"
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            df = pd.read_csv(csv_path)
+            if req.url in df["URL"].values:
+                idx = df.index[df["URL"] == req.url].tolist()[0]
+                df.at[idx, "Hook"] = req.hook
+                df.at[idx, "Analysis"] = req.analysis
+                df.at[idx, "Implication"] = req.implication
+                df.to_csv(csv_path, index=False)
+                return {"status": "success"}
+            raise HTTPException(status_code=404, detail="Signal not found")
     except HTTPException:
         raise
     except Exception as e:
@@ -1141,7 +1159,7 @@ async def enrich_signal(req: EnrichRequest):
     """Re-analyzes an existing signal to generate missing Analysis/Implication fields."""
     if not req.url:
         raise HTTPException(status_code=400, detail="URL is required")
-    print(f"Enriching signal: {req.url}")
+    logging.info("Enriching signal: %s", req.url)
     try:
         article_text = await fetch_article_text(req.url)
     except ValueError as exc:
@@ -1211,10 +1229,10 @@ def serve_home():
         return HTMLResponse(content="<h1>Backend Running</h1>", status_code=200)
 
 @app.get("/Zosia-Display.woff2")
-def serve_font1(): return FileResponse("Zosia-Display.woff2")
+def serve_font1(): return FileResponse("static/Zosia-Display.woff2")
 
 @app.get("/Averta-Regular.otf")
-def serve_font2(): return FileResponse("Averta-Regular.otf")
+def serve_font2(): return FileResponse("static/Averta-Regular.otf")
 
 @app.get("/Averta-Semibold.otf")
-def serve_font3(): return FileResponse("Averta-Semibold.otf")
+def serve_font3(): return FileResponse("static/Averta-Semibold.otf")

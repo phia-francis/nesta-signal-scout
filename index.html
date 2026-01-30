@@ -956,7 +956,7 @@
 
             // C. Helpers
             const getDomain = (url) => { try { return new URL(url).hostname.replace('www.','').toUpperCase(); } catch { return "SOURCE"; } };
-            const formatText = (text) => text ? text.split('\n').map(l => `<p>${l}</p>`).join('') : "";
+            const formatText = (text) => text ? text.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('') : "";
 
             // D. Content Logic
             const hasDeepDive = (data.analysis && data.analysis.length > 10);
@@ -965,7 +965,7 @@
                 : `<div class="py-4 text-center"><button onclick="triggerEnrichment('${data.url}', '${data.id}')" class="px-4 py-2 bg-white border-2 border-nesta-black font-display font-bold text-xs hover:bg-nesta-yellow transition-colors">🪄 Generate Deep Dive</button></div>`;
 
             const implicationContent = hasDeepDive
-                ? `<p class="text-white text-sm italic font-body editable-implication">"${data.implication || ''}"</p>`
+                ? `<p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>`
                 : `<p class="text-nesta-sand text-xs italic font-body">Waiting for analysis...</p>`;
 
             // E. Render HTML
@@ -979,7 +979,7 @@
 
         <div>
             <h4 class="font-display font-bold text-nesta-black uppercase tracking-widest text-xs mb-2 border-b-4 ${style.border} inline-block pb-1">🤖 The Signal</h4>
-            <p class="text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook">${data.hook}</p>
+            <p class="text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook">${escapeHtml(data.hook)}</p>
         </div>
 
         <div class="${style.bg} p-5 border-l-8 ${style.border}">
@@ -1838,24 +1838,24 @@
 
                 const result = await response.json();
 
-            if (result.status === 'success') {
-                // 1. Update Analysis (The Shift)
-                const parentDiv = container.parentElement;
-                parentDiv.innerHTML = `
+                if (result.status === 'success') {
+                    // 1. Update Analysis (The Shift)
+                    const parentDiv = container.parentElement;
+                    parentDiv.innerHTML = `
                         <h4 class="font-display font-bold text-nesta-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
                         <div class="text-nesta-black text-sm font-body space-y-2 fade-in editable-analysis">
                             ${result.analysis.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('')}
                         </div>
                     `;
 
-                // 2. Update Implication (Why It Matters)
-                const impContainer = document.getElementById(`implication-container-${cardId}`);
-                if (impContainer) {
-                    impContainer.innerHTML = `
+                    // 2. Update Implication (Why It Matters)
+                    const impContainer = document.getElementById(`implication-container-${cardId}`);
+                    if (impContainer) {
+                        impContainer.innerHTML = `
                             <p class="text-white text-sm italic font-body fade-in editable-implication">"${escapeHtml(result.implication)}"</p>
                         `;
-                }
-            } else {
+                    }
+                } else {
                     container.innerHTML = `<span class="text-red-600 text-xs font-bold">Error: ${result.message}</span>`;
                 }
             } catch (e) {
