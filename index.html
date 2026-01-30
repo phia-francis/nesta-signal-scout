@@ -1182,6 +1182,15 @@
             });
         }
 
+        function createEditableTextarea(value, field, ariaLabel) {
+            const textarea = document.createElement('textarea');
+            textarea.value = value;
+            textarea.dataset.field = field;
+            textarea.setAttribute('aria-label', ariaLabel);
+            textarea.className = 'w-full border-2 border-black bg-white text-black text-sm p-3 focus:outline-none focus:ring-4 focus:ring-yellow-400';
+            return textarea;
+        }
+
         async function toggleEdit(cardId, button) {
             const card = document.getElementById(cardId);
             if (!card || !button) return;
