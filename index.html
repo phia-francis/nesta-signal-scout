@@ -1409,6 +1409,7 @@
                                 const norm = normalizeSignal(msg.data);
                                 currentSignals.push(norm);
                                 createSignalCard(norm, currentSignals.length - 1);
+                                autosaveSignal(norm);
                                 lastScanResults = currentSignals;
                                 updateDownloadButton();
                             } else if (msg.type === 'error') {
@@ -1566,12 +1567,8 @@
             }
             const copyButton = document.getElementById(`copy-slack-${card.id}`);
             if (copyButton) {
-                copyButton.dataset.title = signal.title || '';
-                copyButton.dataset.hook = cleanHook || '';
-                copyButton.dataset.url = linkUrl || '';
-                copyButton.addEventListener('click', (event) => {
-                    const { title, hook, url } = event.currentTarget.dataset;
-                    shortlistSignal({ title, hook, url });
+                copyButton.addEventListener('click', () => {
+                    shortlistSignal({ ...signal, url: linkUrl, id: `copy-slack-${card.id}` });
                 });
             }
         }
@@ -1586,6 +1583,38 @@
                 });
             } catch (e) {
                 console.error('Status update failed', e);
+            }
+        }
+
+        async function autosaveSignal(signal) {
+            const url = signal?.final_url || signal?.url;
+            if (!url) return;
+            const basePayload = {
+                url,
+                title: signal?.title,
+                hook: signal?.hook,
+                score: signal?.score,
+                score_novelty: signal?.score_novelty,
+                score_evidence: signal?.score_evidence,
+                score_evocativeness: signal?.score_evocativeness,
+                mission: signal?.mission,
+                lenses: signal?.lenses,
+                source_date: signal?.source_date
+            };
+            const payload = Object.fromEntries(
+                Object.entries(basePayload).filter(([, value]) => value != null && value !== '')
+            );
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/update_signal`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    console.error('Autosave failed', await res.text());
+                }
+            } catch (e) {
+                console.error('Autosave failed', e);
             }
         }
 
@@ -1612,7 +1641,7 @@
         }
 
         async function shortlistSignal(cardData) {
-            copyForSlack(cardData);
+            await copyFormattedCard(cardData);
             await updateSignalStatus(cardData?.url, 'Shortlisted');
         }
 
@@ -1641,15 +1670,50 @@
             }
         }
 
-        async function copyForSlack(cardData) {
-            const title = cardData?.title || 'Untitled Signal';
-            const hook = cardData?.hook || '';
-            const url = cardData?.url || '';
-            const text = `*${title}*\n> ${hook}\nSource: ${url}`;
+        async function copyFormattedCard(signalData) {
+            const missionEmojis = {
+                'A Sustainable Future': '🌳',
+                'A Fairer Start': '📚',
+                'A Healthy Life': '❤️‍🩹',
+                'Creative Industries': '🎨',
+                'default': '🔮'
+            };
+            const emoji = missionEmojis[signalData?.mission] || missionEmojis['default'];
+            const title = signalData?.title || 'Untitled Signal';
+            const hook = signalData?.hook || 'No hook provided.';
+            const url = signalData?.url || '';
+            const analysis = signalData?.analysis;
+            const implication = signalData?.implication;
+            const scoreNovelty = signalData?.score_novelty ?? 'N/A';
+            const scoreEvidence = signalData?.score_evidence ?? 'N/A';
+
+            let text = `${emoji} ${signalData?.mission || 'Signal Scout'}\n`;
+            text += `*${title}*\n\n`;
+            text += `🤖 *Signal*\n`;
+            text += `${hook}\n\n`;
+            if (analysis) {
+                text += `🔍 *The Analysis*\n`;
+                text += `${analysis}\n\n`;
+            }
+            if (implication) {
+                text += `🚀 *Why it matters*\n`;
+                text += `${implication}\n\n`;
+            }
+            text += `*Score:* Novelty: ${scoreNovelty}/10 | Evidence: ${scoreEvidence}/10\n`;
+            text += `${url}`;
             try {
                 await navigator.clipboard.writeText(text);
+                const btn = document.getElementById(signalData?.id || '');
+                if (btn) {
+                    const originalIcon = btn.innerHTML;
+                    btn.innerHTML = '✅ Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalIcon;
+                    }, 2000);
+                }
                 showToast('Copied!', 'success');
             } catch (e) {
+                console.error('Failed to copy!', e);
                 showToast('Clipboard unavailable', 'error');
             }
         }
