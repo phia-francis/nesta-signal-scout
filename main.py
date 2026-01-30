@@ -136,9 +136,17 @@ def ensure_sheet_headers(sheet):
         "Score_Evocativeness", "Score_Novelty", "Score_Evidence",
         "User_Rating", "User_Status", "User_Comment", "Shareable", "Feedback", "Source_Date"
     ]
+    legacy_headers = [
+        "Title", "Score", "Hook", "URL", "Mission", "Lenses",
+        "Score_Evocativeness", "Score_Novelty", "Score_Evidence",
+        "User_Rating", "User_Status", "User_Comment", "Shareable", "Feedback", "Source_Date"
+    ]
     try:
         existing_headers = sheet.row_values(1)
-        if existing_headers != expected_headers:
+        if existing_headers == legacy_headers:
+            sheet.insert_cols([["", ""]], col=4)
+            sheet.update([expected_headers], 'A1')
+        elif existing_headers != expected_headers:
             sheet.update([expected_headers], 'A1')
     except Exception as e:
         print(f"⚠️ Header Check Failed: {e}")
@@ -496,14 +504,21 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
         "score": "Score",
         "score_novelty": "Score_Novelty",
         "score_evidence": "Score_Evidence",
-        "score_impact": "Score_Evocativeness",
-        "score_evocativeness": "Score_Evocativeness",
         "mission": "Mission",
         "lenses": "Lenses",
         "source_date": "Source_Date",
     }
 
     cells = []
+    impact_score_to_set = None
+    if req.score_impact is not None:
+        impact_score_to_set = req.score_impact
+    elif req.score_evocativeness is not None:
+        impact_score_to_set = req.score_evocativeness
+    if impact_score_to_set is not None:
+        impact_col_idx = header_lookup.get("Score_Evocativeness")
+        if impact_col_idx is not None:
+            cells.append(gspread.Cell(match_row, impact_col_idx + 1, impact_score_to_set))
     for field_name, header in field_map.items():
         value = getattr(req, field_name)
         if value is None:
