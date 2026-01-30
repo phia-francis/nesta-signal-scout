@@ -866,6 +866,6 @@ def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5
         if content.startswith("```json"):
             content = content[7:-3]
         return json.loads(content)
-    except Exception as e:
-        print(f"Query Gen Error: {e}")
+    except json.JSONDecodeError as e:
+        print(f"Query Gen JSON Error: {e}")
         return [f"latest innovations in {topic}" for topic in selected]
