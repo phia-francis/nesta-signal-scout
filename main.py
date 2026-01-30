@@ -191,40 +191,25 @@ SOURCE_FILTERS = {
 }
 
 SYSTEM_PROMPT = """
-You are the "Nesta Signal Scout", an autonomous research engine.
+You are an expert Signal Scout for Nesta. Your goal is to identify EMERGING opportunities, not summarize history.
 
-YOUR MISSION CONTEXT (Nesta Strategy 2030):
-1. A Fairer Start: Early years (0-5), closing the deprivation gap.
-2. A Healthy Life: Halving obesity, food environment reform.
-3. A Sustainable Future: Decarbonisation, heat pumps, energy flexibility.
-4. Mission Adjacent: AI, Privacy, Robotics, Cross-cutting tech.
+When analyzing a URL, adhere to these strict rules:
 
-### CRITICAL: QUALITY & VALIDATION PROTOCOL
-1. **NO HALLUCINATION:** Every field in the Signal Card (Title, Hook, Score) must be derived directly from the search result text. If you cannot find a specific detail, DO NOT invent it.
-2. **URL STRICTNESS:** - The `final_url` MUST be a "Deep Link" to a specific article, paper, or press release (e.g., `.../news/2025/new-battery-tech`).
-   - REJECT generic homepages (e.g., `www.nature.com`, `www.techcrunch.com`).
-   - If a valid deep link is not found, DISCARD the signal.
-3. **READ TO VERIFY:** If the search snippet is too short to generate a high-quality "Hook", you MUST call the `fetch_article_text` tool to read the full content before generating the card.
-4. **DISCARD & RETRY:** If a search result turns out to be irrelevant or low-quality, silently discard it and pick the next keyword/result. Do not output a half-baked card.
+1. **FIND THE "NEW":** - Ignore when a program *started* (e.g., "launched in 2021"). 
+   - Look for the *latest* update, funding round, deadline, or amendment (e.g., "Jan 2026 update adds £5m funding").
+   - If the date is recent (2025/2026), your Hook MUST explain what happened *this week/month*.
 
-YOUR LOOP LOGIC:
-1. Search -> 2. Validate URL -> 3. (Optional) Fetch Text -> 4. Generate Card.
+2. **THE "HOOK" (Crucial):**
+   - MAX 15 words. 
+   - MUST be forward-looking. 
+   - BAD: "The Heat Pump Ready Programme was launched to reduce costs." (History)
+   - GOOD: "New 2026 provisions unlock grid flexibility payments for households." (News)
 
-STRICT DATA INTEGRITY RULES:
+3. **SCORING:**
+   - If the content is old (older than 6 months) but reposted, penalize the "Novelty" score.
+   - If the content is a generic landing page, hunt for the "Latest News" section or specific 2026 deadlines.
 
-DEEP LINKS ONLY: You are FORBIDDEN from using homepages (e.g., 'www.wired.com') or Search Result URLs. You must provide a direct article URL.
-
-NO SOCIAL MEDIA: Do not use Tweets, LinkedIn posts, or YouTube channels as primary sources.
-
-VERIFIABLE HOOKS: The 'Hook' must be based on facts found in the search snippet. Do not hallucinate capabilities.
-
-ERROR HANDLING: If the System rejects your card due to a bad URL, do not argue. discard that signal and try a different search query immediately.
-
-YOUR PROCESS:
-1. Receive Topic/Intent.
-2. **Action:** Call `generate_broad_scan_queries` (for broad topics) OR `perform_web_search` (for specific topics).
-3. **Review:** Read the tool output.
-4. **Action:** Only IF the data is sufficient, call `display_signal_card`.
+Input: {text_content}
 """
 
 TOOLS = [
@@ -446,6 +431,53 @@ def upsert_signal(signal: Dict[str, Any]) -> None:
     except Exception as e:
         print(f"Upsert Error: {e}")
 
+def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
+    sheet = get_google_sheet()
+    if not sheet:
+        raise HTTPException(status_code=500, detail="Google Sheets unavailable")
+    ensure_sheet_headers(sheet)
+    records = get_sheet_records(include_rejected=True)
+    target_url = str(req.url or "").strip().lower()
+    if not target_url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    match_row = None
+    for rec in records:
+        if str(rec.get("URL", "")).strip().lower() == target_url:
+            match_row = rec.get("_row")
+            break
+    if not match_row:
+        return {"status": "error", "message": "URL not found"}
+
+    headers = sheet.row_values(1)
+    header_lookup = {header: idx for idx, header in enumerate(headers)}
+    row_values = sheet.row_values(match_row)
+    while len(row_values) < len(headers):
+        row_values.append("")
+
+    field_map = {
+        "title": "Title",
+        "hook": "Hook",
+        "score": "Score",
+        "score_novelty": "Score_Novelty",
+        "score_evidence": "Score_Evidence",
+        "score_evocativeness": "Score_Evocativeness",
+        "mission": "Mission",
+        "lenses": "Lenses",
+        "source_date": "Source_Date",
+    }
+
+    for field_name, header in field_map.items():
+        value = getattr(req, field_name)
+        if value is None:
+            continue
+        col_idx = header_lookup.get(header)
+        if col_idx is not None:
+            row_values[col_idx] = value
+
+    end_cell = gspread.utils.rowcol_to_a1(match_row, len(headers))
+    sheet.update(f"A{match_row}:{end_cell}", [row_values])
+    return {"status": "success", "message": "Signal autosaved"}
+
 async def perform_google_search(query, date_restrict="m1", requested_results: int = 15, scan_mode: str = "general", source_types: Optional[List[str]] = None):
     if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_CX: return "System Error: Search Config Missing"
     target_results = max(1, min(20, requested_results))
@@ -497,6 +529,18 @@ class GenerateQueriesRequest(BaseModel):
 
 class SynthesisRequest(BaseModel):
     signals: List[Dict]
+
+class UpdateSignalRequest(BaseModel):
+    url: str
+    title: Optional[str] = None
+    hook: Optional[str] = None
+    score: Optional[int] = None
+    score_novelty: Optional[int] = None
+    score_evidence: Optional[int] = None
+    score_evocativeness: Optional[int] = None
+    mission: Optional[str] = None
+    lenses: Optional[str] = None
+    source_date: Optional[str] = None
 
 async def stream_chat_generator(req: ChatRequest):
     try:
@@ -834,6 +878,17 @@ def update_sig(req: Dict[str, Any]):
         return {"status": "updated"}
     except Exception as e:
         print(f"Update Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/update_signal")
+async def update_signal(req: UpdateSignalRequest):
+    """Finds the row with the matching URL and updates select fields."""
+    try:
+        return await asyncio.to_thread(update_signal_by_url, req)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Update Signal Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
