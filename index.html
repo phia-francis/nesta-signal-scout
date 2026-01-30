@@ -1176,8 +1176,8 @@
                     card.classList.remove('hidden');
                 } else if (mission === 'adjacent') {
                     card.classList.toggle('hidden', !cardMission.includes('Adjacent'));
-                } else {
-                    card.classList.toggle('hidden', cardMission !== mission);
+                    const normalizedSelectedMission = mission.substring(mission.indexOf(' ') + 1);
+                    card.classList.toggle('hidden', cardMission !== normalizedSelectedMission);
                 }
             });
         }
