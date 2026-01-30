@@ -1847,7 +1847,7 @@
                     parentDiv.innerHTML = `
                         <h4 class="font-bold text-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
                         <div class="text-gray-900 text-sm leading-relaxed space-y-2 fade-in">
-                            ${result.analysis.split('\n').map(l => `<p class="editable-analysis">${l}</p>`).join('')}
+                            ${result.analysis.split('\n').map(l => `<p class="editable-analysis">${escapeHtml(l)}</p>`).join('')}
                         </div>
                     `;
 
