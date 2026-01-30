@@ -1813,7 +1813,9 @@
                     mission: signal.mission,
                     score_novelty: signal.score_novelty,
                     score_evidence: signal.score_evidence,
-                    score_impact: signal.score_impact ?? signal.score_evocativeness
+                    score_impact: signal.score_impact ?? signal.score_evocativeness,
+                    source_date: signal.source_date,
+                    footer_class: styles.footer
                 })}
 
                 ${showActions ? actionBar : ''}
