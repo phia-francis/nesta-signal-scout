@@ -1856,7 +1856,7 @@
                     if (impContainer) {
                         impContainer.innerHTML = `
                             <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed fade-in editable-implication">
-                                "${result.implication}"
+                                "${escapeHtml(result.implication)}"
                             </p>
                         `;
                     }
