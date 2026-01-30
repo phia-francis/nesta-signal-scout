@@ -209,55 +209,59 @@ class FetchResult:
     status: Literal["ok", "security_error", "http_error", "redirect_error", "fetch_error"]
     content: str
 
-async def fetch_article_text(url: str) -> FetchResult:
+async def fetch_article_text(url: str) -> str:
     """
-    Securely fetches article text.
+    Securely fetches article text. 
     - Disables auto-redirects to prevent bypassing validation.
     - Manually follows redirects (max 3) and re-validates each new URL.
     """
+    
+    # 1. Validate Initial URL
+    validate_url(url)
+    
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-
+    
     async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
         current_url = url
-        for _ in range(3):
+        for _ in range(3): # Max 3 redirects
             try:
-                await validate_url(current_url)
                 resp = await client.get(current_url, headers=headers)
-
+                
+                # If it's a redirect (301, 302, 307, 308)
                 if resp.is_redirect:
                     next_url = resp.headers.get("Location")
+                    
+                    # Handle relative redirects (e.g., "/login")
+                    if next_url and next_url.startswith('/'):
+                        parsed_base = urlparse(current_url)
+                        next_url = f"{parsed_base.scheme}://{parsed_base.netloc}{next_url}"
+                    
                     if not next_url:
-                        return FetchResult(
-                            status="redirect_error",
-                            content="Redirect response missing Location header.",
-                        )
-                    next_url = urljoin(current_url, next_url)
+                        logging.warning(f"Redirect with no Location header: {current_url}")
+                        return "Error: Redirect with no Location header"
 
-logging.info(f"Redirecting to: {next_url}")
-                    await validate_url(next_url)
-
+                    # CRITICAL: Re-validate the new URL before following
+                    logging.info(f"Redirecting to: {next_url}")
+                    validate_url(next_url) 
+                    
                     current_url = next_url
                     continue
-
+                
+                # If success
                 if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "html.parser")
-                    for script in soup(["script", "style", "nav", "footer", "header"]):
-                        script.decompose()
-
-                    text = soup.get_text()
-                    lines = (line.strip() for line in text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    text = "\n".join(chunk for chunk in chunks if chunk)
-                    return FetchResult(status="ok", content=text[:2500] + "...")
-
-                return FetchResult(status="http_error", content=f"Status {resp.status_code}")
-
+                    return resp.text
+                
+                logging.warning(f"Failed to fetch {current_url}: Status {resp.status_code}")
+                return f"Error: Status {resp.status_code}"
+                
             except ValueError as ve:
-                return FetchResult(status="security_error", content=str(ve))
+                logging.error(f"Security Block: {ve}")
+                return f"Security Error: {ve}"
             except Exception as e:
-                return FetchResult(status="fetch_error", content=str(e))
-
-        return FetchResult(status="redirect_error", content="Too many redirects")
+                logging.error(f"Fetch Error for {current_url}: {e}")
+                return f"Fetch Error: {e}"
+        
+        return "Error: Too many redirects"
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
     system_prompt = (
