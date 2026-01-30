@@ -962,7 +962,7 @@
             const implicationHTML = data.implication
                 ? `
                     <p class="text-black text-sm italic border-l-4 border-black pl-4 py-1 leading-relaxed editable-implication">
-                        "${data.implication}"
+                        "${escapeHtml(data.implication)}"
                     </p>
                 `
                 : `
