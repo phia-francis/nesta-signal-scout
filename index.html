@@ -995,7 +995,7 @@
                 implicationHTML = `
                     <div class="bg-nesta-darkgrey p-4 border-l-4 border-white mt-4">
                         <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
-                        <p class="text-white text-sm italic font-body editable-implication">"${data.implication || ''}"</p>
+                        <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>
                     </div>`;
             } else {
                 // "Generate" Button State
