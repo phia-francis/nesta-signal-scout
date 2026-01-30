@@ -446,7 +446,25 @@ def update_signal_by_url(req: "UpdateSignalRequest") -> Dict[str, str]:
             match_row = rec.get("_row")
             break
     if not match_row:
-        return {"status": "error", "message": "URL not found"}
+        new_row = [
+            req.title or "",
+            req.score if req.score is not None else 0,
+            req.hook or "",
+            req.url,
+            req.mission or "",
+            req.lenses or "",
+            req.score_evocativeness if req.score_evocativeness is not None else 0,
+            req.score_novelty if req.score_novelty is not None else 0,
+            req.score_evidence if req.score_evidence is not None else 0,
+            3,
+            "Generated",
+            "",
+            "Maybe",
+            "",
+            req.source_date or "Recent",
+        ]
+        sheet.append_row(new_row)
+        return {"status": "success", "message": "Signal autosaved (created)"}
 
     headers = sheet.row_values(1)
     header_lookup = {header: idx for idx, header in enumerate(headers)}

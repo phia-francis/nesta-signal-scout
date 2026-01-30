@@ -1589,7 +1589,7 @@
         async function autosaveSignal(signal) {
             const url = signal?.final_url || signal?.url;
             if (!url) return;
-            const payload = {
+            const basePayload = {
                 url,
                 title: signal?.title,
                 hook: signal?.hook,
@@ -1601,11 +1601,9 @@
                 lenses: signal?.lenses,
                 source_date: signal?.source_date
             };
-            Object.keys(payload).forEach((key) => {
-                if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
-                    delete payload[key];
-                }
-            });
+            const payload = Object.fromEntries(
+                Object.entries(basePayload).filter(([, value]) => value != null && value !== '')
+            );
             try {
                 const res = await fetch(`${API_BASE_URL}/api/update_signal`, {
                     method: 'POST',
