@@ -1252,7 +1252,7 @@
             doc.setFontSize(10);
 
             currentSignals.slice(0, 6).forEach((signal) => {
-                const block = `${signal.title || 'Untitled'} (Score: ${signal.score || '-'})\\n${signal.hook || ''}`;
+                const block = `${signal.title || 'Untitled'} (Score: ${signal.score || '-'})\n${signal.hook || ''}`;
                 const lines = doc.splitTextToSize(block, 180);
                 if (y + lines.length * 5 > 280) {
                     doc.addPage();
