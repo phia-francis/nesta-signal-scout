@@ -1533,7 +1533,7 @@
                 analysisHTML = `
                     <div id="${analysisContainerId}" class="text-center py-4">
                         <p class="text-gray-500 text-xs mb-2 italic">Analysis not generated yet.</p>
-                        <button onclick="triggerEnrichment('${signal.final_url || signal.url}', '${analysisContainerId}', '${implicationContainerId}')" class="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors border border-black">
+                        <button data-url="${escapeHtml(signal.final_url || signal.url)}" onclick="triggerEnrichment(this.dataset.url, '${analysisContainerId}', '${implicationContainerId}')" class="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors border border-black">
                             🪄 Generate Analysis
                         </button>
                     </div>
