@@ -867,7 +867,10 @@ async def synthesize_signals(req: SynthesisRequest):
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )
-    return json.loads(response.choices[0].message.content)
+    try:
+        return json.loads(response.choices[0].message.content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse LLM response as JSON")
 
 # --- STATIC FILE SERVING ---
 @app.get("/")
