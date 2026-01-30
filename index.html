@@ -901,6 +901,16 @@
             return clean;
         }
 
+        function formatAnalysis(text) {
+            const clean = cleanText(text);
+            return clean
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean)
+                .map(line => `<p>${line}</p>`)
+                .join('');
+        }
+
         function getLensBadges(lensesStr, styleClass) {
             if (!lensesStr) return '';
             const style = styleClass || "bg-gray-50 text-nesta-darkgrey border-gray-200"; 
@@ -1501,9 +1511,49 @@
             const cleanHook = cleanText(signal.hook);
             const cleanAnalysis = cleanText(signal.analysis);
             const cleanImplication = cleanText(signal.implication);
+            const hasAnalysis = Boolean(cleanAnalysis && cleanAnalysis.length > 10);
+            const hasImplication = Boolean(cleanImplication && cleanImplication.length > 10);
             const accentClass = `text-[9px] uppercase font-bold mb-1 tracking-wider ${styles.accentLabel}`;
-            const signalTextClass = isDarkCard ? "text-white" : "text-gray-900";
-            const implicationTextClass = isDarkCard ? "text-white" : "text-gray-800";
+            const headerTextClass = "text-xs font-bold text-black uppercase tracking-wider";
+            const sectionBoxBase = "p-3 rounded-md border border-black/10";
+            const signalBoxClass = `${sectionBoxBase} bg-white/95`;
+            const analysisBoxClass = `${sectionBoxBase} bg-white`;
+            const implicationBoxClass = `${sectionBoxBase} bg-gray-100`;
+            const analysisContainerId = `enrich-container-${containerId}-${index}`;
+            const implicationContainerId = `implication-container-${containerId}-${index}`;
+
+            let analysisHTML = '';
+            if (hasAnalysis) {
+                analysisHTML = `
+                    <div class="text-gray-900 text-sm leading-relaxed space-y-2">
+                        ${formatAnalysis(cleanAnalysis)}
+                    </div>
+                `;
+            } else {
+                analysisHTML = `
+                    <div id="${analysisContainerId}" class="text-center py-4">
+                        <p class="text-gray-500 text-xs mb-2 italic">Analysis not generated yet.</p>
+                        <button onclick="triggerEnrichment('${signal.final_url || signal.url}', '${analysisContainerId}', '${implicationContainerId}')" class="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors border border-black">
+                            🪄 Generate Analysis
+                        </button>
+                    </div>
+                `;
+            }
+
+            let implicationHTML = '';
+            if (hasImplication) {
+                implicationHTML = `
+                    <p class="text-gray-900 text-sm mt-1 italic">
+                        "${cleanImplication}"
+                    </p>
+                `;
+            } else {
+                implicationHTML = `
+                    <div id="${implicationContainerId}" class="text-center py-3">
+                        <p class="text-gray-500 text-xs italic">Implication not generated yet.</p>
+                    </div>
+                `;
+            }
 
             const card = document.createElement('div');
             card.id = `${containerId}-card-${index}`;
@@ -1540,25 +1590,21 @@
                 
                 ${lensTags}
 
-                <div class="mb-4">
-                    <span class="text-xs font-bold text-nesta-purple uppercase tracking-wider">The Signal</span>
-                    <p class="${signalTextClass} text-sm mt-1 font-medium leading-relaxed border-l-2 border-nesta-purple pl-3">
+                <div class="mb-4 ${signalBoxClass}">
+                    <span class="${headerTextClass}">The Signal</span>
+                    <p class="text-gray-900 text-sm mt-1 font-medium leading-relaxed border-l-2 border-black/40 pl-3">
                         ${cleanHook}
                     </p>
                 </div>
 
-                <div class="mb-4 bg-gray-50 p-3 rounded-md">
-                    <span class="text-xs font-bold text-nesta-blue uppercase tracking-wider">The Shift</span>
-                    <p class="text-gray-800 text-sm mt-1 leading-relaxed">
-                        ${cleanAnalysis || 'Analysis not available.'}
-                    </p>
+                <div class="mb-4 ${analysisBoxClass}">
+                    <span class="${headerTextClass}">The Shift</span>
+                    ${analysisHTML}
                 </div>
 
-                <div class="mb-4">
-                    <span class="text-xs font-bold text-green-600 uppercase tracking-wider">Why it matters</span>
-                    <p class="${implicationTextClass} text-sm mt-1 italic">
-                        "${cleanImplication || ''}"
-                    </p>
+                <div class="mb-4 ${implicationBoxClass}">
+                    <span class="${headerTextClass}">Why it matters</span>
+                    ${implicationHTML}
                 </div>
                 
                 <div class="grid grid-cols-3 gap-2 py-4 border-t border-b mb-5 rounded-sm ${styles.gridBg}">
@@ -1596,6 +1642,47 @@
                 copyButton.addEventListener('click', () => {
                     shortlistSignal({ ...signal, url: linkUrl, id: `copy-slack-${card.id}` });
                 });
+            }
+        }
+
+        async function triggerEnrichment(url, analysisContainerId, implicationContainerId) {
+            const container = document.getElementById(analysisContainerId);
+            if (!container) return;
+            container.innerHTML = `
+                <div class="animate-pulse flex flex-col items-center">
+                    <div class="h-2 w-24 bg-gray-400 rounded mb-2"></div>
+                    <span class="text-xs font-bold text-black">AI is analyzing...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/enrich_signal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    container.outerHTML = `
+                        <div class="text-gray-900 text-sm leading-relaxed space-y-2">
+                            ${formatAnalysis(result.analysis)}
+                        </div>
+                    `;
+                    const implicationContainer = document.getElementById(implicationContainerId);
+                    if (implicationContainer && result.implication) {
+                        implicationContainer.outerHTML = `
+                            <p class="text-gray-900 text-sm mt-1 italic">
+                                "${cleanText(result.implication)}"
+                            </p>
+                        `;
+                    }
+                } else {
+                    container.innerHTML = `<span class="text-red-600 text-xs font-bold">Error: ${result.message || 'Unable to enrich'}</span>`;
+                }
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = `<span class="text-red-600 text-xs font-bold">Connection Failed</span>`;
             }
         }
 

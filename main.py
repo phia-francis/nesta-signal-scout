@@ -59,14 +59,17 @@ app.add_middleware(
     wait=wait_exponential(multiplier=1, min=2, max=60),
     stop=stop_after_attempt(6),
 )
-def call_openai_with_retry(messages, tools=None):
+def call_openai_with_retry(messages, tools=None, response_format=None):
     """Retries the API call if a 429 Rate Limit error occurs."""
-    return client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        tools=tools,
-        stream=False,
-    )
+    payload = {
+        "model": "gpt-4o",
+        "messages": messages,
+        "tools": tools,
+        "stream": False,
+    }
+    if response_format is not None:
+        payload["response_format"] = response_format
+    return client.chat.completions.create(**payload)
 
 def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     url = card_data.get("final_url") or card_data.get("url") or ""
@@ -171,6 +174,96 @@ async def fetch_article_text(url: str) -> str:
             return text[:2500] + "..."
     except Exception as e:
         return f"Error reading article: {str(e)}"
+
+def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
+    system_prompt = (
+        "You are a strategic analyst for Nesta. "
+        "Generate high-contrast, concise insight fields only."
+    )
+    user_prompt = (
+        "Re-analyse the article content and return JSON with keys: "
+        "\"analysis\" and \"implication\" only.\n\n"
+        "Requirements:\n"
+        "- Analysis (The Shift): Max 40 words.\n"
+        "- Mandatory format: \"Old View: ... New Insight: ...\".\n"
+        "- Implication (Why it matters): Max 30 words. Focus on UK/policy/systemic impact.\n"
+        "- Output valid JSON only.\n\n"
+        f"URL: {url}\n\n"
+        f"Content:\n{article_text}"
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+def generate_enriched_fields(article_text: str, url: str) -> Dict[str, str]:
+    messages = build_enrichment_prompt(article_text, url)
+    response = call_openai_with_retry(
+        messages,
+        response_format={"type": "json_object"},
+    )
+    content = response.choices[0].message.content or "{}"
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Failed to parse LLM response: {exc}") from exc
+    analysis = str(payload.get("analysis") or "").strip()
+    implication = str(payload.get("implication") or "").strip()
+    if not analysis or not implication:
+        raise ValueError("LLM response missing analysis or implication.")
+    return {"analysis": analysis, "implication": implication}
+
+def update_local_csv(url: str, analysis: str, implication: str, csv_path: str = "Nesta Signal Vault - Sheet1.csv") -> bool:
+    if not os.path.exists(csv_path):
+        return False
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as exc:
+        print(f"CSV read error: {exc}")
+        return False
+    if "URL" not in df.columns:
+        return False
+    normalized_url = str(url or "").strip().lower()
+    if not normalized_url:
+        return False
+    url_series = df["URL"].astype(str).str.strip().str.lower()
+    matches = df.index[url_series == normalized_url].tolist()
+    if not matches:
+        return False
+    idx = matches[0]
+    if "Analysis" in df.columns:
+        df.at[idx, "Analysis"] = analysis
+    if "Implication" in df.columns:
+        df.at[idx, "Implication"] = implication
+    df.to_csv(csv_path, index=False)
+    return True
+
+def update_sheet_enrichment(url: str, analysis: str, implication: str) -> bool:
+    sheet = get_google_sheet()
+    if not sheet:
+        return False
+    ensure_sheet_headers(sheet)
+    records = get_sheet_records(include_rejected=True)
+    target_url = str(url or "").strip().lower()
+    match_row = None
+    for rec in records:
+        if str(rec.get("URL", "")).strip().lower() == target_url:
+            match_row = rec.get("_row")
+            break
+    if not match_row:
+        return False
+    headers = sheet.row_values(1)
+    header_lookup = {header: idx for idx, header in enumerate(headers)}
+    updates = []
+    for field, value in (("Analysis", analysis), ("Implication", implication)):
+        col_idx = header_lookup.get(field)
+        if col_idx is not None:
+            updates.append((col_idx + 1, value))
+    if not updates:
+        return False
+    for col_idx, value in updates:
+        sheet.update_cell(match_row, col_idx, value)
+    return True
 
 TIME_FILTER_OFFSETS = {
     "Past Month": relativedelta(months=1),
@@ -615,6 +708,9 @@ class UpdateSignalRequest(BaseModel):
     lenses: Optional[str] = None
     source_date: Optional[str] = None
 
+class EnrichRequest(BaseModel):
+    url: str
+
 async def stream_chat_generator(req: ChatRequest):
     try:
         # 1. Get Current Date & Validation
@@ -979,6 +1075,25 @@ async def update_signal(req: UpdateSignalRequest):
     except Exception as e:
         print(f"Update Signal Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/enrich_signal")
+async def enrich_signal(req: EnrichRequest):
+    """Re-analyzes an existing signal to generate missing Analysis/Implication fields."""
+    if not req.url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    print(f"Enriching signal: {req.url}")
+    article_text = await fetch_article_text(req.url)
+    try:
+        enriched = await asyncio.to_thread(generate_enriched_fields, article_text, req.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    analysis = enriched["analysis"]
+    implication = enriched["implication"]
+    updated_sheet = await asyncio.to_thread(update_sheet_enrichment, req.url, analysis, implication)
+    updated_csv = await asyncio.to_thread(update_local_csv, req.url, analysis, implication)
+    if not updated_sheet and not updated_csv:
+        raise HTTPException(status_code=404, detail="URL not found in database")
+    return {"status": "success", "analysis": analysis, "implication": implication}
 
 
 @app.post("/api/generate-queries")
