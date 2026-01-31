@@ -973,6 +973,16 @@
 
             const missionInfo = normalize(data.mission);
             const style = themes[missionInfo.key] || themes['default'];
+            const safeUrl = escapeHtml((data.url && (data.url.startsWith('http://') || data.url.startsWith('https://') || data.url.startsWith('/'))) ? data.url : '#');
+            const safeTitle = escapeHtml(data.title || '');
+            const safeHook = escapeHtml(data.hook || '');
+            const safeImplication = escapeHtml(data.implication || '');
+            const safeMissionLabel = escapeHtml(missionInfo.label);
+            const safeScores = {
+                novelty: escapeHtml(data.score_novelty || '-'),
+                evidence: escapeHtml(data.score_evidence || '-'),
+                impact: escapeHtml(data.score_impact || '-')
+            };
 
             // --- 3. HELPERS ---
             const getDomain = (url) => {
@@ -989,7 +999,7 @@
             const analysisHTML = hasDeepDive 
                 ? `<div class="text-black text-sm leading-relaxed space-y-2 font-body editable-analysis">${formatText(data.analysis)}</div>`
                 : `<div id="enrich-container-${data.id}" class="py-4">
-                     <button onclick="triggerEnrichment('${data.url}', '${data.id}')" 
+                     <button id="enrich-btn-${data.id}" data-url="${safeUrl}" data-card-id="${data.id}"
                         class="w-full py-2 bg-white border-2 border-black text-black text-xs font-bold uppercase hover:bg-nesta-yellow transition-colors font-display shadow-sm">
                         🪄 Generate Deep Dive
                      </button>
@@ -999,18 +1009,18 @@
             const implicationHTML = hasDeepDive
                 ? `<div class="bg-nesta-darkgrey p-4 border-l-4 border-white mt-4 shadow-sm">
                      <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
-                     <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(data.implication || '')}"</p>
+                     <p class="text-white text-sm italic font-body editable-implication">"${safeImplication}"</p>
                    </div>`
                 : `<p id="implication-placeholder-${data.id}" class="text-black/50 text-xs italic mt-2 text-center">Waiting for analysis...</p>`;
 
             // --- 5. RENDER HTML ---
             return `
             <div id="card-${data.id}" class="signal-card ${style.bg} border-2 ${style.border} p-6 flex flex-col gap-4 relative transition-all duration-300 hover:shadow-hover group" 
-                 data-mission="${missionInfo.label}" data-url="${data.url}">
+                 data-mission="${safeMissionLabel}" data-url="${safeUrl}">
                 
                 <div class="flex justify-between items-center border-b border-black/10 pb-4">
                     <span class="px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${style.tag} rounded-sm font-display shadow-sm">
-                        ${escapeHtml(missionInfo.label)}
+                        ${safeMissionLabel}
                     </span>
                     <button onclick="toggleEdit('${data.id}', this)" aria-label="Edit content" class="text-xs font-bold uppercase text-black/40 hover:text-black transition-colors font-display">
                         ✎ Edit
@@ -1019,7 +1029,7 @@
 
                 <div>
                     <h3 class="font-display font-bold text-xl text-black mb-2 leading-tight hover:underline decoration-2">
-                        <a href="${data.url}" target="_blank">${escapeHtml(data.title)}</a>
+                        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>
                     </h3>
                     
                     <h4 class="font-display font-bold text-black uppercase tracking-widest text-xs mb-1 opacity-70">
@@ -1027,7 +1037,7 @@
                     </h4>
                     
                     <p class="text-black text-base font-medium leading-relaxed font-body editable-hook">
-                        ${escapeHtml(data.hook)}
+                        ${safeHook}
                     </p>
                 </div>
 
@@ -1043,17 +1053,17 @@
                 </div>
 
                 <div class="flex flex-wrap justify-between items-center pt-4 border-t border-black/10 mt-auto gap-4">
-                    <a href="${data.url}" target="_blank" rel="noopener noreferrer"
+                    <a href="${safeUrl}" target="_blank" rel="noopener noreferrer"
                        class="text-xs font-bold text-black border-b-2 border-black/20 hover:border-black uppercase tracking-wider flex items-center gap-1 transition-colors font-display">
                        🔗 ${getDomain(data.url)} ↗
                     </a>
 
                     <div class="flex gap-3 text-[10px] font-bold text-black/70 font-display uppercase tracking-wider">
-                        <span title="Novelty">Nov: ${data.score_novelty || '-'}/10</span>
+                        <span title="Novelty">Nov: ${safeScores.novelty}/10</span>
                         <span class="text-black/20">|</span>
-                        <span title="Evidence">Ev: ${data.score_evidence || '-'}/10</span>
+                        <span title="Evidence">Ev: ${safeScores.evidence}/10</span>
                         <span class="text-black/20">|</span>
-                        <span title="Impact">Imp: ${data.score_impact || '-'}/10</span>
+                        <span title="Impact">Imp: ${safeScores.impact}/10</span>
                     </div>
                 </div>
                 
@@ -1769,6 +1779,14 @@
             if (copyButton) {
                 copyButton.addEventListener('click', () => copyFormattedCard(cardData));
             }
+            const enrichButton = cardElement.querySelector(`#enrich-btn-${cardData.id}`);
+            if (enrichButton) {
+                enrichButton.addEventListener('click', () => {
+                    const url = enrichButton.dataset.url || '';
+                    const cardId = enrichButton.dataset.cardId || cardData.id;
+                    triggerEnrichment(url, cardId);
+                });
+            }
 
             const wrapper = document.createElement('div');
             wrapper.className = 'flex flex-col gap-4';
@@ -1780,20 +1798,28 @@
                 const actionBtnClass = 'px-3 py-2 rounded-full border-2 border-black text-black transition text-xs font-bold uppercase font-display hover:bg-black hover:text-white';
                 actionBar.className = 'flex items-center justify-between gap-3';
                 actionBar.innerHTML = `
-                    <button type="button" onclick="rejectSignal('${linkUrl}', '${wrapper.id}')" class="${actionBtnClass}" title="Reject">
+                    <button type="button" id="reject-btn-${cardData.id}" class="${actionBtnClass}" title="Reject">
                         👎 Reject
                     </button>
                     <button type="button" id="copy-shortlist-${cardData.id}" class="${actionBtnClass}">
                         📋 Copy
                     </button>
-                    <button type="button" id="keep-btn-${cardData.id}" onclick="keepSignal('${linkUrl}', 'keep-btn-${cardData.id}')" class="${actionBtnClass}" title="Star">
+                    <button type="button" id="keep-btn-${cardData.id}" class="${actionBtnClass}" title="Star">
                         ⭐ Star
                     </button>
                 `;
                 wrapper.appendChild(actionBar);
+                const rejectButton = actionBar.querySelector(`#reject-btn-${cardData.id}`);
+                if (rejectButton) {
+                    rejectButton.addEventListener('click', () => rejectSignal(linkUrl, wrapper.id));
+                }
                 const shortlistButton = actionBar.querySelector(`#copy-shortlist-${cardData.id}`);
                 if (shortlistButton) {
                     shortlistButton.addEventListener('click', () => shortlistSignal({ ...signal, url: linkUrl, id: `copy-shortlist-${cardData.id}` }));
+                }
+                const keepButton = actionBar.querySelector(`#keep-btn-${cardData.id}`);
+                if (keepButton) {
+                    keepButton.addEventListener('click', () => keepSignal(linkUrl, `keep-btn-${cardData.id}`));
                 }
             }
 
