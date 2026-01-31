@@ -395,6 +395,11 @@ class SearchService:
             )
         return "\n\n".join(results[:target_results])
 
+    @retry(
+        retry=retry_if_exception_type((httpx.HTTPError, RuntimeError)),
+        wait=wait_exponential(multiplier=1, min=2, max=20),
+        stop=stop_after_attempt(3),
+    )
     async def search_google(self, query: str, date_restrict: str = "m1", requested_results: int = 15) -> str:
         return await self._cached_search(query, date_restrict, requested_results)
 
