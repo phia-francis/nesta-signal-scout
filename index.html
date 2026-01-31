@@ -963,13 +963,8 @@
             }
 
             async saveChanges(newHooks, newAnalysis, newImp) {
-                this.data.hook = newHooks;
-                this.data.analysis = newAnalysis;
-                this.data.implication = newImp;
-                this.toggleEdit();
-
                 try {
-                    await fetch(`${API_BASE_URL}/api/update_signal`, {
+                    const response = await fetch(`${API_BASE_URL}/api/update_signal`, {
                         method: 'POST',
                         body: JSON.stringify({
                             url: this.data.url,
@@ -979,7 +974,14 @@
                         }),
                         headers: { 'Content-Type': 'application/json' }
                     });
+                    if (!response.ok) {
+                        throw new Error(`Save failed with status ${response.status}`);
+                    }
                     showToast('Saved changes', 'success');
+                    this.data.hook = newHooks;
+                    this.data.analysis = newAnalysis;
+                    this.data.implication = newImp;
+                    this.toggleEdit();
                 } catch (e) {
                     showToast('Failed to save', 'error');
                 }
