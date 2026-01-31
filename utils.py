@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import re
 import socket
@@ -9,6 +10,34 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from dateutil.relativedelta import relativedelta
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "level": record.levelname,
+            "module": record.name,
+            "message": record.getMessage(),
+        }
+        if hasattr(record, "path"):
+            payload["path"] = record.path
+        return json.dumps(payload)
+
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
+LOGGER = get_logger(__name__)
 
 
 def validate_url_security(url: str) -> Tuple[object, str, str]:
@@ -103,7 +132,7 @@ TIME_FILTER_OFFSETS = {
 def is_date_within_time_filter(source_date: Optional[str], time_filter: str, request_date: datetime) -> bool:
     parsed = parse_source_date(source_date)
     if not parsed:
-        logging.warning("⚠️ Date Rejected (Unparsable): %s", source_date)
+        LOGGER.warning("Date rejected (unparsable): %s", source_date)
         return False
     if parsed > request_date:
         return False

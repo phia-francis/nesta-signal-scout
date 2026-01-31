@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import random
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from functools import lru_cache
-
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
@@ -24,17 +21,18 @@ from models import (
     SynthesisRequest,
     UpdateSignalRequest,
 )
-from services import ContentService, LLMService, MockSheetService, SearchService, SheetService
-from utils import is_date_within_time_filter, parse_source_date
+from services import ContentService, LLMService, SearchService, SheetService, get_sheet_service
+from utils import get_logger, is_date_within_time_filter, parse_source_date
+
+LOGGER = get_logger(__name__)
 
 settings = Settings()
 
-CHAT_MODEL = "gpt-4o"
 DEFAULT_SIGNAL_COUNT = 5
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
-llm_service = LLMService(settings.OPENAI_API_KEY, model=CHAT_MODEL)
+llm_service = LLMService(settings.OPENAI_API_KEY, model=settings.CHAT_MODEL)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -92,6 +90,8 @@ For the content provided, generate a JSON object with these strict components:
      - "❤️‍🩹 A Healthy Life" (Health, Obesity, Food Systems, Longevity)
    - If it does NOT fit the above, output: "Mission Adjacent - [Topic]" (e.g., "Mission Adjacent - AI Ethics" or "Mission Adjacent - Quantum Computing").
    - DO NOT output plain text like "Healthy Life" or "Sustainable Future". You MUST include the emoji.
+6. **ORIGIN COUNTRY:**
+   - Provide the 2-letter ISO country code (e.g., "GB", "US") or "Global" if no country applies.
 
 SCORING:
 - Novelty (1-10): 10 = Completely new paradigm. 1 = Mainstream news.
@@ -151,6 +151,7 @@ TOOLS = [
                     "score": {"type": "number"},
                     "mission": {"type": "string"},
                     "lenses": {"type": "string"},
+                    "origin_country": {"type": "string"},
                     "score_novelty": {"type": "number"},
                     "score_evidence": {"type": "number"},
                     "score_impact": {"type": "number"},
@@ -235,11 +236,17 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
 
 
 @lru_cache
-def get_sheet_service() -> SheetService | MockSheetService:
-    if not settings.GOOGLE_CREDENTIALS or not settings.SHEET_ID:
-        logging.warning("Google Sheets credentials missing. Using MockSheetService.")
-        return MockSheetService()
-    return SheetService(settings.GOOGLE_CREDENTIALS, settings.SHEET_ID)
+def provide_sheet_service() -> SheetService:
+    return get_sheet_service(settings)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    LOGGER.error("Global Crash: %s", str(exc), extra={"path": request.url.path})
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Internal Server Error", "detail": str(exc)},
+    )
 
 
 def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
@@ -305,13 +312,11 @@ async def perform_google_search(
     source_types: Optional[List[str]] = None,
 ) -> str:
     final_query = construct_search_query(query, scan_mode, source_types)
-    logging.info("Searching: %s (%s)", final_query, date_restrict)
-    return await search_service.search(
+    LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
+    return await search_service.search_google(
         final_query,
         date_restrict=date_restrict,
         requested_results=requested_results,
-        scan_mode=scan_mode,
-        source_types=source_types,
     )
 
 
@@ -325,7 +330,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
 
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else DEFAULT_SIGNAL_COUNT
 
-        logging.info(
+        LOGGER.info(
             "Incoming: %s | Target: %s | Mission: %s | Date: %s",
             req.message,
             target_count,
@@ -487,7 +492,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 elif tool_name == "fetch_article_text":
                     url_to_fetch = args.get("url")
                     try:
-                        article_text = await content_service.fetch_article_text(url_to_fetch)
+                        article_text = await content_service.fetch_page_content(url_to_fetch)
                         content_snippet = article_text[:2000]
                     except Exception as exc:
                         content_snippet = f"Error fetching text: {str(exc)}"
@@ -542,6 +547,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             "score_impact": args.get("score_impact", args.get("score_evocativeness", 0)),
                             "score_evocativeness": args.get("score_evocativeness", 0),
                             "source_date": published_date,
+                            "origin_country": args.get("origin_country"),
                             "user_status": "Generated",
                             "ui_type": "signal_card",
                         }
@@ -559,7 +565,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
 
                         normalized_url = card["url"].strip().rstrip("/") if card["url"] else ""
                         if normalized_url in existing_urls:
-                            logging.info("Duplicate detected: %s", normalized_url)
+                            LOGGER.info("Duplicate detected: %s", normalized_url)
                             tool_messages.append(
                                 {
                                     "role": "tool",
@@ -576,7 +582,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             try:
                                 await asyncio.to_thread(sheets.upsert_signal, card)
                             except Exception as exc:
-                                logging.warning("Error upserting signal %s: %s", card.get("url"), exc)
+                                LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
                             tool_messages.append(
                                 {
                                     "role": "tool",
@@ -597,7 +603,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             )
                             tool_response_added = True
                     else:
-                        logging.info("Rejected signal: %s", error_msg)
+                        LOGGER.info("Rejected signal: %s", error_msg)
                         tool_messages.append(
                             {
                                 "role": "tool",
@@ -626,13 +632,13 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         yield json.dumps({"type": "done"}) + "\n"
 
     except Exception as exc:
-        logging.exception("Unhandled exception in stream_chat_generator: %s", exc)
+        LOGGER.exception("Unhandled exception in stream_chat_generator: %s", exc)
         yield json.dumps({"type": "error", "message": "An internal error has occurred."}) + "\n"
         yield json.dumps({"type": "done"}) + "\n"
 
 
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest, sheets: SheetService = Depends(get_sheet_service)):
+async def chat_endpoint(req: ChatRequest, sheets: SheetService = Depends(provide_sheet_service)):
     return StreamingResponse(
         stream_chat_generator(req, sheets),
         media_type="application/x-ndjson",
@@ -645,38 +651,38 @@ async def chat_endpoint(req: ChatRequest, sheets: SheetService = Depends(get_she
 
 
 @app.get("/api/saved")
-async def get_saved(sheets: SheetService = Depends(get_sheet_service)):
+async def get_saved(sheets: SheetService = Depends(provide_sheet_service)):
     return sheets.get_records()
 
 
 @app.post("/api/update")
-async def update_sig(req: Dict[str, Any], sheets: SheetService = Depends(get_sheet_service)):
+async def update_sig(req: Dict[str, Any], sheets: SheetService = Depends(provide_sheet_service)):
     try:
         sheets.upsert_signal(req)
         return {"status": "updated"}
     except Exception as exc:
-        logging.warning("Update error: %s", exc)
+        LOGGER.warning("Update error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/api/update_signal")
-async def update_signal(req: UpdateSignalRequest, sheets: SheetService = Depends(get_sheet_service)):
+async def update_signal(req: UpdateSignalRequest, sheets: SheetService = Depends(provide_sheet_service)):
     validate_request_url(req.url)
     updated_sheet = False
     updated_csv = False
     try:
         updated_sheet = await asyncio.to_thread(sheets.update_signal_by_url, req)
     except RuntimeError as exc:
-        logging.warning("Sheet update unavailable: %s", exc)
+        LOGGER.warning("Sheet update unavailable: %s", exc)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        logging.warning("Sheet update error: %s", exc)
+        LOGGER.warning("Sheet update error: %s", exc)
 
     try:
         updated_csv = await asyncio.to_thread(sheets.update_local_signal_by_url, req)
     except Exception as exc:
-        logging.warning("CSV update error: %s", exc)
+        LOGGER.warning("CSV update error: %s", exc)
 
     if not updated_sheet and not updated_csv:
         raise HTTPException(status_code=404, detail="Signal not found")
@@ -684,12 +690,12 @@ async def update_signal(req: UpdateSignalRequest, sheets: SheetService = Depends
 
 
 @app.post("/api/enrich_signal")
-async def enrich_signal(req: EnrichRequest, sheets: SheetService = Depends(get_sheet_service)):
+async def enrich_signal(req: EnrichRequest, sheets: SheetService = Depends(provide_sheet_service)):
     if not req.url:
         raise HTTPException(status_code=400, detail="URL is required")
-    logging.info("Enriching signal: %s", req.url)
+    LOGGER.info("Enriching signal: %s", req.url)
     try:
-        article_text = await content_service.fetch_article_text(req.url)
+        article_text = await content_service.fetch_page_content(req.url)
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:

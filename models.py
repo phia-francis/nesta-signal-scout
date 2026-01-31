@@ -15,33 +15,24 @@ class ChatRequest(BaseModel):
     scan_mode: str = "general"
 
 
-class GenerateQueriesRequest(BaseModel):
-    keywords: List[str] = Field(default_factory=list)
-    count: int = 5
-
-
 class Signal(BaseModel):
     title: str
+    url: Optional[str] = None
     hook: str
     analysis: str
     implication: str
+    score: int
+    mission: str
+    origin_country: Optional[str] = None
     score_novelty: int
     score_evidence: int
     score_impact: int
-    mission: str = Field(
-        description=(
-            "One of: '🌳 A Sustainable Future', '📚 A Fairer Start', "
-            "'❤️‍🩹 A Healthy Life', or 'Mission Adjacent - [Topic]'"
-        )
-    )
-    url: Optional[str] = None
-    source_date: Optional[str] = None
-    lenses: Optional[str] = None
-    score_evocativeness: Optional[int] = None
+    published_date: Optional[str] = None
 
 
-class SynthesisRequest(BaseModel):
-    signals: List[Dict[str, Any]]
+class GenerateQueriesRequest(BaseModel):
+    keywords: List[str] = Field(default_factory=list)
+    count: int = 5
 
 
 class UpdateSignalRequest(BaseModel):
@@ -58,6 +49,11 @@ class UpdateSignalRequest(BaseModel):
     mission: Optional[str] = None
     lenses: Optional[str] = None
     source_date: Optional[str] = None
+    origin_country: Optional[str] = None
+
+
+class SynthesisRequest(BaseModel):
+    signals: List[Dict[str, Any]]
 
 
 class EnrichRequest(BaseModel):
