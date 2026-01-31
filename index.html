@@ -973,7 +973,7 @@
 
             const missionInfo = normalize(data.mission);
             const style = themes[missionInfo.key] || themes['default'];
-            const safeUrl = escapeHtml(data.url || '');
+            const safeUrl = escapeHtml((data.url && (data.url.startsWith('http://') || data.url.startsWith('https://') || data.url.startsWith('/'))) ? data.url : '#');
             const safeTitle = escapeHtml(data.title || '');
             const safeHook = escapeHtml(data.hook || '');
             const safeImplication = escapeHtml(data.implication || '');
