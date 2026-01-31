@@ -599,19 +599,20 @@
             : 'https://nesta-signal-backend.onrender.com';
 
         // --- GLOBAL STATE ---
-        let currentSignals = []; // Displayed signals (Scan or DB View)
-        let lastScanResults = []; // Cache for "Current Scan" view
-        let currentSaved = []; // Full DB cache
-        let activeFilter = 'scan'; // Track current filter
-        
-        let radarChart = null;
-        let isProcessing = false;
-        let scanController = null;
-        let loadIntervals = [];
-        let liveTerminalInterval = null;
-        let liveTerminalIndex = 0;
-        let networkChart = null;
-        let currentSynth = null;
+        const AppState = {
+            currentSignals: [], // Displayed signals (Scan or DB View)
+            lastScanResults: [], // Cache for "Current Scan" view
+            currentSaved: [], // Full DB cache
+            activeFilter: 'scan', // Track current filter
+            radarChart: null,
+            isProcessing: false,
+            scanController: null,
+            loadIntervals: [],
+            liveTerminalInterval: null,
+            liveTerminalIndex: 0,
+            networkChart: null,
+            currentSynth: null
+        };
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
@@ -690,7 +691,7 @@
         }
 
         function toggleButtonState() {
-            if (isProcessing) return;
+            if (AppState.isProcessing) return;
             const input = document.getElementById('topic-input');
             const broadBtn = document.getElementById('broad-btn');
             const searchBtn = document.getElementById('search-btn');
@@ -785,7 +786,7 @@
                     setTimeout(() => { el.innerText = statuses[statusIndex]; el.style.opacity = '1'; }, 200);
                 }
             }, 3500);
-            loadIntervals.push(statInt);
+            AppState.loadIntervals.push(statInt);
 
             let progress = 0;
             const progInt = setInterval(() => {
@@ -799,12 +800,12 @@
                     if(barEl) barEl.style.width = progress + '%';
                 }
             }, 100);
-            loadIntervals.push(progInt);
+            AppState.loadIntervals.push(progInt);
         }
 
         function stopLoadingSimulation() {
-            loadIntervals.forEach(clearInterval);
-            loadIntervals = [];
+            AppState.loadIntervals.forEach(clearInterval);
+            AppState.loadIntervals = [];
         }
 
         function addTerminalLine(text) {
@@ -830,27 +831,27 @@
                 'Scoring novelty and evidence...',
                 'Synthesising candidate signals...'
             ];
-            liveTerminalIndex = 0;
-            addTerminalLine(messages[liveTerminalIndex]);
-            if (liveTerminalInterval) {
-                clearInterval(liveTerminalInterval);
+            AppState.liveTerminalIndex = 0;
+            addTerminalLine(messages[AppState.liveTerminalIndex]);
+            if (AppState.liveTerminalInterval) {
+                clearInterval(AppState.liveTerminalInterval);
             }
-            liveTerminalInterval = setInterval(() => {
-                liveTerminalIndex = (liveTerminalIndex + 1) % messages.length;
-                addTerminalLine(messages[liveTerminalIndex]);
+            AppState.liveTerminalInterval = setInterval(() => {
+                AppState.liveTerminalIndex = (AppState.liveTerminalIndex + 1) % messages.length;
+                addTerminalLine(messages[AppState.liveTerminalIndex]);
             }, 4000);
         }
 
         function stopLiveTerminal() {
-            if (liveTerminalInterval) {
-                clearInterval(liveTerminalInterval);
-                liveTerminalInterval = null;
+            if (AppState.liveTerminalInterval) {
+                clearInterval(AppState.liveTerminalInterval);
+                AppState.liveTerminalInterval = null;
             }
             addTerminalLine('Scan complete.');
         }
 
         function downloadSignalsAsCSV() {
-            const signals = currentSignals.length > 0 ? currentSignals : lastScanResults;
+            const signals = AppState.currentSignals.length > 0 ? AppState.currentSignals : AppState.lastScanResults;
             if (!signals || signals.length === 0) {
                 showToast('No signals to download', 'error');
                 return;
@@ -915,164 +916,347 @@
             } catch { return 'Source'; }
         }
 
-        function cleanText(text) {
-            if (!text) return "";
-            let clean = text.replace(/^In \d{4},?\s*/i, "");
-            clean = clean.replace(/\[[^\]]*\]/g, "");
-            clean = clean.replace(/\\/g, "");
-            return clean;
-        }
+        class SignalCard {
+            constructor(data, containerId, showActions = true, index = 0) {
+                this.data = { ...data };
+                this.id = data.id || `card-${Date.now()}`;
+                this.isEditing = false;
+                this.isEnriching = false;
+                this.container = document.getElementById(containerId);
+                this.showActions = showActions;
+                this.index = index;
+                this.render();
+            }
 
-        function formatAnalysis(text) {
-            const clean = cleanText(text);
-            return clean
-                .split('\n')
-                .map(line => line.trim())
-                .filter(Boolean)
-                .map(line => `<p class="editable-analysis">${escapeHtml(line)}</p>`)
-                .join('');
-        }
-
-        function renderCard(data) {
-            
-            // --- 1. THEME MAP (Brand Colors & Contrast Rules) ---
-            const themes = {
-                'A Healthy Life': { 
-                    bg: 'bg-nesta-pink/10',     // Pale Pink
-                    border: 'border-nesta-pink',
-                    tag: 'bg-nesta-pink text-black' // Pink is light -> Use Black text
-                },
-                'A Fairer Start': { 
-                    bg: 'bg-nesta-purple/10',   // Pale Purple
-                    border: 'border-nesta-purple',
-                    tag: 'bg-nesta-purple text-white' // Purple is dark -> Use White text
-                },
-                'A Sustainable Future': { 
-                    bg: 'bg-nesta-green/10',    // Pale Green
-                    border: 'border-nesta-green',
-                    tag: 'bg-nesta-green text-white' 
-                },
-                'default': { 
-                    bg: 'bg-nesta-blue/10',     // Pale Blue
-                    border: 'border-nesta-blue',
-                    tag: 'bg-nesta-blue text-white' 
-                }
-            };
-
-            // --- 2. DATA NORMALIZER ---
-            const normalize = (m) => {
-                if (!m) return { key: 'default', label: '⚡ Mission Adjacent' };
-                const lower = m.toLowerCase();
-                
+            getMissionInfo() {
+                const mission = this.data.mission || '';
+                const lower = mission.toLowerCase();
                 if (lower.includes('health')) return { key: 'A Healthy Life', label: '❤️‍🩹 A Healthy Life' };
                 if (lower.includes('fairer') || lower.includes('start')) return { key: 'A Fairer Start', label: '📚 A Fairer Start' };
-                if (lower.includes('sustain') || lower.includes('green') || lower.includes('net zero')) return { key: 'A Sustainable Future', label: '🌳 A Sustainable Future' };
-                
-                return { key: 'default', label: m.includes('Adjacent') ? m : `⚡ Mission Adjacent - ${m}` };
-            };
+                if (lower.includes('sustain') || lower.includes('green') || lower.includes('net zero')) {
+                    return { key: 'A Sustainable Future', label: '🌳 A Sustainable Future' };
+                }
+                if (!mission) return { key: 'default', label: '⚡ Mission Adjacent' };
+                return { key: 'default', label: mission.includes('Adjacent') ? mission : `⚡ Mission Adjacent - ${mission}` };
+            }
 
-            const missionInfo = normalize(data.mission);
-            const style = themes[missionInfo.key] || themes['default'];
-            const safeUrl = escapeHtml((data.url && (data.url.startsWith('http://') || data.url.startsWith('https://') || data.url.startsWith('/'))) ? data.url : '#');
-            const safeTitle = escapeHtml(data.title || '');
-            const safeHook = escapeHtml(data.hook || '');
-            const safeImplication = escapeHtml(data.implication || '');
-            const safeMissionLabel = escapeHtml(missionInfo.label);
-            const safeScores = {
-                novelty: escapeHtml(data.score_novelty || '-'),
-                evidence: escapeHtml(data.score_evidence || '-'),
-                impact: escapeHtml(data.score_impact || '-')
-            };
+            getThemeStyles() {
+                const themes = {
+                    'A Healthy Life': { bg: 'bg-nesta-pink/10', border: 'border-nesta-pink', tag: 'bg-nesta-pink text-black' },
+                    'A Fairer Start': { bg: 'bg-nesta-purple/10', border: 'border-nesta-purple', tag: 'bg-nesta-purple text-white' },
+                    'A Sustainable Future': { bg: 'bg-nesta-green/10', border: 'border-nesta-green', tag: 'bg-nesta-green text-white' },
+                    default: { bg: 'bg-nesta-blue/10', border: 'border-nesta-blue', tag: 'bg-nesta-blue text-white' }
+                };
+                const missionInfo = this.getMissionInfo();
+                return themes[missionInfo.key] || themes.default;
+            }
 
-            // --- 3. HELPERS ---
-            const getDomain = (url) => {
-                try { return new URL(url).hostname.replace('www.', '').toUpperCase(); } 
-                catch { return "SOURCE"; }
-            };
-            
-            const formatText = (text) => text ? text.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('') : "";
+            getSafeUrl() {
+                const url = this.data.url || '';
+                if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) return url;
+                return '#';
+            }
 
-            // --- 4. CONTENT LOGIC ---
-            const hasDeepDive = (data.analysis && data.analysis.length > 10);
-            
-            // Analysis: Black Text for Max Contrast
-            const analysisHTML = hasDeepDive 
-                ? `<div class="text-black text-sm leading-relaxed space-y-2 font-body editable-analysis">${formatText(data.analysis)}</div>`
-                : `<div id="enrich-container-${data.id}" class="py-4">
-                     <button id="enrich-btn-${data.id}" data-url="${safeUrl}" data-card-id="${data.id}"
-                        class="w-full py-2 bg-white border-2 border-black text-black text-xs font-bold uppercase hover:bg-nesta-yellow transition-colors font-display shadow-sm">
-                        🪄 Generate Deep Dive
-                     </button>
-                   </div>`;
+            toggleEdit() {
+                this.isEditing = !this.isEditing;
+                this.render();
+            }
 
-            // Implication: Dark Grey Box / White Text
-            const implicationHTML = hasDeepDive
-                ? `<div class="bg-nesta-darkgrey p-4 border-l-4 border-white mt-4 shadow-sm">
-                     <h4 class="font-display font-bold text-white uppercase tracking-wider text-xs mb-2">🚀 Why It Matters</h4>
-                     <p class="text-white text-sm italic font-body editable-implication">"${safeImplication}"</p>
-                   </div>`
-                : `<p id="implication-placeholder-${data.id}" class="text-black/50 text-xs italic mt-2 text-center">Waiting for analysis...</p>`;
+            async saveChanges(newHooks, newAnalysis, newImp) {
+                this.data.hook = newHooks;
+                this.data.analysis = newAnalysis;
+                this.data.implication = newImp;
+                this.toggleEdit();
 
-            // --- 5. RENDER HTML ---
-            return `
-            <div id="card-${data.id}" class="signal-card ${style.bg} border-2 ${style.border} p-6 flex flex-col gap-4 relative transition-all duration-300 hover:shadow-hover group" 
-                 data-mission="${safeMissionLabel}" data-url="${safeUrl}">
-                
-                <div class="flex justify-between items-center border-b border-black/10 pb-4">
-                    <span class="px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${style.tag} rounded-sm font-display shadow-sm">
-                        ${safeMissionLabel}
-                    </span>
-                    <button onclick="toggleEdit('${data.id}', this)" aria-label="Edit content" class="text-xs font-bold uppercase text-black/40 hover:text-black transition-colors font-display">
-                        ✎ Edit
-                    </button>
-                </div>
+                try {
+                    await fetch(`${API_BASE_URL}/api/update_signal`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            url: this.data.url,
+                            hook: newHooks,
+                            analysis: newAnalysis,
+                            implication: newImp
+                        }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    showToast('Saved changes', 'success');
+                } catch (e) {
+                    showToast('Failed to save', 'error');
+                }
+            }
 
-                <div>
-                    <h3 class="font-display font-bold text-xl text-black mb-2 leading-tight hover:underline decoration-2">
-                        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>
-                    </h3>
-                    
-                    <h4 class="font-display font-bold text-black uppercase tracking-widest text-xs mb-1 opacity-70">
-                        🤖 The Signal
-                    </h4>
-                    
-                    <p class="text-black text-base font-medium leading-relaxed font-body editable-hook">
-                        ${safeHook}
-                    </p>
-                </div>
+            async handleEnrichment() {
+                const url = this.data.url;
+                if (!url) return;
+                this.isEnriching = true;
+                this.render();
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/enrich_signal`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        this.data.analysis = result.analysis;
+                        this.data.implication = result.implication;
+                        this.isEnriching = false;
+                        this.render();
+                    } else {
+                        this.isEnriching = false;
+                        showToast(result.message || 'Enrichment failed', 'error');
+                        this.render();
+                    }
+                } catch (e) {
+                    this.isEnriching = false;
+                    showToast('Connection Failed', 'error');
+                    this.render();
+                }
+            }
 
-                <div class="mt-2">
-                    <h4 class="font-display font-bold text-black uppercase tracking-widest text-xs mb-2 opacity-70">
-                        🔍 The Shift
-                    </h4>
-                    ${analysisHTML}
-                </div>
+            render() {
+                if (!this.container) return;
 
-                <div id="implication-container-${data.id}">
-                    ${implicationHTML}
-                </div>
+                const missionInfo = this.getMissionInfo();
+                const styles = this.getThemeStyles();
+                const safeUrl = this.getSafeUrl();
+                const hasDeepDive = this.data.analysis && this.data.analysis.length > 10;
 
-                <div class="flex flex-wrap justify-between items-center pt-4 border-t border-black/10 mt-auto gap-4">
-                    <a href="${safeUrl}" target="_blank" rel="noopener noreferrer"
-                       class="text-xs font-bold text-black border-b-2 border-black/20 hover:border-black uppercase tracking-wider flex items-center gap-1 transition-colors font-display">
-                       🔗 ${getDomain(data.url)} ↗
-                    </a>
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col gap-4';
+                wrapper.dataset.cardId = this.id;
+                wrapper.id = this.container.id === 'result-container'
+                    ? `result-container-card-${this.index}`
+                    : `card-wrapper-${this.id}`;
 
-                    <div class="flex gap-3 text-[10px] font-bold text-black/70 font-display uppercase tracking-wider">
-                        <span title="Novelty">Nov: ${safeScores.novelty}/10</span>
-                        <span class="text-black/20">|</span>
-                        <span title="Evidence">Ev: ${safeScores.evidence}/10</span>
-                        <span class="text-black/20">|</span>
-                        <span title="Impact">Imp: ${safeScores.impact}/10</span>
-                    </div>
-                </div>
-                
-                <button id="copy-btn-${data.id}" 
-                    class="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-black text-white px-4 py-2 text-xs font-bold uppercase font-display shadow-lg hover:bg-nesta-blue hover:-translate-y-1">
-                    Copy
-                </button>
-            </div>
-            `;
+                const card = document.createElement('div');
+                card.id = this.id;
+                card.className = `signal-card ${styles.bg} border-2 ${styles.border} p-6 flex flex-col gap-4 relative transition-all duration-300 hover:shadow-hover group`;
+                card.dataset.mission = missionInfo.label;
+                card.dataset.url = safeUrl;
+                card.tabIndex = 0;
+                card.setAttribute('role', 'article');
+                card.setAttribute('aria-label', `Signal card: ${this.data.title || 'Signal'}`);
+
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-center border-b border-black/10 pb-4';
+
+                const missionTag = document.createElement('span');
+                missionTag.className = `px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${styles.tag} rounded-sm font-display shadow-sm`;
+                missionTag.textContent = missionInfo.label;
+
+                const editButton = document.createElement('button');
+                editButton.type = 'button';
+                editButton.className = 'text-xs font-bold uppercase text-black/40 hover:text-black transition-colors font-display';
+                editButton.textContent = this.isEditing ? '💾 Save' : '✎ Edit';
+                editButton.setAttribute('aria-label', this.isEditing ? 'Save edits' : 'Edit content');
+                editButton.addEventListener('click', () => {
+                    if (this.isEditing) {
+                        const hookValue = this.hookInput?.value || '';
+                        const analysisValue = this.analysisInput?.value || '';
+                        const implicationValue = this.implicationInput?.value || '';
+                        this.saveChanges(hookValue.trim(), analysisValue.trim(), implicationValue.trim());
+                    } else {
+                        this.toggleEdit();
+                    }
+                });
+
+                header.appendChild(missionTag);
+                header.appendChild(editButton);
+
+                const body = document.createElement('div');
+                const title = document.createElement('h3');
+                title.className = 'font-display font-bold text-xl text-black mb-2 leading-tight hover:underline decoration-2';
+                const link = document.createElement('a');
+                link.href = safeUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = this.data.title || '';
+                link.setAttribute('aria-label', `Open source for ${this.data.title || 'signal'}`);
+                title.appendChild(link);
+
+                const signalHeading = document.createElement('h4');
+                signalHeading.className = 'font-display font-bold text-black uppercase tracking-widest text-xs mb-1 opacity-70';
+                signalHeading.textContent = '🤖 The Signal';
+
+                body.appendChild(title);
+                body.appendChild(signalHeading);
+
+                if (this.isEditing) {
+                    this.hookInput = createEditableTextarea(this.data.hook || '', 'hook', 'Edit signal hook');
+                    body.appendChild(this.hookInput);
+                } else {
+                    const hookText = document.createElement('p');
+                    hookText.className = 'text-black text-base font-medium leading-relaxed font-body editable-hook';
+                    hookText.textContent = this.data.hook || '';
+                    body.appendChild(hookText);
+                }
+
+                const analysisSection = document.createElement('div');
+                analysisSection.className = 'mt-2';
+                const analysisHeading = document.createElement('h4');
+                analysisHeading.className = 'font-display font-bold text-black uppercase tracking-widest text-xs mb-2 opacity-70';
+                analysisHeading.textContent = '🔍 The Shift';
+                analysisSection.appendChild(analysisHeading);
+
+                if (this.isEditing) {
+                    this.analysisInput = createEditableTextarea(this.data.analysis || '', 'analysis', 'Edit analysis');
+                    analysisSection.appendChild(this.analysisInput);
+                } else if (hasDeepDive) {
+                    const analysisBlock = document.createElement('div');
+                    analysisBlock.className = 'text-black text-sm leading-relaxed space-y-2 font-body editable-analysis';
+                    (this.data.analysis || '').split('\n').filter(Boolean).forEach(line => {
+                        const p = document.createElement('p');
+                        p.textContent = line.trim();
+                        analysisBlock.appendChild(p);
+                    });
+                    analysisSection.appendChild(analysisBlock);
+                } else if (this.isEnriching) {
+                    const loading = document.createElement('div');
+                    loading.className = 'animate-pulse flex flex-col items-center py-2';
+                    const barOne = document.createElement('div');
+                    barOne.className = 'h-1.5 w-32 bg-gray-400 rounded mb-2';
+                    const barTwo = document.createElement('div');
+                    barTwo.className = 'h-1.5 w-24 bg-gray-300 rounded';
+                    const text = document.createElement('span');
+                    text.className = 'text-xs font-bold text-black mt-2';
+                    text.textContent = 'AI is analyzing...';
+                    loading.appendChild(barOne);
+                    loading.appendChild(barTwo);
+                    loading.appendChild(text);
+                    analysisSection.appendChild(loading);
+                } else {
+                    const enrichWrap = document.createElement('div');
+                    enrichWrap.className = 'py-4';
+                    const enrichButton = document.createElement('button');
+                    enrichButton.type = 'button';
+                    enrichButton.className = 'w-full py-2 bg-white border-2 border-black text-black text-xs font-bold uppercase hover:bg-nesta-yellow transition-colors font-display shadow-sm';
+                    enrichButton.textContent = '🪄 Generate Deep Dive';
+                    enrichButton.setAttribute('aria-label', 'Generate deep dive analysis');
+                    enrichButton.addEventListener('click', () => this.handleEnrichment());
+                    enrichWrap.appendChild(enrichButton);
+                    analysisSection.appendChild(enrichWrap);
+                }
+
+                const implicationContainer = document.createElement('div');
+                if (this.isEditing) {
+                    this.implicationInput = createEditableTextarea(this.data.implication || '', 'implication', 'Edit implication');
+                    implicationContainer.appendChild(this.implicationInput);
+                } else if (hasDeepDive) {
+                    const implicationWrap = document.createElement('div');
+                    implicationWrap.className = 'bg-nesta-darkgrey p-4 border-l-4 border-white mt-4 shadow-sm';
+                    const implicationHeading = document.createElement('h4');
+                    implicationHeading.className = 'font-display font-bold text-white uppercase tracking-wider text-xs mb-2';
+                    implicationHeading.textContent = '🚀 Why It Matters';
+                    const implicationText = document.createElement('p');
+                    implicationText.className = 'text-white text-sm italic font-body editable-implication';
+                    implicationText.textContent = `"${this.data.implication || ''}"`;
+                    implicationWrap.appendChild(implicationHeading);
+                    implicationWrap.appendChild(implicationText);
+                    implicationContainer.appendChild(implicationWrap);
+                } else {
+                    const placeholder = document.createElement('p');
+                    placeholder.className = 'text-black/50 text-xs italic mt-2 text-center';
+                    placeholder.textContent = 'Waiting for analysis...';
+                    implicationContainer.appendChild(placeholder);
+                }
+
+                const footer = document.createElement('div');
+                footer.className = 'flex flex-wrap justify-between items-center pt-4 border-t border-black/10 mt-auto gap-4';
+                const sourceLink = document.createElement('a');
+                sourceLink.href = safeUrl;
+                sourceLink.target = '_blank';
+                sourceLink.rel = 'noopener noreferrer';
+                sourceLink.className = 'text-xs font-bold text-black border-b-2 border-black/20 hover:border-black uppercase tracking-wider flex items-center gap-1 transition-colors font-display';
+                sourceLink.textContent = `🔗 ${getDomain(this.data.url)} ↗`;
+                sourceLink.setAttribute('aria-label', 'Open source link');
+
+                const scores = document.createElement('div');
+                scores.className = 'flex gap-3 text-[10px] font-bold text-black/70 font-display uppercase tracking-wider';
+                const novelty = document.createElement('span');
+                novelty.title = 'Novelty';
+                novelty.textContent = `Nov: ${this.data.score_novelty || '-'}/10`;
+                const evidence = document.createElement('span');
+                evidence.title = 'Evidence';
+                evidence.textContent = `Ev: ${this.data.score_evidence || '-'}/10`;
+                const impact = document.createElement('span');
+                impact.title = 'Impact';
+                impact.textContent = `Imp: ${this.data.score_impact || '-'}/10`;
+                const dividerOne = document.createElement('span');
+                dividerOne.className = 'text-black/20';
+                dividerOne.textContent = '|';
+                const dividerTwo = document.createElement('span');
+                dividerTwo.className = 'text-black/20';
+                dividerTwo.textContent = '|';
+                scores.appendChild(novelty);
+                scores.appendChild(dividerOne);
+                scores.appendChild(evidence);
+                scores.appendChild(dividerTwo);
+                scores.appendChild(impact);
+
+                footer.appendChild(sourceLink);
+                footer.appendChild(scores);
+
+                const copyButton = document.createElement('button');
+                copyButton.type = 'button';
+                copyButton.className = 'absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-black text-white px-4 py-2 text-xs font-bold uppercase font-display shadow-lg hover:bg-nesta-blue hover:-translate-y-1';
+                copyButton.textContent = 'Copy';
+                copyButton.setAttribute('aria-label', 'Copy signal summary');
+                copyButton.addEventListener('click', () => copyFormattedCard({ ...this.data, id: `copy-btn-${this.id}` }));
+                copyButton.id = `copy-btn-${this.id}`;
+
+                card.appendChild(header);
+                card.appendChild(body);
+                card.appendChild(analysisSection);
+                card.appendChild(implicationContainer);
+                card.appendChild(footer);
+                card.appendChild(copyButton);
+
+                wrapper.appendChild(card);
+
+                if (this.showActions) {
+                    const actionBar = document.createElement('div');
+                    actionBar.className = 'flex items-center justify-between gap-3';
+                    const actionBtnClass = 'px-3 py-2 rounded-full border-2 border-black text-black transition text-xs font-bold uppercase font-display hover:bg-black hover:text-white';
+
+                    const rejectButton = document.createElement('button');
+                    rejectButton.type = 'button';
+                    rejectButton.className = actionBtnClass;
+                    rejectButton.title = 'Reject';
+                    rejectButton.textContent = '👎 Reject';
+                    rejectButton.setAttribute('aria-label', 'Reject signal');
+                    rejectButton.addEventListener('click', () => rejectSignal(this.data.url, wrapper.id));
+                    actionBar.appendChild(rejectButton);
+
+                    const shortlistButton = document.createElement('button');
+                    shortlistButton.type = 'button';
+                    shortlistButton.className = actionBtnClass;
+                    shortlistButton.textContent = '📋 Copy';
+                    shortlistButton.setAttribute('aria-label', 'Copy and shortlist signal');
+                    shortlistButton.id = `copy-shortlist-${this.id}`;
+                    shortlistButton.addEventListener('click', () => shortlistSignal({ ...this.data, url: this.data.url, id: `copy-shortlist-${this.id}` }));
+                    actionBar.appendChild(shortlistButton);
+
+                    const keepButton = document.createElement('button');
+                    keepButton.type = 'button';
+                    keepButton.className = actionBtnClass;
+                    keepButton.title = 'Star';
+                    keepButton.textContent = '⭐ Star';
+                    keepButton.id = `keep-btn-${this.id}`;
+                    keepButton.setAttribute('aria-label', 'Star signal');
+                    keepButton.addEventListener('click', () => keepSignal(this.data.url, `keep-btn-${this.id}`));
+                    actionBar.appendChild(keepButton);
+
+                    wrapper.appendChild(actionBar);
+                }
+
+                const existing = this.container.querySelector(`[data-card-id="${this.id}"]`);
+                if (existing) {
+                    existing.replaceWith(wrapper);
+                } else {
+                    this.container.appendChild(wrapper);
+                }
+            }
         }
 
         function getLensBadges(lensesStr, styleClass) {
@@ -1095,11 +1279,11 @@
 
         // --- DATA MANAGEMENT ---
         async function ensureDatabaseLoaded() {
-            if (currentSaved.length === 0) {
+            if (AppState.currentSaved.length === 0) {
                 try {
                     const res = await fetch(`${API_BASE_URL}/api/saved`);
                     if(!res.ok) throw new Error();
-                    currentSaved = (await res.json()).reverse(); // Newest first
+                    AppState.currentSaved = (await res.json()).reverse(); // Newest first
                 } catch(e) { console.error("DB Load Error", e); }
             }
         }
@@ -1108,7 +1292,7 @@
             const grid = document.getElementById('preview-grid');
             try {
                 await ensureDatabaseLoaded();
-                const data = currentSaved;
+                const data = AppState.currentSaved;
                 if(!data || data.length === 0) { grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400">Database empty.</div>'; return; }
                 
                 const recent = data.slice(0, 3);
@@ -1146,11 +1330,11 @@
             const list = document.getElementById('saved-list');
             if (!list) return;
             list.innerHTML = '';
-            if (!currentSaved || currentSaved.length === 0) {
+            if (!AppState.currentSaved || AppState.currentSaved.length === 0) {
                 list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
                 return;
             }
-            currentSaved.forEach((sig, i) => {
+            AppState.currentSaved.forEach((sig, i) => {
                 const normalized = normalizeSignal(sig);
                 createSignalCard(normalized, i, true, 'saved-list');
             });
@@ -1158,7 +1342,7 @@
 
         // --- UNIFIED FILTER LOGIC ---
         async function switchFilter(type) {
-            activeFilter = type;
+            AppState.activeFilter = type;
             
             // UI Toggle
             document.querySelectorAll('.filter-view-btn').forEach(b => {
@@ -1175,38 +1359,38 @@
             const listContainer = document.getElementById('result-container');
             
             if (type === 'scan') {
-                if (lastScanResults.length === 0) {
-                    currentSignals = [];
+                if (AppState.lastScanResults.length === 0) {
+                    AppState.currentSignals = [];
                     listContainer.innerHTML = `<div class="col-span-full py-16 text-center border-2 border-dashed border-gray-200 rounded-xl"><p class="text-nesta-darkgrey font-bold">No active scan results.</p><p class="text-xs text-gray-400 mt-1">Enter a topic above to initiate a scan.</p></div>`;
                     renderRadar(); // Clears radar
                     updateDownloadButton();
                     return;
                 }
-                currentSignals = lastScanResults;
+                AppState.currentSignals = AppState.lastScanResults;
             } else {
                 await ensureDatabaseLoaded();
-                if (currentSaved.length === 0) {
+                if (AppState.currentSaved.length === 0) {
                     listContainer.innerHTML = `<div class="text-center py-10">Database offline or empty.</div>`;
                     return;
                 }
                 
                 let filtered = [];
                 if (type === 'recent') {
-                    filtered = currentSaved.slice(0, 10);
+                    filtered = AppState.currentSaved.slice(0, 10);
                 } else if (type === 'funding') {
                     const keywords = ['fund', 'invest', 'venture', 'capital', 'raise', 'grant', 'million', 'billion', 'round'];
-                    filtered = currentSaved.filter(s => {
+                    filtered = AppState.currentSaved.filter(s => {
                         const txt = ((s.Title||'') + (s.Hook||'') + (s.User_Comment||'')).toLowerCase();
                         return keywords.some(k => txt.includes(k));
                     });
                 } else if (type === 'tech') {
-                    filtered = currentSaved.filter(s => {
+                    filtered = AppState.currentSaved.filter(s => {
                         const lenses = (s.Lenses || '').toLowerCase();
                         const hook = (s.Hook || '').toLowerCase();
                         return lenses.includes('tech') || hook.includes('ai') || hook.includes('quantum') || hook.includes('novel');
                     });
                 }
-                currentSignals = filtered.map(normalizeSignal);
+                AppState.currentSignals = filtered.map(normalizeSignal);
             }
             
             // Re-render both views
@@ -1217,7 +1401,7 @@
         function renderList() {
             const container = document.getElementById('result-container');
             container.innerHTML = '';
-            currentSignals.forEach((sig, i) => createSignalCard(sig, i));
+            AppState.currentSignals.forEach((sig, i) => createSignalCard(sig, i));
             updateDownloadButton();
         }
 
@@ -1246,128 +1430,7 @@
             return textarea;
         }
 
-        function toggleEdit(cardId) {
-            const card = document.getElementById(`card-${cardId}`);
-            if (!card) return;
-            const button = card.querySelector('button[aria-label="Edit content"]');
-            if (!button) return;
-
-            const isEditing = button.dataset.editing === 'true';
-            if (isEditing) {
-                saveEdits(cardId, button);
-                return;
-            }
-
-            button.dataset.editing = 'true';
-            button.textContent = '💾 Save';
-
-            const hookEl = card.querySelector('.editable-hook');
-            if (hookEl) {
-                const hookInput = createEditableTextarea(hookEl.textContent.trim(), 'hook', 'Edit signal hook');
-                hookEl.replaceWith(hookInput);
-            }
-
-            const analysisBlock = card.querySelector('.editable-analysis') || card.querySelector(`#enrich-container-${cardId}`);
-            if (analysisBlock) {
-                const analysisText = analysisBlock.id && analysisBlock.id.startsWith('enrich-container')
-                    ? ''
-                    : analysisBlock.textContent.trim();
-                const analysisInput = createEditableTextarea(analysisText, 'analysis', 'Edit analysis');
-                analysisBlock.replaceWith(analysisInput);
-            }
-
-            const implicationBlock = card.querySelector('.editable-implication');
-            const implicationContainer = card.querySelector(`#implication-container-${cardId}`);
-            const implicationText = implicationBlock
-                ? implicationBlock.textContent.replace(/^"|"$/g, '').trim()
-                : '';
-            const implicationInput = createEditableTextarea(implicationText, 'implication', 'Edit implication');
-            if (implicationBlock) {
-                implicationBlock.replaceWith(implicationInput);
-            } else if (implicationContainer) {
-                implicationContainer.innerHTML = '';
-                implicationContainer.appendChild(implicationInput);
-            }
-        }
-
-        async function saveEdits(cardId, button) {
-            const card = document.getElementById(`card-${cardId}`);
-            if (!card) return;
-
-            const hookInput = card.querySelector('textarea[data-field="hook"]');
-            const analysisInput = card.querySelector('textarea[data-field="analysis"]');
-            const implicationInput = card.querySelector('textarea[data-field="implication"]');
-
-            const hook = hookInput ? hookInput.value.trim() : '';
-            const analysis = analysisInput ? analysisInput.value.trim() : '';
-            const implication = implicationInput ? implicationInput.value.trim() : '';
-            const url = card.dataset.url || '';
-
-            button.disabled = true;
-            button.textContent = 'Saving...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/update_signal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, hook, analysis, implication })
-                });
-                if (!response.ok) {
-                    throw new Error('Save failed');
-                }
-                showToast('Signal updated', 'success');
-            } catch (error) {
-                showToast('Update failed', 'error');
-            }
-
-            if (hookInput) {
-                const hookParagraph = document.createElement('p');
-                hookParagraph.className = 'text-nesta-black text-base font-medium leading-relaxed mt-2 font-body editable-hook';
-                hookParagraph.textContent = hook || '';
-                hookInput.replaceWith(hookParagraph);
-            }
-
-            const analysisSection = analysisInput?.parentElement || card.querySelector(`#enrich-container-${cardId}`)?.parentElement;
-            if (analysisSection) {
-                const analysisHeading = analysisSection.querySelector('h4');
-                const headingMarkup = analysisHeading ? analysisHeading.outerHTML : '';
-                const hasDeepDive = analysis.length > 10;
-                if (hasDeepDive) {
-                    const analysisHtml = analysis
-                        .split('\n')
-                        .map(line => `<p>${escapeHtml(line)}</p>`)
-                        .join('');
-                    analysisSection.innerHTML = `
-                        ${headingMarkup}
-                        <div class="text-nesta-black text-sm font-body space-y-2 editable-analysis">
-                            ${analysisHtml}
-                        </div>
-                    `;
-                } else {
-                    analysisSection.innerHTML = `
-                        ${headingMarkup}
-                        <div id="enrich-container-${cardId}" class="py-4 text-center">
-                            <button onclick="triggerEnrichment('${url}', '${cardId}')" class="px-4 py-2 bg-white border-2 border-nesta-black font-display font-bold text-xs hover:bg-nesta-yellow transition-colors">🪄 Generate Deep Dive</button>
-                        </div>
-                    `;
-                }
-            }
-
-            const implicationContainer = card.querySelector(`#implication-container-${cardId}`);
-            if (implicationContainer) {
-                if (analysis.length > 10) {
-                    implicationContainer.innerHTML = `
-                        <p class="text-white text-sm italic font-body editable-implication">"${escapeHtml(implication)}"</p>
-                    `;
-                } else {
-                    implicationContainer.innerHTML = '<p class="text-nesta-sand text-xs italic font-body">Waiting for analysis...</p>';
-                }
-            }
-
-            button.dataset.editing = 'false';
-            button.textContent = '✎ Edit';
-            button.disabled = false;
-        }
+        
 
         function showToast(msg, type='success') {
             const el = document.getElementById('toast');
@@ -1405,7 +1468,7 @@
         function updateDownloadButton() {
             const button = document.getElementById('download-signals-btn');
             if (!button) return;
-            if (lastScanResults.length > 0) {
+            if (AppState.lastScanResults.length > 0) {
                 button.classList.remove('hidden');
             } else {
                 button.classList.add('hidden');
@@ -1449,13 +1512,13 @@
         function renderNetwork() {
             const container = document.getElementById('signalNetwork');
             if (!container) return;
-            if (!currentSignals.length) {
+            if (!AppState.currentSignals.length) {
                 container.innerHTML = '<div class="text-center text-gray-400 font-bold py-10">No signals to visualise.</div>';
                 return;
             }
 
             const nodes = new vis.DataSet(
-                currentSignals.map((signal, index) => ({
+                AppState.currentSignals.map((signal, index) => ({
                     id: index,
                     label: signal.title || `Signal ${index + 1}`,
                     title: signal.hook || '',
@@ -1469,11 +1532,11 @@
                     .replace(/[^a-z0-9\s]/g, ' ')
                     .split(/\s+/) 
 
-            for (let i = 0; i < currentSignals.length; i++) {
-                const signalA = currentSignals[i];
+            for (let i = 0; i < AppState.currentSignals.length; i++) {
+                const signalA = AppState.currentSignals[i];
                 const wordsA = new Set(sanitize(signalA.title));
-                for (let j = i + 1; j < currentSignals.length; j++) {
-                    const signalB = currentSignals[j];
+                for (let j = i + 1; j < AppState.currentSignals.length; j++) {
+                    const signalB = AppState.currentSignals[j];
                     const wordsB = sanitize(signalB.title);
                     const sharedWord = wordsB.find((word) => wordsA.has(word));
                     const shareMission = signalA.mission && signalB.mission && signalA.mission === signalB.mission;
@@ -1511,14 +1574,14 @@
                 },
             };
 
-            if (networkChart) {
-                networkChart.destroy();
+            if (AppState.networkChart) {
+                AppState.networkChart.destroy();
             }
-            networkChart = new vis.Network(container, data, options);
+            AppState.networkChart = new vis.Network(container, data, options);
         }
 
         async function synthesizeTrend() {
-            if (!currentSignals.length) {
+            if (!AppState.currentSignals.length) {
                 showToast('No signals to synthesise.', 'error');
                 return;
             }
@@ -1526,11 +1589,11 @@
                 const res = await fetch(`${API_BASE_URL}/api/synthesize`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ signals: currentSignals }),
+                    body: JSON.stringify({ signals: AppState.currentSignals }),
                 });
                 if (!res.ok) throw new Error();
                 const data = await res.json();
-                currentSynth = data;
+                AppState.currentSynth = data;
 
                 const container = document.getElementById('result-container');
                 if (!container) return;
@@ -1553,7 +1616,7 @@
         }
 
         function generateBriefing() {
-            if (!currentSignals.length) {
+            if (!AppState.currentSignals.length) {
                 showToast('No signals to export.', 'error');
                 return;
             }
@@ -1571,12 +1634,12 @@
             doc.text(`Date: ${dateLabel}`, 14, y);
             y += 10;
 
-            if (currentSynth) {
+            if (AppState.currentSynth) {
                 doc.setFontSize(12);
                 doc.text('Executive Summary', 14, y);
                 y += 6;
                 doc.setFontSize(10);
-                const summary = `${currentSynth.trend_name || ''} — ${currentSynth.analysis || ''} ${currentSynth.implication || ''}`.trim();
+                const summary = `${AppState.currentSynth.trend_name || ''} — ${AppState.currentSynth.analysis || ''} ${AppState.currentSynth.implication || ''}`.trim();
                 const summaryLines = doc.splitTextToSize(summary, 180);
                 doc.text(summaryLines, 14, y);
                 y += summaryLines.length * 5 + 4;
@@ -1587,7 +1650,7 @@
             y += 6;
             doc.setFontSize(10);
 
-            currentSignals.slice(0, 6).forEach((signal) => {
+            AppState.currentSignals.slice(0, 6).forEach((signal) => {
                 const block = `${signal.title || 'Untitled'} (Score: ${signal.score || '-'})\n${signal.hook || ''}`;
                 const lines = doc.splitTextToSize(block, 180);
                 if (y + lines.length * 5 > 280) {
@@ -1625,15 +1688,15 @@
         }
 
         function stopScan() {
-            if (scanController) {
-                scanController.abort();
-                scanController = null;
+            if (AppState.scanController) {
+                AppState.scanController.abort();
+                AppState.scanController = null;
                 showToast('Scan Cancelled', 'error');
             }
         }
 
         async function generateSignal(isBroad) {
-            if (isProcessing) return;
+            if (AppState.isProcessing) return;
             const topic = document.getElementById('topic-input').value;
             const container = document.getElementById('result-container');
             const signalCount = parseInt(document.getElementById('signal-count').value) || 5;
@@ -1641,7 +1704,7 @@
             
             if (!topic && !isBroad) return showToast("Please enter a topic", "error");
 
-            isProcessing = true;
+            AppState.isProcessing = true;
             setScanningState(true); 
             switchView('list');
             // Force filter to 'scan' mode
@@ -1680,8 +1743,8 @@
                 scan_mode: getSelectedScanMode()
             };
 
-            scanController = new AbortController();
-            const signal = scanController.signal;
+            AppState.scanController = new AbortController();
+            const signal = AppState.scanController.signal;
 
             let timeoutId;
             try {
@@ -1695,8 +1758,8 @@
                 }
 
                 timeoutId = setTimeout(() => {
-                    if (scanController) {
-                        scanController.abort();
+                    if (AppState.scanController) {
+                        AppState.scanController.abort();
                     }
                 }, requestTimeoutMs);
 
@@ -1709,8 +1772,8 @@
 
                 if(!res.ok) throw new Error();
 
-                currentSignals = [];
-                lastScanResults = [];
+                AppState.currentSignals = [];
+                AppState.lastScanResults = [];
 
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
@@ -1732,10 +1795,10 @@
                                 document.getElementById('loading-status-text').innerText = msg.message;
                             } else if (msg.type === 'signal') {
                                 const norm = normalizeSignal(msg.data);
-                                currentSignals.push(norm);
-                                createSignalCard(norm, currentSignals.length - 1);
+                                AppState.currentSignals.push(norm);
+                                createSignalCard(norm, AppState.currentSignals.length - 1);
                                 autosaveSignal(norm);
-                                lastScanResults = currentSignals;
+                                AppState.lastScanResults = AppState.currentSignals;
                                 updateDownloadButton();
                             } else if (msg.type === 'error') {
                                 showToast(msg.message, 'error');
@@ -1758,120 +1821,17 @@
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
-                isProcessing = false;
-                scanController = null;
+                AppState.isProcessing = false;
+                AppState.scanController = null;
                 setScanningState(false);
                 stopLiveTerminal();
             }
         }
 
         function createSignalCard(signal, index, showActions = true, containerId = 'result-container') {
-            const container = document.getElementById(containerId);
             const linkUrl = signal.final_url || signal.url;
             const cardData = { ...signal, id: `card-${index}`, url: linkUrl };
-            const cardHTML = renderCard(cardData);
-            
-            // Create a temporary container to convert string to DOM node
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = cardHTML.trim();
-            const cardElement = tempDiv.firstChild;
-            const copyButton = cardElement.querySelector(`#copy-btn-${cardData.id}`);
-            if (copyButton) {
-                copyButton.addEventListener('click', () => copyFormattedCard(cardData));
-            }
-            const enrichButton = cardElement.querySelector(`#enrich-btn-${cardData.id}`);
-            if (enrichButton) {
-                enrichButton.addEventListener('click', () => {
-                    const url = enrichButton.dataset.url || '';
-                    const cardId = enrichButton.dataset.cardId || cardData.id;
-                    triggerEnrichment(url, cardId);
-                });
-            }
-
-            const wrapper = document.createElement('div');
-            wrapper.className = 'flex flex-col gap-4';
-            wrapper.id = `card-wrapper-${cardData.id}`;
-            wrapper.appendChild(cardElement);
-
-            if (showActions) {
-                const actionBar = document.createElement('div');
-                const actionBtnClass = 'px-3 py-2 rounded-full border-2 border-black text-black transition text-xs font-bold uppercase font-display hover:bg-black hover:text-white';
-                actionBar.className = 'flex items-center justify-between gap-3';
-                actionBar.innerHTML = `
-                    <button type="button" id="reject-btn-${cardData.id}" class="${actionBtnClass}" title="Reject">
-                        👎 Reject
-                    </button>
-                    <button type="button" id="copy-shortlist-${cardData.id}" class="${actionBtnClass}">
-                        📋 Copy
-                    </button>
-                    <button type="button" id="keep-btn-${cardData.id}" class="${actionBtnClass}" title="Star">
-                        ⭐ Star
-                    </button>
-                `;
-                wrapper.appendChild(actionBar);
-                const rejectButton = actionBar.querySelector(`#reject-btn-${cardData.id}`);
-                if (rejectButton) {
-                    rejectButton.addEventListener('click', () => rejectSignal(linkUrl, wrapper.id));
-                }
-                const shortlistButton = actionBar.querySelector(`#copy-shortlist-${cardData.id}`);
-                if (shortlistButton) {
-                    shortlistButton.addEventListener('click', () => shortlistSignal({ ...signal, url: linkUrl, id: `copy-shortlist-${cardData.id}` }));
-                }
-                const keepButton = actionBar.querySelector(`#keep-btn-${cardData.id}`);
-                if (keepButton) {
-                    keepButton.addEventListener('click', () => keepSignal(linkUrl, `keep-btn-${cardData.id}`));
-                }
-            }
-
-            container.appendChild(wrapper);
-        }
-
-        async function triggerEnrichment(url, cardId) {
-            const container = document.getElementById(`enrich-container-${cardId}`);
-            if (!container) return;
-
-            // Loading State
-            container.innerHTML = `
-                <div class="animate-pulse flex flex-col items-center py-2">
-                    <div class="h-1.5 w-32 bg-gray-400 rounded mb-2"></div>
-                    <div class="h-1.5 w-24 bg-gray-300 rounded"></div>
-                    <span class="text-xs font-bold text-black mt-2">AI is analyzing...</span>
-                </div>
-            `;
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/enrich_signal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-
-                const result = await response.json();
-
-                if (result.status === 'success') {
-                    // 1. Update Analysis (The Shift)
-                    const parentDiv = container.parentElement;
-                    parentDiv.innerHTML = `
-                        <h4 class="font-display font-bold text-nesta-black uppercase tracking-wider text-xs mb-3">🔍 The Shift</h4>
-                        <div class="text-nesta-black text-sm font-body space-y-2 fade-in editable-analysis">
-                            ${result.analysis.split('\n').map(l => `<p>${escapeHtml(l)}</p>`).join('')}
-                        </div>
-                    `;
-
-                    // 2. Update Implication (Why It Matters)
-                    const impContainer = document.getElementById(`implication-container-${cardId}`);
-                    if (impContainer) {
-                        impContainer.innerHTML = `
-                            <p class="text-white text-sm italic font-body fade-in editable-implication">"${escapeHtml(result.implication)}"</p>
-                        `;
-                    }
-                } else {
-                    container.innerHTML = `<span class="text-red-600 text-xs font-bold">Error: ${result.message}</span>`;
-                }
-            } catch (e) {
-                console.error(e);
-                container.innerHTML = `<span class="text-red-600 text-xs font-bold">Connection Failed</span>`;
-            }
+            return new SignalCard(cardData, containerId, showActions, index);
         }
 
         async function updateSignalStatus(url, status) {
@@ -1928,8 +1888,8 @@
             if (card) {
                 card.remove();
             }
-            currentSignals = currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
-            lastScanResults = lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
+            AppState.currentSignals = AppState.currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
+            AppState.lastScanResults = AppState.lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
             const normalizeUrl = (value) => {
                 if (!value) return '';
                 try {
@@ -1939,7 +1899,7 @@
                 }
             };
             const targetUrl = normalizeUrl(url);
-            currentSaved = currentSaved.filter(signal => normalizeUrl(signal.URL || signal.url) !== targetUrl); // Ensure case-insensitive comparison for consistency.
+            AppState.currentSaved = AppState.currentSaved.filter(signal => normalizeUrl(signal.URL || signal.url) !== targetUrl); // Ensure case-insensitive comparison for consistency.
             updateDownloadButton();
             showToast('Signal rejected', 'normal');
         }
@@ -2010,10 +1970,10 @@
                 await navigator.clipboard.writeText(text);
                 const btn = document.getElementById(signalData?.id || '');
                 if (btn) {
-                    const originalIcon = btn.innerHTML;
-                    btn.innerHTML = '✅ Copied!';
+                    const originalIcon = btn.textContent;
+                    btn.textContent = '✅ Copied!';
                     setTimeout(() => {
-                        btn.innerHTML = originalIcon;
+                        btn.textContent = originalIcon;
                     }, 2000);
                 }
                 showToast('Copied!', 'success');
@@ -2033,7 +1993,7 @@
                 const data = await res.json();
                 list.innerHTML = '';
                 // NEWEST FIRST for full database view as well
-                currentSaved = data.reverse(); 
+                AppState.currentSaved = data.reverse(); 
                 renderDatabase();
             } catch(e) { list.innerHTML = '<div class="col-span-full text-center text-nesta-red py-10 font-bold">Failed to load database.</div>'; }
         }
@@ -2053,15 +2013,15 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ url, title, shareable: shareVal, user_status: userStatus, user_comment: commentVal, feedback: commentVal })
                 });
-                if(res.ok) { showToast('Database updated'); currentSaved = []; loadPreview(); }
+                if(res.ok) { showToast('Database updated'); AppState.currentSaved = []; loadPreview(); }
                 else throw new Error();
             } catch(e) { showToast('Update failed', 'error'); }
         }
 
         function downloadCSV() {
-            if(!currentSaved || currentSaved.length === 0) return showToast('No data to export', 'error');
+            if(!AppState.currentSaved || AppState.currentSaved.length === 0) return showToast('No data to export', 'error');
             let csv = "Title,URL,Score,Mission,Hook,Date,Status,Notes\n";
-            currentSaved.forEach(r => { csv += `"${r.Title}","${r.URL}",${r.Score},"${r.Mission}","${(r.Hook||"").replace(/"/g, '""')}",${r.Source_Date},${r.Shareable},"${r.User_Comment||""}"\n`; });
+            AppState.currentSaved.forEach(r => { csv += `"${r.Title}","${r.URL}",${r.Score},"${r.Mission}","${(r.Hook||"").replace(/"/g, '""')}",${r.Source_Date},${r.Shareable},"${r.User_Comment||""}"\n`; });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `Signal_Export_${new Date().toISOString().split('T')[0]}.csv`;
@@ -2082,10 +2042,10 @@
 
         function renderRadar() {
             const canvas = document.getElementById('signalRadar');
-            if (radarChart) radarChart.destroy();
+            if (AppState.radarChart) AppState.radarChart.destroy();
 
             // 1. Prepare Data
-            const dataPoints = currentSignals.map((s, i) => ({
+            const dataPoints = AppState.currentSignals.map((s, i) => ({
                 x: s.score_novelty || Math.random() * 10,
                 y: s.score_evidence || Math.random() * 10,
                 r: (s.score / 6) + 5,
@@ -2132,7 +2092,7 @@
             };
 
             // 3. Render Chart
-            radarChart = new Chart(canvas, {
+            AppState.radarChart = new Chart(canvas, {
                 type: 'bubble',
                 data: {
                     datasets: [{
