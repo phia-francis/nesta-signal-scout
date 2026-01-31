@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     )
     GOOGLE_CREDENTIALS: str | None = None
     SHEET_ID: str | None = None
+    CHAT_MODEL: str = "gpt-4o-mini"
 
     PROJECT_NAME: str = "Nesta Signal Scout"
     CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
