@@ -18,6 +18,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/standalone/umd/vis-network.min.js" integrity="sha512-9YVQZyV2hlSqEXZDwSEVia7u4T+qBkLE7KYG24LalL3J1zoQJXAiWpobprig/vGhV1VCfPIxF4EvHDYCSrSpmw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js" integrity="sha512-+EeCylkt9WHJk5tGJxYdecHOcXFRME7qnbsfeMsdQL6NUPYm2+uGFmyleEqsmVoap/f3dN/sc3BX9t9kHXkHHg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <link rel="stylesheet" href="./static/css/styles.css">
     
     <script>
         tailwind.config = {
@@ -75,11 +77,7 @@
     </script>
 
     <style>
-        /* FONTS */
-        @font-face { font-family: 'Zosia Display'; src: url('/static/Zosia-Display.woff2') format('woff2'); font-weight: bold; font-style: normal; }
-        @font-face { font-family: 'Averta'; src: url('/static/Averta-Regular.otf') format('opentype'); font-weight: normal; font-style: normal; }
-        @font-face { font-family: 'Averta'; src: url('/static/Averta-Semibold.otf') format('opentype'); font-weight: bold; font-style: normal; }
-
+        
         body { font-family: 'Averta', sans-serif; background-color: #F9FAFB; color: #0F294A; }
         h1, h2, h3, .brand-font { font-family: 'Zosia Display', sans-serif; }
 
@@ -242,7 +240,7 @@
                 </div>
 
                 <div class="md:col-span-8 space-y-3">
-                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</label>
+                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</span>
                     <div class="flex flex-wrap gap-3">
                         <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Mainstream tech journalism and industry reports.">
                             <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
@@ -296,7 +294,7 @@
                 </div>
 
                 <div class="lg:col-span-8 space-y-3">
-                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">SOURCE FILTERS (Multi-Select)</label>
+                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">SOURCE FILTERS (Multi-Select)</span>
                     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="source-bias-container">
                         <div class="bias-chip relative">
                             <input type="checkbox" id="bias-policy" name="source_bias" value="Policy" class="peer sr-only">
@@ -359,20 +357,6 @@
 
                     <div class="h-8 w-px bg-gray-200 mx-2 hidden lg:block"></div>
 
-                    <div class="relative inline-block w-full md:w-auto">
-                        <select id="missionFilter" onchange="filterFeed()"
-                            class="w-full md:w-64 appearance-none bg-white border-2 border-black px-4 py-3 pr-8 text-xs font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-yellow-400 transition-shadow cursor-pointer">
-                            <option value="all">⚡ All Missions</option>
-                            <option value="🌳 A Sustainable Future">🌳 A Sustainable Future</option>
-                            <option value="📚 A Fairer Start">📚 A Fairer Start</option>
-                            <option value="❤️‍🩹 A Healthy Life">❤️‍🩹 A Healthy Life</option>
-                            <option value="adjacent">🔗 Mission Adjacent</option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-black">
-                            <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                        </div>
-                    </div>
-                    
                     <button onclick="generateSignal(true)" id="broad-btn" class="btn-interactive px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-gray-50 rounded border border-transparent hover:border-nesta-blue/20">Broad Scan</button>
                     
                     <button id="search-btn" onclick="generateSignal(false)" class="hidden btn-interactive px-8 py-3 bg-nesta-blue text-white text-sm font-bold rounded shadow-lg hover:bg-blue-700 hover:shadow-xl flex items-center gap-3">
@@ -583,6 +567,6 @@
     </div>
 
     <script src="friction-config.js"></script>
-    <script type="module" src="/static/js/app.js"></script>
+    <script type="module" src="./static/js/app.js"></script>
 </body>
 </html>
