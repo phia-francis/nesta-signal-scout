@@ -19,3 +19,39 @@
   font-weight: bold;
   font-style: normal;
 }
+
+/* --- Modern Custom Scrollbar (Matches Nesta UI) --- */
+
+/* Target the specific class we added to the cards */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* Slim but usable */
+  height: 6px; /* For horizontal scrolling if needed */
+}
+
+/* The Background Track - Keep it subtle/invisible */
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; 
+  border-radius: 10px;
+  margin: 4px 0; /* Keeps scrollbar away from top/bottom edges */
+}
+
+/* The Moving Thumb - Uses Nesta Navy with transparency */
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(15, 41, 74, 0.15); /* #0F294A at 15% opacity */
+  border-radius: 10px; /* Fully rounded pill shape */
+  border: 1px solid transparent; /* padding effect */
+  background-clip: content-box;
+  transition: background-color 0.3s ease;
+}
+
+/* Hover State - Darker to indicate interaction */
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 41, 74, 0.4); /* #0F294A at 40% opacity */
+  cursor: pointer;
+}
+
+/* Firefox Support (Standard Property) */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 41, 74, 0.2) transparent;
+}
