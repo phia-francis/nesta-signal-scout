@@ -55,3 +55,33 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(15, 41, 74, 0.2) transparent;
 }
+
+/* --- Modern Range Slider --- */
+.nesta-slider {
+  -webkit-appearance: none; /* Remove default styling */
+  width: 100%;
+  height: 6px; /* Slim track */
+  background: #E5E7EB; /* Light Grey Track */
+  border-radius: 99px;
+  outline: none;
+}
+
+/* The Slider Handle (Thumb) */
+.nesta-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0F294A; /* Nesta Navy */
+  cursor: pointer;
+  border: 2px solid white; /* White border for pop */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.1s ease;
+}
+
+/* Hover Effect */
+.nesta-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2); /* Grow slightly on hover */
+  background: #2e53fa; /* Lighter Blue on interaction */
+}
