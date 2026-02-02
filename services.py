@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlunparse
 
@@ -26,7 +27,12 @@ class SheetService:
     def __init__(self, credentials_json: Optional[str], sheet_id: Optional[str]):
         self.credentials_json = credentials_json
         self.sheet_id = sheet_id
+        self._executor = ThreadPoolExecutor(max_workers=3)
 
+    async def _run_in_executor(self, func, *args):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, func, *args)
+    
     def _get_sheet(self):
         if not self.credentials_json or not self.sheet_id:
             LOGGER.warning("Google Sheets credentials missing.")
@@ -44,7 +50,7 @@ class SheetService:
             LOGGER.warning("Google Sheets auth error: %s", exc)
             return None
 
-    def ensure_headers(self, sheet) -> None:
+    def _ensure_headers(self, sheet) -> None:
         expected_headers = [
             "Title",
             "Score",
@@ -71,13 +77,16 @@ class SheetService:
         except Exception as exc:
             LOGGER.warning("Header check failed: %s", exc)
 
-    def get_records(self, include_rejected: bool = False) -> List[Dict[str, Any]]:
-        sheet = self._get_sheet()
+    async def ensure_headers(self, sheet) -> None:
+        await self._run_in_executor(self._ensure_headers, sheet)
+
+    async def get_records(self, include_rejected: bool = False) -> List[Dict[str, Any]]:
+        sheet = await self._run_in_executor(self._get_sheet)
         if not sheet:
             return []
-        self.ensure_headers(sheet)
+        await self.ensure_headers(sheet)
         try:
-            rows = sheet.get_all_values()
+            rows = await self._run_in_executor(sheet.get_all_values)
             if not rows:
                 return []
             headers = rows[0]
@@ -98,11 +107,15 @@ class SheetService:
             LOGGER.warning("Sheet read error: %s", exc)
             return []
 
-    def upsert_signal(self, signal: Dict[str, Any]) -> None:
-        sheet = self._get_sheet()
+    async def get_existing_urls(self) -> List[str]:
+        records = await self.get_records(include_rejected=True)
+        return [str(rec.get("URL", "")).strip() for rec in records if rec.get("URL")]
+
+    async def upsert_signal(self, signal: Dict[str, Any]) -> None:
+        sheet = await self._run_in_executor(self._get_sheet)
         if not sheet:
             return
-        self.ensure_headers(sheet)
+        await self.ensure_headers(sheet)
 
         incoming_status = str(signal.get("user_status") or signal.get("User_Status") or "").strip()
         incoming_shareable = signal.get("shareable") or signal.get("Shareable") or "Maybe"
@@ -140,7 +153,7 @@ class SheetService:
         ]
 
         try:
-            records = self.get_records(include_rejected=True)
+            records = await self.get_records(include_rejected=True)
             match_row = None
             incoming_url = str(signal.get("url", "")).strip().lower()
             for rec in records:
@@ -148,18 +161,18 @@ class SheetService:
                     match_row = rec.get("_row")
                     break
             if match_row:
-                sheet.update(f"A{match_row}:Q{match_row}", [row_data])
+                await self._run_in_executor(sheet.update, f"A{match_row}:Q{match_row}", [row_data])
             else:
-                sheet.append_row(row_data)
+                await self._run_in_executor(sheet.append_row, row_data)
         except Exception as exc:
             LOGGER.warning("Upsert error: %s", exc)
 
-    def update_signal_by_url(self, req: UpdateSignalRequest) -> Dict[str, str]:
-        sheet = self._get_sheet()
+    async def update_signal_by_url(self, req: UpdateSignalRequest) -> Dict[str, str]:
+        sheet = await self._run_in_executor(self._get_sheet)
         if not sheet:
             raise RuntimeError("Google Sheets unavailable")
-        self.ensure_headers(sheet)
-        records = self.get_records(include_rejected=True)
+        await self.ensure_headers(sheet)
+        records = await self.get_records(include_rejected=True)
         target_url = str(req.url or "").strip().lower()
         if not target_url:
             raise ValueError("URL is required")
@@ -169,7 +182,8 @@ class SheetService:
                 match_row = rec.get("_row")
                 break
         if not match_row:
-            sheet.append_row(
+            await self._run_in_executor(
+                sheet.append_row,
                 [
                     req.title or "",
                     req.score if req.score is not None else 0,
@@ -192,7 +206,7 @@ class SheetService:
             )
             return {"status": "success", "message": "Signal autosaved (created)"}
 
-        headers = sheet.row_values(1)
+        headers = await self._run_in_executor(sheet.row_values, 1)
         header_lookup = {header: idx for idx, header in enumerate(headers)}
         field_map = {
             "title": "Title",
@@ -221,15 +235,15 @@ class SheetService:
                 cells.append(gspread.Cell(match_row, col_idx + 1, value))
 
         if cells:
-            sheet.update_cells(cells)
+            await self._run_in_executor(sheet.update_cells, cells)
         return {"status": "success", "message": "Signal autosaved"}
 
-    def update_sheet_enrichment(self, url: str, analysis: str, implication: str) -> bool:
-        sheet = self._get_sheet()
+    async def update_sheet_enrichment(self, url: str, analysis: str, implication: str) -> bool:
+        sheet = await self._run_in_executor(self._get_sheet)
         if not sheet:
             return False
-        self.ensure_headers(sheet)
-        records = self.get_records(include_rejected=True)
+        await self.ensure_headers(sheet)
+        records = await self.get_records(include_rejected=True)
         target_url = str(url or "").strip().lower()
         match_row = None
         for rec in records:
@@ -238,7 +252,7 @@ class SheetService:
                 break
         if not match_row:
             return False
-        headers = sheet.row_values(1)
+        headers = await self._run_in_executor(sheet.row_values, 1)
         header_lookup = {header: idx for idx, header in enumerate(headers)}
         updates = []
         for field, value in (("Analysis", analysis), ("Implication", implication)):
@@ -248,7 +262,7 @@ class SheetService:
         if not updates:
             return False
         for col_idx, value in updates:
-            sheet.update_cell(match_row, col_idx, value)
+            await self._run_in_executor(sheet.update_cell, match_row, col_idx, value)
         return True
 
     def update_local_csv(
@@ -320,18 +334,22 @@ class SheetService:
 
 
 class MockSheetService:
-    def get_records(self, include_rejected: bool = False) -> List[Dict[str, Any]]:
+    async def get_records(self, include_rejected: bool = False) -> List[Dict[str, Any]]:
         LOGGER.info("MockSheetService: get_records called (include_rejected=%s)", include_rejected)
         return []
 
-    def upsert_signal(self, signal: Dict[str, Any]) -> None:
+    async def get_existing_urls(self) -> List[str]:
+        LOGGER.info("MockSheetService: get_existing_urls called")
+        return []
+
+    async def upsert_signal(self, signal: Dict[str, Any]) -> None:
         LOGGER.info("MockSheetService: upsert_signal called for %s", signal.get("url"))
 
-    def update_signal_by_url(self, req: UpdateSignalRequest) -> Dict[str, str]:
+    async def update_signal_by_url(self, req: UpdateSignalRequest) -> Dict[str, str]:
         LOGGER.info("MockSheetService: update_signal_by_url called for %s", req.url)
         return {"status": "success", "message": "Mock update"}
 
-    def update_sheet_enrichment(self, url: str, analysis: str, implication: str) -> bool:
+    async def update_sheet_enrichment(self, url: str, analysis: str, implication: str) -> bool:
         LOGGER.info("MockSheetService: update_sheet_enrichment called for %s", url)
         return False
 
