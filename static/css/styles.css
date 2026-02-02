@@ -1,0 +1,21 @@
+/* Font faces */
+@font-face {
+  font-family: 'Zosia Display';
+  src: url('../fonts/Zosia-Display.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Averta';
+  src: url('../fonts/Averta-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Averta';
+  src: url('../fonts/Averta-Semibold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}
