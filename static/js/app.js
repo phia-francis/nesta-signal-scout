@@ -105,12 +105,10 @@ function escapeHtml(text) {
             const ready = await warmBackend();
             
             if (!ready) {
-                // If we failed after 90s, show error in preview area
-                document.getElementById('preview-grid').innerHTML = '<div class="text-center py-10 text-nesta-red font-bold">Backend Offline. Please refresh page.</div>';
-                return;
+                document.getElementById('preview-grid').innerHTML = '<div class="text-center py-10 text-nesta-red font-bold">Backend Offline. Retrying preview load...</div>';
             }
             
-            // Backend is ready, safe to fetch data
+            // Backend may still be waking up, attempt to fetch data regardless
             loadPreview();
         }
 
@@ -694,16 +692,34 @@ function escapeHtml(text) {
             if (AppState.currentSaved.length === 0) {
                 try {
                     const res = await fetch(`${API_BASE_URL}/api/saved`);
-                    if(!res.ok) throw new Error();
+                    if (!res.ok) throw new Error();
                     AppState.currentSaved = (await res.json()).reverse(); // Newest first
-                } catch(e) { console.error("DB Load Error", e); }
+                    return true;
+                } catch (e) {
+                    console.error("DB Load Error", e);
+                    return false;
+                }
             }
+            return true;
         }
 
         async function loadPreview() {
             const grid = document.getElementById('preview-grid');
             try {
-                await ensureDatabaseLoaded();
+                const loaded = await ensureDatabaseLoaded();
+                if (!loaded) {
+                    grid.innerHTML = `
+                        <div class="col-span-3 text-center text-xs text-red-400 py-10 space-y-3">
+                            <div>Database Offline</div>
+                            <button type="button" class="btn-interactive px-4 py-2 text-xs font-bold bg-nesta-blue text-white rounded">Retry</button>
+                        </div>
+                    `;
+                    const retryButton = grid.querySelector('button');
+                    if (retryButton) {
+                        retryButton.addEventListener('click', () => loadPreview());
+                    }
+                    return;
+                }
                 const data = AppState.currentSaved;
                 if(!data || data.length === 0) { grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400">Database empty.</div>'; return; }
                 
@@ -844,7 +860,12 @@ function escapeHtml(text) {
         }
 
         function filterFeed() {
-            const mission = document.getElementById('missionFilter')?.value || 'all';
+            const missionSelect = document.getElementById('missionFilter') || document.getElementById('mission-select');
+            if (!missionSelect) {
+                return;
+            }
+            const selectedValue = missionSelect.value || 'all';
+            const mission = selectedValue.toLowerCase().includes('all') ? 'all' : selectedValue;
             const cards = document.querySelectorAll('.signal-card');
 
             cards.forEach(card => {
@@ -853,7 +874,8 @@ function escapeHtml(text) {
                     card.classList.remove('hidden');
                 } else if (mission === 'adjacent') {
                     card.classList.toggle('hidden', !cardMission.includes('Adjacent'));
-                    const normalizedSelectedMission = mission.substring(mission.indexOf(' ') + 1);
+                } else {
+                    const normalizedSelectedMission = mission.replace(/^[^A-Za-z]+\\s*/, '').trim();
                     card.classList.toggle('hidden', cardMission !== normalizedSelectedMission);
                 }
             });
@@ -1641,3 +1663,4 @@ function escapeHtml(text) {
             createSignalCard,
             renderDatabase,
         });
+        console.log("System Status: Global functions attached successfully.");
