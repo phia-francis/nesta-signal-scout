@@ -480,13 +480,37 @@ function escapeHtml(text) {
                          <button type="button" onclick="toggleEdit('${data.id}', this)" class="${style.text} opacity-60 hover:opacity-100 transition-opacity">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
-                        <div class="w-8 h-8 rounded-full bg-white text-nesta-navy flex items-center justify-center font-display font-bold text-sm shadow-md">
-                            ${data.score || '-'}
+                        <div class="absolute top-4 right-4 z-30 group/score">
+                            <div class="bg-nesta-blue text-white font-bold rounded-full w-12 h-12 flex items-center justify-center shadow-md cursor-help transition-transform group-hover/score:scale-105 border-2 border-white">
+                                ${data.score || '-'}
+                            </div>
+                            <div class="absolute right-0 top-full mt-2 w-64 bg-white p-4 rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover/score:opacity-100 group-hover/score:visible transition-all duration-200 z-50 text-left pointer-events-none transform origin-top-right">
+                                <div class="text-[10px] font-bold text-nesta-navy uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">Score Breakdown</div>
+                                <div class="grid grid-cols-3 gap-2 mb-3">
+                                     <div class="bg-gray-50 rounded p-1.5 text-center">
+                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Nov</div>
+                                        <div class="font-bold text-nesta-blue text-sm">${data.score_novelty || '-'}</div>
+                                     </div>
+                                     <div class="bg-gray-50 rounded p-1.5 text-center">
+                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Imp</div>
+                                        <div class="font-bold text-nesta-blue text-sm">${data.score_impact || '-'}</div>
+                                     </div>
+                                     <div class="bg-gray-50 rounded p-1.5 text-center">
+                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Evi</div>
+                                        <div class="font-bold text-nesta-blue text-sm">${data.score_evidence || '-'}</div>
+                                     </div>
+                                </div>
+                                <div class="space-y-2 text-[10px] text-nesta-darkgrey leading-tight">
+                                     ${tooltips.nov ? `<div><span class="font-bold text-nesta-blue">Novelty:</span> ${tooltips.nov}</div>` : ''}
+                                     ${tooltips.imp ? `<div><span class="font-bold text-nesta-blue">Impact:</span> ${tooltips.imp}</div>` : ''}
+                                     ${tooltips.ev ? `<div><span class="font-bold text-nesta-blue">Evidence:</span> ${tooltips.ev}</div>` : ''}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div>
+                <div>`
                     <h3 class="font-display font-bold text-xl mb-3 leading-snug ${style.text}">
                         ${titleMarkup}
                     </h3>
@@ -505,25 +529,11 @@ function escapeHtml(text) {
                         <span class="text-[10px] font-bold uppercase tracking-wider ${style.text} opacity-80">[${countryTag}]</span>
                     </div>
 
-                    <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider ${style.text} opacity-80">
-                        <div class="group relative cursor-help flex items-center justify-center">
-                            <span>Nov ${data.score_novelty || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
-                                ${tooltips.nov}
-                            </span>
-                        </div>
-                        <div class="group relative cursor-help flex items-center justify-center">
-                            <span>Ev ${data.score_evidence || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
-                                ${tooltips.ev}
-                            </span>
-                        </div>
-                        <div class="group relative cursor-help flex items-center justify-center">
-                            <span>Imp ${data.score_impact || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
-                                ${tooltips.imp}
-                            </span>
-                        </div>
+                    <div class="flex gap-2 items-center">
+                        <span class="w-2 h-2 rounded-full bg-nesta-aqua" title="Novelty Scored"></span>
+                        <span class="w-2 h-2 rounded-full bg-nesta-blue" title="Impact Scored"></span>
+                        <span class="w-2 h-2 rounded-full bg-nesta-purple" title="Evidence Scored"></span>
+                        <span class="text-[10px] text-white/60 font-mono ml-2">#${data.id}</span>
                     </div>
                 </div>
             </div>
