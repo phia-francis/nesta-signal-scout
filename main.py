@@ -6,6 +6,7 @@ import random
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
+from functools import lru_cache
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
