@@ -13,4 +13,3 @@ pytest-asyncio
 tenacity
 pydantic-settings
 async-lru
-google-generativeai
