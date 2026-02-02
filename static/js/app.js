@@ -801,6 +801,7 @@ function escapeHtml(text) {
                 const cardHTML = renderCard(cardData);
 
                 const wrapper = document.createElement('div');
+                wrapper.className = "animate-enter";
                 wrapper.innerHTML = cardHTML.trim();
                 const cardEl = wrapper.firstChild;
                 cardEl.dataset.cardId = savedId;
