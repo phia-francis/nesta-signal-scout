@@ -510,7 +510,7 @@ function escapeHtml(text) {
                     </div>
                 </div>
 
-                <div>`
+                <div>
                     <h3 class="font-display font-bold text-xl mb-3 leading-snug ${style.text}">
                         ${titleMarkup}
                     </h3>
