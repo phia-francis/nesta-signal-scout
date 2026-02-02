@@ -40,7 +40,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=[
+        "https://phia-francis.github.io",
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -320,8 +326,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
     try:
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
-        existing_records = await asyncio.to_thread(sheets.get_records, include_rejected=True)
-        existing_urls = await asyncio.to_thread(sheets.get_existing_urls)
+        existing_records = await sheets.get_records(include_rejected=True)
+        existing_urls = await sheets.get_existing_urls()
         known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
 
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else DEFAULT_SIGNAL_COUNT
@@ -577,7 +583,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             seen_urls.add(card["url"])
                             yield json.dumps({"type": "signal", "data": card}) + "\n"
                             try:
-                                await asyncio.to_thread(sheets.upsert_signal, card)
+                                await sheets.upsert_signal(card)
                             except Exception as exc:
                                 LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
                             tool_messages.append(
@@ -649,13 +655,13 @@ async def chat_endpoint(req: ChatRequest, sheets: SheetService = Depends(provide
 
 @app.get("/api/saved")
 async def get_saved(sheets: SheetService = Depends(provide_sheet_service)):
-    return sheets.get_records()
+    return await sheets.get_records()
 
 
 @app.post("/api/update")
 async def update_sig(req: Dict[str, Any], sheets: SheetService = Depends(provide_sheet_service)):
     try:
-        sheets.upsert_signal(req)
+        await sheets.upsert_signal(req)
         return {"status": "updated"}
     except Exception as exc:
         LOGGER.warning("Update error: %s", exc)
@@ -668,7 +674,7 @@ async def update_signal(req: UpdateSignalRequest, sheets: SheetService = Depends
     updated_sheet = False
     updated_csv = False
     try:
-        updated_sheet = await asyncio.to_thread(sheets.update_signal_by_url, req)
+        updated_sheet = await sheets.update_signal_by_url(req)
     except RuntimeError as exc:
         LOGGER.warning("Sheet update unavailable: %s", exc)
     except ValueError as exc:
@@ -708,7 +714,7 @@ async def enrich_signal(req: EnrichRequest, sheets: SheetService = Depends(provi
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     analysis = enriched["analysis"]
     implication = enriched["implication"]
-    updated_sheet = await asyncio.to_thread(sheets.update_sheet_enrichment, req.url, analysis, implication)
+    updated_sheet = await sheets.update_sheet_enrichment(req.url, analysis, implication)
     updated_csv = await asyncio.to_thread(sheets.update_local_csv, req.url, analysis, implication)
     if not updated_sheet and not updated_csv:
         raise HTTPException(status_code=404, detail="URL not found in database")
