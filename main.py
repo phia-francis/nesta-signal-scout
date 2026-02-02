@@ -317,7 +317,8 @@ async def perform_google_search(
     return await search_service.search_google(
         final_query,
         date_restrict=date_restrict,
-        requested_results=requested_results,
+        scan_mode=scan_mode,
+        source_types=source_types,
     )
 
 
