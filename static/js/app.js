@@ -417,7 +417,16 @@ function escapeHtml(text) {
                 catch { return "SOURCE"; }
             };
             const domainLabel = safeUrl ? getDomain(safeUrl) : "SOURCE";
-            const countryTag = data.origin_country ? data.origin_country.toUpperCase() : "GLOBAL";
+            const getCountryDisplay = (c) => {
+                    if (!c || c.toLowerCase() === 'global') return '🌍 Global';
+                    // Basic mapping for common flags, fallback to Pin
+                    const map = { 'uk': '🇬🇧', 'usa': '🇺🇸', 'us': '🇺🇸', 'eu': '🇪🇺', 'china': '🇨🇳' };
+                    const flag = map[c.toLowerCase()] || '📍';
+                    // Title Case: "united kingdom" -> "United Kingdom"
+                    const name = c.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    return `${flag} ${name}`;
+                };
+                const countryTag = getCountryDisplay(data.origin_country);
 
             const tooltips = {
                 nov: "How new or surprising is this signal?",
@@ -533,7 +542,6 @@ function escapeHtml(text) {
                         <span class="w-2 h-2 rounded-full bg-nesta-aqua" title="Novelty Scored"></span>
                         <span class="w-2 h-2 rounded-full bg-nesta-blue" title="Impact Scored"></span>
                         <span class="w-2 h-2 rounded-full bg-nesta-purple" title="Evidence Scored"></span>
-                        <span class="text-[10px] ${style.text} opacity-60 font-mono ml-2">#${data.id}</span>
                     </div>
                 </div>
             </div>
