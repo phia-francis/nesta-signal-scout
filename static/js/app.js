@@ -1180,7 +1180,7 @@ function escapeHtml(text) {
             const topic = document.getElementById('topic-input').value;
             const container = document.getElementById('result-container');
             const signalCount = parseInt(document.getElementById('signal-count').value) || 5;
-            const requestTimeoutMs = 120000;
+            const requestTimeoutMs = 900000;
             
             if (!topic && !isBroad) return showToast("Please enter a topic", "error");
 
