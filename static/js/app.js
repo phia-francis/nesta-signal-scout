@@ -431,7 +431,7 @@ function escapeHtml(text) {
             const analysisBlock = hasDeepDive
                 ? `<div class="${style.innerBox} rounded-lg p-4 shadow-sm">
                      <h4 class="font-display font-bold text-nesta-navy/50 text-[10px] uppercase tracking-widest mb-2">The Shift</h4>
-                     <div class="prose prose-sm max-w-none font-body leading-relaxed text-sm editable-analysis">
+                     <div class="prose prose-sm max-w-none font-body leading-relaxed text-sm editable-analysis max-h-40 overflow-y-auto custom-scrollbar">
                         ${formatAnalysis(data.analysis)}
                      </div>
                    </div>`
@@ -506,21 +506,21 @@ function escapeHtml(text) {
                     </div>
 
                     <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider ${style.text} opacity-80">
-                        <div class="group relative cursor-help">
+                        <div class="group relative cursor-help flex items-center justify-center">
                             <span>Nov ${data.score_novelty || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-2 bg-black text-white text-center rounded text-[9px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
                                 ${tooltips.nov}
                             </span>
                         </div>
-                        <div class="group relative cursor-help">
+                        <div class="group relative cursor-help flex items-center justify-center">
                             <span>Ev ${data.score_evidence || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-2 bg-black text-white text-center rounded text-[9px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
                                 ${tooltips.ev}
                             </span>
                         </div>
-                        <div class="group relative cursor-help">
+                        <div class="group relative cursor-help flex items-center justify-center">
                             <span>Imp ${data.score_impact || '-'}</span>
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-2 bg-black text-white text-center rounded text-[9px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto min-w-[120px] p-2 bg-nesta-navy text-white text-center rounded text-[10px] normal-case opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10">
                                 ${tooltips.imp}
                             </span>
                         </div>
