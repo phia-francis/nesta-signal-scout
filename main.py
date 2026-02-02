@@ -46,13 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TIME_FILTER_OFFSETS = {
-    "Past Month": "m1",
-    "Past 3 Months": "m3",
-    "Past 6 Months": "m6",
-    "Past Year": "y1",
-}
-
 MODE_FILTERS = {
     "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
     "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)",
@@ -318,6 +311,8 @@ async def perform_google_search(
         final_query,
         date_restrict=date_restrict,
         requested_results=requested_results,
+        scan_mode=scan_mode,
+        source_types=source_types,
     )
 
 
@@ -471,7 +466,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
 
                 if tool_name == "perform_web_search":
                     yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
-                    date_restrict = args.get("date_restrict") or TIME_FILTER_OFFSETS.get(req.time_filter, "m1")
+                    # Use the frontend value directly (it now sends "w1", "m1", etc.)
+                    date_restrict = args.get("date_restrict") or req.time_filter or "m1"
                     requested_results = args.get("requested_results") or 15
                     res = await perform_google_search(
                         args.get("query"),

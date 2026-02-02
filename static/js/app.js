@@ -741,15 +741,40 @@ function escapeHtml(text) {
 
         function renderDatabase() {
             const list = document.getElementById('saved-list');
-            if (!list) return;
+            if (!list || !AppState.currentSaved) return;
             list.innerHTML = '';
-            if (!AppState.currentSaved || AppState.currentSaved.length === 0) {
+            if (AppState.currentSaved.length === 0) {
                 list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
                 return;
             }
-            AppState.currentSaved.forEach((sig, i) => {
-                const normalized = normalizeSignal(sig);
-                createSignalCard(normalized, i, true, 'saved-list');
+
+            AppState.currentSaved.forEach((signal, index) => {
+                // PREFIX IDs with 'saved-' to prevent collision with main scan
+                const savedId = `saved-card-${index}`;
+                const normalized = normalizeSignal(signal);
+                const linkUrl = normalized.final_url || normalized.url;
+                const cardData = { ...normalized, id: savedId, url: linkUrl };
+
+                if (!AppState.cardDataById) {
+                    AppState.cardDataById = {};
+                }
+                AppState.cardDataById[savedId] = cardData;
+
+                // Render the card HTML using the shared renderCard function
+                // But override the ID in the data object passed to it
+                const cardHTML = renderCard(cardData);
+
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = cardHTML.trim();
+                const cardEl = wrapper.firstChild;
+                cardEl.dataset.cardId = savedId;
+                cardEl.dataset.showActions = 'true';
+                cardEl.dataset.index = String(index);
+
+                // Re-attach listeners specifically for the Saved View
+                cardEl.appendChild(buildActionBar(cardData, savedId, cardEl.id));
+
+                list.appendChild(cardEl);
             });
         }
 
