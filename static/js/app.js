@@ -1193,19 +1193,25 @@ function escapeHtml(text) {
             startLiveTerminal();
             
             container.innerHTML = `
-                <div class="col-span-full py-24 flex flex-col items-center justify-center space-y-8 animate-fade-in-up">
-                    <div class="radar-loader w-16 h-16 border-4 border-t-nesta-blue"></div>
-                    <div class="w-full max-w-md space-y-2">
-                        <div class="flex justify-between items-end px-1">
-                            <p id="loading-status-text" class="font-display text-xl text-nesta-navy transition-opacity duration-200">Initialising Scout Agent...</p>
-                            <p id="loading-percent-text" class="font-bold text-nesta-blue text-xl">0%</p>
+                <div class="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+                    ${Array(3).fill(0).map(() => `
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-96 flex flex-col gap-4">
+                            <div class="flex justify-between">
+                                <div class="skeleton-box h-6 w-24 rounded-full"></div>
+                                <div class="skeleton-box h-8 w-8 rounded-full"></div>
+                            </div>
+                            <div class="skeleton-box h-8 w-3/4 mt-4"></div>
+                            <div class="skeleton-box h-4 w-full"></div>
+                            <div class="skeleton-box h-4 w-5/6"></div>
+                            <div class="skeleton-box h-32 w-full mt-auto rounded-lg"></div>
                         </div>
-                        <div class="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                            <div id="loading-bar-inner" class="h-full bg-gradient-to-r from-nesta-blue to-nesta-aqua w-0 transition-all duration-100 ease-out"></div>
-                        </div>
-                        <p class="text-[10px] font-bold text-nesta-darkgrey uppercase tracking-widest text-center pt-2">AI Analysis in Progress</p>
-                    </div>
-                </div>`;
+                    `).join('')}
+                </div>
+                
+                <div class="col-span-full text-center py-4">
+                    <p id="loading-status-text" class="font-display text-nesta-navy animate-pulse">Initialising Scout Agent...</p>
+                </div>
+            `;
             
             startLoadingSimulation(signalCount);
 
