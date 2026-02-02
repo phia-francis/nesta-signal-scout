@@ -1289,6 +1289,25 @@ function escapeHtml(text) {
                 stopLoadingSimulation();
                 const loader = document.querySelector('.radar-loader');
                 if (loader) loader.parentElement.remove();
+                        
+                if (AppState.currentSignals.length === 0) {
+                            container.innerHTML = `
+                                <div class="col-span-full py-12 flex flex-col items-center justify-center text-center space-y-4 animate-fade-in-up">
+                                    <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-nesta-red mb-2">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-display font-bold text-nesta-navy text-lg">Scan Interrupted</h3>
+                                        <p class="text-sm text-nesta-darkgrey max-w-md mx-auto mt-2 leading-relaxed">
+                                            The Scout Agent connection was lost. This usually happens if the server restarts due to high traffic or memory limits.
+                                        </p>
+                                    </div>
+                                    <button onclick="generateSignal(false)" class="mt-4 px-6 py-2.5 bg-nesta-blue text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-soft hover:bg-nesta-navy hover:shadow-hover transition-all">
+                                        Try Again
+                                    </button>
+                                </div>
+                            `;
+}
                 // Signals already streamed in; avoid clearing the container.
             } catch (error) {
                 stopLoadingSimulation();
