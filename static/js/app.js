@@ -395,19 +395,21 @@ function escapeHtml(text) {
             // 3. Fix Source Link (Must be absolute)
             let safeUrl = '';
             if (data.url && typeof data.url === 'string') {
-                const trimmed = data.url.trim();
-                if (/^https?:\/\//i.test(trimmed)) {
-                    safeUrl = trimmed;
-                } else if (trimmed) {
-                    safeUrl = `https://${trimmed.replace(/^\/+/, '')}`;
+                // FIX: Remove citations like [1], [2], quotes " ' and surrounding spaces
+                let cleaned = data.url.replace(/\[\d+\]/g, '').replace(/["']/g, '').trim();
+                
+                // Auto-fix missing 'https://'
+                if (!/^https?:\/\//i.test(cleaned) && cleaned.length > 0) {
+                    cleaned = 'https://' + cleaned.replace(/^\/+/, '');
                 }
-            }
-            try {
-                if (safeUrl) {
-                    safeUrl = new URL(safeUrl).toString();
+            
+                try {
+                    // Validate it is a real URL structure
+                    safeUrl = new URL(cleaned).toString();
+                } catch (e) {
+                    console.warn("Invalid URL found:", data.url);
+                    safeUrl = '';
                 }
-            } catch (e) {
-                safeUrl = '';
             }
 
             const getDomain = (u) => {
