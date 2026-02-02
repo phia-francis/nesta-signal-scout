@@ -743,6 +743,10 @@ function escapeHtml(text) {
             const list = document.getElementById('saved-list');
             if (!list || !AppState.currentSaved) return;
             list.innerHTML = '';
+            if (AppState.currentSaved.length === 0) {
+                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
+                return;
+            }
 
             AppState.currentSaved.forEach((signal, index) => {
                 // PREFIX IDs with 'saved-' to prevent collision with main scan

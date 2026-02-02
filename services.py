@@ -345,6 +345,19 @@ class MockSheetService:
 
 
 class SearchService:
+    BASE_BLOCKLIST = [
+        "bbc.co.uk",
+        "cnn.com",
+        "nytimes.com",
+        "forbes.com",
+        "bloomberg.com",
+        "businessinsider.com",
+    ]
+    TOPIC_BLOCKS = {
+        "tech": ["techcrunch.com", "theverge.com", "wired.com"],
+        "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
+    }
+
     def __init__(self, api_key: Optional[str], cx: Optional[str]):
         self.api_key = api_key
         self.cx = cx
@@ -404,42 +417,29 @@ class SearchService:
         self,
         query: str,
         date_restrict: str = "m1",
+        requested_results: int = 15,
         scan_mode: str = "general",
-        source_types: list = None,
+        source_types: Optional[List[str]] = None,
     ) -> str:
-        # 1. Define Blocklists
-        BASE_BLOCKLIST = [
-            "bbc.co.uk",
-            "cnn.com",
-            "nytimes.com",
-            "forbes.com",
-            "bloomberg.com",
-            "businessinsider.com",
-        ]
-        TOPIC_BLOCKS = {
-            "tech": ["techcrunch.com", "theverge.com", "wired.com"],
-            "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
-        }
-
         # 2. Build Active Blocklist (Context-Aware)
-        active_blocklist = BASE_BLOCKLIST.copy()
+        active_blocklist = self.BASE_BLOCKLIST.copy()
         source_types = source_types or []
         scan_mode = scan_mode.lower()
 
         # Only block Tech giants if user is NOT looking for Tech
         if "Emerging Tech" not in source_types:
-            active_blocklist.extend(TOPIC_BLOCKS["tech"])
+            active_blocklist.extend(self.TOPIC_BLOCKS["tech"])
 
         # Only block Gov sites if user is NOT looking for Policy
         if scan_mode != "policy" and "Policy" not in source_types:
-            active_blocklist.extend(TOPIC_BLOCKS["policy"])
+            active_blocklist.extend(self.TOPIC_BLOCKS["policy"])
 
         # 3. Construct Query
         block_str = " ".join([f"-site:{d}" for d in active_blocklist])
         final_query = f"{query} {block_str}".strip()
 
         # 4. Execute Search (using httpx)
-        return await self._cached_search(final_query, date_restrict, 15)
+        return await self._cached_search(final_query, date_restrict, requested_results)
 
 
 class ContentService:
