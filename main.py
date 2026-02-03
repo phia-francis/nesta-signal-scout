@@ -393,9 +393,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         prompt_parts = [
             user_request_block,
             f"CURRENT DATE: {today_str}",
-            (
-                "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
-            ),
+            "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
             f"DIVERSITY SEEDS: {keywords_str}",
