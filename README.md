@@ -2,7 +2,7 @@
 
 **The Automated Horizon Scanning Agent for the Discovery Hub.**
 
-Signal Scout is an AI-powered research assistant designed to identify obscure signals, high-potential indicators of change—across the web. It operates as a relentless research engine, using the "Friction Method" to bypass mainstream hype and find evidence-based innovation signals aligned with Nesta’s missions.
+Signal Scout is an AI-powered research assistant designed to identify obscure signals, high-potential indicators of change, across the web. It operates as a relentless research engine, using the "Friction Method" to bypass mainstream hype and find evidence-based innovation signals aligned with Nesta’s missions.
 
 ---
 
