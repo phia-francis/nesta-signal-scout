@@ -10,6 +10,7 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from dateutil.relativedelta import relativedelta
+from dateutil import parser
 
 
 class JsonFormatter(logging.Formatter):
@@ -76,20 +77,23 @@ def validate_url_security(url: str) -> Tuple[object, str, str]:
 
 
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
-    if not date_str:
+# 1. Immediate rejection of bad data
+    if not date_str or str(date_str).lower() in {"recent", "unknown", "n/a", "na", "none"}:
         return None
-    cleaned = date_str.strip()
-    if not cleaned or cleaned.lower() in {"recent", "unknown", "n/a", "na"}:
+    
+    # 2. Basic Cleanup: Remove common separators that confuse parsers
+    # This turns "2023 | Technology" into "2023   Technology"
+    cleaned = re.sub(r"[|•]", " ", str(date_str)).strip()
+    
+    try:
+        # 3. The Magic: parser.parse
+        # fuzzy=True: Ignores non-date text (e.g., extracts date from "Published on May 1st")
+        # dayfirst=True: IMPORTANT for UK. Interprets 01/02/23 as Feb 1st, not Jan 2nd.
+        return parser.parse(cleaned, fuzzy=True, dayfirst=True)
+        
+    except (ValueError, TypeError, OverflowError):
+        # If even the smart parser can't find a date, return None
         return None
-    cleaned = re.sub(r"[|•]", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    iso_match = re.search(r"\d{4}-\d{2}-\d{2}", cleaned)
-    if iso_match:
-        cleaned = iso_match.group(0)
-    else:
-        slash_match = re.search(r"\d{1,2}/\d{1,2}/\d{4}", cleaned)
-        if slash_match:
-            cleaned = slash_match.group(0)
 
     formats = [
         "%Y-%m-%d",
