@@ -1,16 +1,6 @@
 """Plain keyword lists for Nesta mission-aligned horizon scanning."""
 
-from __future__ import annotations
-
-import json
-import os
-import random
 from typing import Dict, List
-
-from openai import OpenAI
-
-CLIENT = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 def _keywords(block: str) -> List[str]:
     """Return unique, ordered keywords from a newline-separated block."""
@@ -837,35 +827,3 @@ CROSS_CUTTING_KEYWORDS: List[str] = _keywords(
     training
     """
 )
-
-
-def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5) -> List[str]:
-    """Generates specific Google Search queries in a single batch call."""
-    if num_signals > len(source_keywords):
-        selected = source_keywords
-    else:
-        selected = random.sample(source_keywords, num_signals)
-
-    topics_str = ", ".join(selected)
-    system_msg = (
-        "Generate exactly "
-        f"{len(selected)} high-intent Google Search queries for innovations related "
-        "to these topics. Output as a JSON list of strings (e.g. [\"query1\", \"query2\"]). "
-        "No markdown."
-    )
-
-    try:
-        response = CLIENT.chat.completions.create(
-            model=QUERY_GENERATION_MODEL,
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": f"Topics: {topics_str}"},
-            ],
-        )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[7:-3]
-        return json.loads(content)
-    except json.JSONDecodeError as e:
-        print(f"Query Gen JSON Error: {e}")
-        return [f"latest innovations in {topic}" for topic in selected]
