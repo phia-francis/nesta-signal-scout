@@ -431,14 +431,15 @@ class SearchService:
         wait=wait_exponential(multiplier=1, min=2, max=20),
         stop=stop_after_attempt(3),
     )
+    
     async def search_google(
         self,
         query: str,
         date_restrict: str = "m1",
         requested_results: int = 15,
+    ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
         return await self._cached_search(query, date_restrict, requested_results)
-
 
 class ContentService:
     def __init__(self, timeout: float = 10.0, max_redirects: int = 3):
