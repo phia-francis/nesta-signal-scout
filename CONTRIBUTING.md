@@ -16,11 +16,12 @@ Before you begin, ensure you have the following keys and accounts. You will need
 ## 🚀 Setting Up Your Development Environment
 
 ### 1. Fork and Clone
-  
-  - Fork the repository to your GitHub account and clone it locally:
-  ```bash
-  git clone [https://github.com/YOUR-USERNAME/nesta-signal-scout.git](https://github.com/YOUR-USERNAME/nesta-signal-scout.git)
-  cd nesta-signal-scout
+
+Fork the repository to your GitHub account and clone it locally:
+
+```bash
+git clone [https://github.com/YOUR-USERNAME/nesta-signal-scout.git](https://github.com/YOUR-USERNAME/nesta-signal-scout.git)
+cd nesta-signal-scout
   ```
 ### 2. Backend Setup ("The Brain")
 
@@ -38,7 +39,6 @@ Before you begin, ensure you have the following keys and accounts. You will need
   - Configure Environment Variables: Create a .env file in the root directory. Do not commit this file.
   ```Ini, TOML
   OPENAI_API_KEY=your_key_here
-  ASSISTANT_ID=your_assistant_id
 
   # Google Search
   Google_Search_API_KEY=your_google_key
@@ -59,11 +59,11 @@ Before you begin, ensure you have the following keys and accounts. You will need
 
 ### 3. Frontend Setup ("The Face")
 
-  The frontend is Vanilla HTML/JS using Tailwind CSS via CDN. No Node.js build step is required.
+  The frontend uses Vanilla HTML/JS. To satisfy security policies (CodeQL), we host Tailwind CSS locally rather than using a live CDN
 
-  - Open index.html in your editor.
+  - Check Local Resources: Ensure static/js/tailwind.js exists. If missing, download the script from https://cdn.tailwindcss.com?plugins=forms,typography and save it to that path.
 
-  - Ensure the API_BASE_URL inside the <script> tag is pointing to your local backend:
+  - Configure API Connection: Open static/js/app.js and ensure API_BASE_URL handles localhost:
   ```JavaScript
   const API_BASE_URL = (window.location.hostname === 'localhost') 
     ? '[http://127.0.0.1:8000](http://127.0.0.1:8000)' 
@@ -92,6 +92,20 @@ Frontend (HTML/CSS)
 
 - Simplicity: Do not introduce heavy frontend frameworks (React, Vue) without a major architectural discussion. The goal is to keep the frontend portable (GitHub Pages compatible).
 
+Security Requirements (Crucial)
+To comply with security audits (CodeQL), strictly follow these rules when adding external libraries:
+
+- Use UMD/Standalone Builds: Do not use ES Modules (.mjs) in index.html.
+
+- Subresource Integrity (SRI): All external scripts must include an integrity hash.
+```
+- Bad: <script src="https://cdn.example.com/lib.js"></script>
+
+- Good: <script src="https://cdn.example.com/lib.js" integrity="sha256-..." crossorigin="anonymous"></script>
+```
+- Tool: You can generate hashes at srihash.org.
+
+
 Database (Google Sheets)
 - Schema Consistency: If you add new fields to the signal object, update the ensure_sheet_headers function in main.py to prevent header mismatches.
 
@@ -109,4 +123,4 @@ Database (Google Sheets)
 
 
 ### 🤝 Code of Conduct
-Please be respectful and constructive in all interactions. We are building a tool to help discover the future—let's build it with a positive, collaborative spirit.
+Please be respectful and constructive in all interactions. We are building a tool to help discover the future, let's build it with a positive, collaborative spirit.
