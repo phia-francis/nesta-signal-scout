@@ -242,7 +242,8 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
         exclusions.extend(["twitter.com", "facebook.com", "instagram.com", "reddit.com", "quora.com"])
 
     # 2. Add Base News Blocklist
-    exclusions.extend(BASE_BLOCKLIST)
+    if scan_mode != "general":
+        exclusions.extend(BASE_BLOCKLIST)
 
     # 3. Add Context-Aware Blocklists
     # Block Tech giants unless looking for Emerging Tech
