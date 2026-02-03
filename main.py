@@ -72,6 +72,17 @@ SOURCE_FILTERS = {
     "Niche Forums": "(site:reddit.com OR site:news.ycombinator.com)",
 }
 
+# 1. Define the blocklists here (moved from services.py)
+BASE_BLOCKLIST = [
+    "bbc.co.uk", "cnn.com", "nytimes.com", "forbes.com", 
+    "bloomberg.com", "businessinsider.com"
+]
+
+TOPIC_BLOCKS = {
+    "tech": ["techcrunch.com", "theverge.com", "wired.com"],
+    "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
+}
+
 SYSTEM_PROMPT = """
 You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
 
@@ -252,15 +263,34 @@ async def global_exception_handler(request: Request, exc: Exception):
 def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
     source_types = source_types or []
     scan_mode = (scan_mode or "general").lower()
+    
+    # --- A. Positive Filters (Inclusions) ---
     mode_filter = MODE_FILTERS.get(scan_mode, "")
     source_blocks = [SOURCE_FILTERS[source] for source in source_types if source in SOURCE_FILTERS]
-    combined_sources = ""
-    if source_blocks:
-        combined_sources = f"({' OR '.join(source_blocks)})"
-    exclusions = ""
+    combined_sources = f"({' OR '.join(source_blocks)})" if source_blocks else ""
+
+    # --- B. Negative Filters (Exclusions) ---
+    # 1. Start with Social Media (unless Community mode)
+    exclusions = []
     if scan_mode != "community" and "Niche Forums" not in source_types:
-        exclusions = "-site:twitter.com -site:facebook.com -site:instagram.com -site:reddit.com -site:quora.com"
-    parts = [query, mode_filter, combined_sources, exclusions]
+        exclusions.extend(["twitter.com", "facebook.com", "instagram.com", "reddit.com", "quora.com"])
+
+    # 2. Add Base News Blocklist
+    exclusions.extend(BASE_BLOCKLIST)
+
+    # 3. Add Context-Aware Blocklists
+    # Block Tech giants unless looking for Emerging Tech
+    if "Emerging Tech" not in source_types:
+        exclusions.extend(TOPIC_BLOCKS["tech"])
+    
+    # Block Gov sites unless looking for Policy
+    if scan_mode != "policy" and "Policy" not in source_types:
+        exclusions.extend(TOPIC_BLOCKS["policy"])
+
+    exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
+
+    # --- C. Combine ---
+    parts = [query, mode_filter, combined_sources, exclusion_str]
     return " ".join(part for part in parts if part)
 
 
@@ -312,13 +342,14 @@ async def perform_google_search(
     source_types: Optional[List[str]] = None,
 ) -> str:
     final_query = construct_search_query(query, scan_mode, source_types)
+    
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
+    
+    # Service call is now clean/dumb
     return await search_service.search_google(
         final_query,
         date_restrict=date_restrict,
-        requested_results=requested_results,
-        scan_mode=scan_mode,
-        source_types=source_types,
+        requested_results=requested_results
     )
 
 
@@ -366,9 +397,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             user_request_block,
             f"CURRENT DATE: {today_str}",
             (
-                "SEARCH CONSTRAINT: Do NOT include the current year (e.g., "
-                f"'{request_date.year}') inside search query keywords. "
-                "Rely ONLY on the time_filter tool parameter. Adding the year manually excludes valid results."
+                "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
             ),
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
@@ -378,7 +407,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             "- QUALITY CONTROL (CRITICAL - DEEP LINKS ONLY):",
             "  1. NO HOMEPAGES: You must NEVER output a root domain (e.g., 'www.bbc.co.uk') or a generic category page.",
             "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., 'youtube.com/c/NewsChannel'). You must find the specific VIDEO link (e.g., 'youtube.com/watch?v=...').",
-            "  3. DEEP LINK REQUIRED: Valid URLs must point to a specific article, study, or document. They usually contain segments like '/article/', '/story/', '/news/2025/', or a document ID.",
+            "  3. DEEP LINK REQUIRED: Valid URLs must point to a specific article, study, or document. They usually contain segments like '/article/', '/story/', '/news/', or a document ID.",
             "  4. TRACEABILITY: If a search result is generic, you MUST dig deeper or search again to find the specific source URL.",
             "1. THE SCORING RUBRIC (Strict Calculation):",
             "A. NOVELTY (0-10): 'Distance from the Mainstream'.",
@@ -472,8 +501,11 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
 
                 if tool_name == "perform_web_search":
                     yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
-                    # Use the frontend value directly (it now sends "w1", "m1", etc.)
-                    date_restrict = args.get("date_restrict") or req.time_filter or "m1"
+                    if req.time_filter:
+                        date_restrict = req.time_filter
+                    else:
+                        # Safety fallback: If frontend sends nothing/null, default to Past Month
+                        date_restrict = "m1"
                     requested_results = args.get("requested_results") or 15
                     res = await perform_google_search(
                         args.get("query"),
