@@ -79,6 +79,10 @@
                 <div class="md:col-span-8 space-y-3">
                     <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</span>
                     <div class="flex flex-wrap gap-3">
+                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Broad search. Best for custom queries (e.g. 'site:mckinsey.com').">
+                            <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
+                            🌍 General
+                        </label>
                         <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Mainstream tech journalism and industry reports.">
                             <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
                             📰 News
