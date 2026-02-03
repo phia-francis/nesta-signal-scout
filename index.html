@@ -7,8 +7,10 @@
     
     <script>
         const originalWarn = console.warn;
+        // Suppress warnings that clearly originate from the Tailwind CDN script
+        const tailwindCdnPattern = /(^|\/|\s)(https?:\/\/)?cdn\.tailwindcss\.com(\/|[\s?]|$)/;
         console.warn = (...args) => {
-            if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+            if (args[0] && typeof args[0] === 'string' && tailwindCdnPattern.test(args[0])) return;
             originalWarn.apply(console, args);
         };
     </script>
