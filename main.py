@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Streamin
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
-from keywords import CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS, generate_broad_scan_queries
+from keywords import CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS
 from models import (
     ChatRequest,
     EnrichRequest,
@@ -318,6 +318,37 @@ async def perform_google_search(
         requested_results=requested_results
     )
 
+async def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5) -> List[str]:
+    """Generates specific Google Search queries using the main LLM service."""
+    if num_signals > len(source_keywords):
+        selected = source_keywords
+    else:
+        selected = random.sample(source_keywords, num_signals)
+
+    topics_str = ", ".join(selected)
+    system_msg = (
+        "Generate exactly "
+        f"{len(selected)} high-intent Google Search queries for innovations related "
+        "to these topics. Output as a JSON list of strings (e.g. [\"query1\", \"query2\"]). "
+        "No markdown."
+    )
+    
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": f"Topics: {topics_str}"},
+    ]
+
+    # Use the existing global llm_service
+    try:
+        response = await llm_service.chat_complete(messages)
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```json"):
+            content = content[7:-3]
+        return json.loads(content)
+    except Exception as e:
+        LOGGER.error(f"Query Gen Error: {e}")
+        return [f"latest innovations in {topic}" for topic in selected]
+
 
 async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
     try:
@@ -508,7 +539,6 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 elif tool_name == "generate_broad_scan_queries":
                     num_signals = args.get("num_signals") or (req.signal_count or target_count)
                     queries = await asyncio.to_thread(
-                        generate_broad_scan_queries,
                         CROSS_CUTTING_KEYWORDS,
                         num_signals,
                     )
@@ -721,7 +751,7 @@ async def enrich_signal(req: EnrichRequest, sheets: SheetService = Depends(provi
 
 @app.post("/api/generate-queries")
 async def generate_queries(req: GenerateQueriesRequest):
-    queries = await asyncio.to_thread(generate_broad_scan_queries, req.keywords, req.count)
+    queries = await generate_broad_scan_queries(req.keywords, req.count)
     return {"queries": queries}
 
 
