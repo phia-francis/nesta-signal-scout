@@ -245,14 +245,14 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
     if scan_mode != "general":
         exclusions.extend(BASE_BLOCKLIST)
 
-    # 3. Add Context-Aware Blocklists
-    # Block Tech giants unless looking for Emerging Tech
-    if "Emerging Tech" not in source_types:
-        exclusions.extend(TOPIC_BLOCKS["tech"])
-    
-    # Block Gov sites unless looking for Policy
-    if scan_mode != "policy" and "Policy" not in source_types:
-        exclusions.extend(TOPIC_BLOCKS["policy"])
+        # 3. Add Context-Aware Blocklists
+        # Block Tech giants unless looking for Emerging Tech
+        if "Emerging Tech" not in source_types:
+            exclusions.extend(TOPIC_BLOCKS["tech"])
+        
+        # Block Gov sites unless looking for Policy
+        if scan_mode != "policy" and "Policy" not in source_types:
+            exclusions.extend(TOPIC_BLOCKS["policy"])
 
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
