@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from typing import Iterable
+import logging
 
 import keywords
 
@@ -57,14 +58,10 @@ def validate_keywords() -> list[str]:
 def main() -> int:
     errors = validate_keywords()
     if errors:
-        import logging
-
         logging.error("Keyword validation failed:")
         for err in errors:
             logging.error("- %s", err)
         return 1
-    import logging
-
     logging.info("Keyword validation passed.")
     return 0
 
