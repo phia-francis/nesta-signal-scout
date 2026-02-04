@@ -97,6 +97,16 @@ NEWS_BLOCKLIST = [
     "businessinsider.com",
 ]
 
+GENERIC_HOMEPAGE_BLOCKLIST = {
+    "www.google.com",
+    "google.com",
+    "bing.com",
+    "www.bing.com",
+    "bbc.co.uk",
+    "cnn.com",
+    "wikipedia.org",
+}
+
 TOPIC_BLOCKS = {
     "tech": ["techcrunch.com", "theverge.com", "wired.com"],
     "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
@@ -205,16 +215,7 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     query = (parsed.query or "").strip()
     fragment = (parsed.fragment or "").strip()
     if not path and not query and not fragment:
-        generic_homepages = {
-            "www.google.com",
-            "google.com",
-            "bing.com",
-            "www.bing.com",
-            "bbc.co.uk",
-            "cnn.com",
-            "wikipedia.org",
-        }
-        if domain in generic_homepages:
+        if domain in GENERIC_HOMEPAGE_BLOCKLIST:
             return False, f"URL '{url}' looks like a generic homepage. Deep links only."
 
     search_domains = {"google.com", "www.google.com", "bing.com", "www.bing.com"}
