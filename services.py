@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlunparse
@@ -363,6 +364,7 @@ class MockSheetService:
 
 
 class SearchService:
+    MAX_RETRIES = 3
     BASE_BLOCKLIST = [
         "bbc.co.uk",
         "cnn.com",
@@ -411,19 +413,7 @@ class SearchService:
                     break
                 start_index += 10
         if not results:
-            return json.dumps(
-                [
-                    {
-                        "title": "SYSTEM_MSG",
-                        "url": "ERROR",
-                        "hook": (
-                            "No results found. Please RETRY with a broader query "
-                            "(remove specific dates or niche adjectives)."
-                        ),
-                        "score": 0,
-                    }
-                ]
-            )
+            return ""
         return "\n\n".join(results[:target_results])
 
     @retry(
@@ -439,7 +429,19 @@ class SearchService:
         requested_results: int = 15,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
-        return await self._cached_search(query, date_restrict, requested_results)
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                return await self._cached_search(query, date_restrict, requested_results)
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code if exc.response else None
+                if status_code == 429:
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    LOGGER.warning("429 rate limit. Waiting %.2fs...", wait_time)
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise
+        LOGGER.warning("Failed after %s retries. Skipping query.", self.MAX_RETRIES)
+        return ""
 
 class ContentService:
     def __init__(self, timeout: float = 10.0, max_redirects: int = 3):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 from functools import lru_cache
@@ -14,7 +14,13 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Streamin
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
-from keywords import BASE_BLOCKLIST, CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS, SOURCE_CONCEPTS
+from keywords import (
+    BASE_BLOCKLIST,
+    CROSS_CUTTING_KEYWORDS,
+    MISSION_KEYWORDS,
+    SOURCE_CONCEPTS,
+    SOURCE_FILTERS,
+)
 from models import (
     ChatRequest,
     EnrichRequest,
@@ -25,6 +31,7 @@ from models import (
 from services import ContentService, LLMService, SearchService, SheetService, get_sheet_service
 from utils import get_logger, is_date_within_time_filter, normalize_url, parse_source_date
 from prompts import MODE_PROMPTS, QUERY_ENGINEERING_GUIDANCE, SYSTEM_PROMPT
+from dateutil.relativedelta import relativedelta
 
 LOGGER = get_logger(__name__)
 
@@ -54,6 +61,22 @@ app.add_middleware(
 )
 
 PDF_INCLUSION_PROBABILITY = 0.3
+
+TIME_FILTER_OFFSETS = {
+    "w1": timedelta(weeks=1),
+    "m1": relativedelta(months=1),
+    "m3": relativedelta(months=3),
+    "m6": relativedelta(months=6),
+    "y1": relativedelta(years=1),
+    "past 7 days": timedelta(weeks=1),
+    "past month": relativedelta(months=1),
+    "past 3 months": relativedelta(months=3),
+    "past 6 months": relativedelta(months=6),
+    "past year": relativedelta(years=1),
+    "week": timedelta(weeks=1),
+    "month": relativedelta(months=1),
+    "year": relativedelta(years=1),
+}
 
 NEWS_BLOCKLIST = [
     "bbc.co.uk",
@@ -217,12 +240,28 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
+def calculate_cutoff_date(time_filter: Optional[str]) -> date:
+    today = date.today()
+    normalized = (time_filter or "").strip().lower()
+    offset = TIME_FILTER_OFFSETS.get(normalized)
+    if offset:
+        return today - offset
+    return today - relativedelta(months=18)
+
+
+def construct_search_query(
+    query: str,
+    scan_mode: str,
+    source_types: Optional[List[str]] = None,
+    time_filter: Optional[str] = "y1",
+) -> str:
     source_types = source_types or []
     scan_mode = (scan_mode or "general").lower()
 
     # --- A. Positive Filters (Concept Boosters) ---
     parts = [query]
+    cutoff_date = calculate_cutoff_date(time_filter)
+    date_operator = f"after:{cutoff_date.strftime('%Y-%m-%d')}"
     context_keywords = []
     for source in source_types:
         if source in SOURCE_CONCEPTS:
@@ -233,6 +272,15 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
 
     if random.random() < PDF_INCLUSION_PROBABILITY:
         parts.append("filetype:pdf")
+
+    all_allowed_sites = []
+    for source in source_types:
+        if source in SOURCE_FILTERS:
+            all_allowed_sites.extend(SOURCE_FILTERS[source])
+
+    source_string = ""
+    if all_allowed_sites:
+        source_string = f"(site:{' OR site:'.join(all_allowed_sites)})"
 
     # --- B. Negative Filters (Exclusions) ---
     # 1. Start with Social Media (unless Community mode)
@@ -256,8 +304,8 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
     # --- C. Combine ---
-    parts.append(exclusion_str)
-    return " ".join(part for part in parts if part)
+    parts.extend([date_operator, source_string, exclusion_str])
+    return " ".join(filter(None, parts))
 
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
@@ -306,8 +354,14 @@ async def perform_google_search(
     requested_results: int = 15,
     scan_mode: str = "general",
     source_types: Optional[List[str]] = None,
+    time_filter: Optional[str] = None,
 ) -> str:
-    final_query = construct_search_query(query, scan_mode, source_types)
+    final_query = construct_search_query(
+        query,
+        scan_mode,
+        source_types,
+        time_filter=time_filter,
+    )
     
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
     
@@ -519,7 +573,15 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         requested_results=requested_results,
                         scan_mode=req.scan_mode,
                         source_types=req.source_types,
+                        time_filter=req.time_filter,
                     )
+                    if not res:
+                        LOGGER.warning("No results found for query: %s", args.get("query"))
+                        tool_messages.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": ""}
+                        )
+                        tool_response_added = True
+                        continue
                     tool_messages.append(
                         {"role": "tool", "tool_call_id": tool_call.id, "content": res}
                     )
