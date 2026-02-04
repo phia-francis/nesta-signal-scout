@@ -21,6 +21,17 @@ QUERY_ENGINEERING_GUIDANCE = [
     "   - GOOD QUERY: '(School OR Pupil OR Student OR K-12) media literacy'",
 ]
 
+QUERY_GENERATION_PROMPT = """
+### 🔒 CONSTRAINT: STRICT KEYWORD SELECTION
+You are currently in **Broad Scan Mode**.
+1. **NO FREESTYLING:** You must generate a query using ONLY the topics listed in the `Input Data` section below.
+2. **NO COMBINATORIAL HALLUCINATIONS:** Do not combine a topic with a technology unless the `Input Data` explicitly allows it.
+3. **FORMAT:** Select a high-priority topic from the list and append a discovery verb (e.g. "trends", "innovation").
+
+### INPUT DATA (VALID TOPICS FROM KEYWORDS.PY)
+{allowed_keywords}
+"""
+
 SIGNAL_EXTRACTION_PROMPT = """
 You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
 

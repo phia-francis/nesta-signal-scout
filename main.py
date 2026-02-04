@@ -34,6 +34,7 @@ from prompts import (
     MODE_PROMPTS,
     NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
+    QUERY_GENERATION_PROMPT,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
@@ -233,6 +234,30 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
         return False, "Published date cannot be in the future."
 
     return True, ""
+
+
+@lru_cache
+def build_allowed_keywords_menu(mission: Optional[str]) -> str:
+    menu_lines = []
+    if mission and mission != "All Missions":
+        mission_keywords = (
+            {mission: MISSION_KEYWORDS.get(mission, [])}
+            if mission in MISSION_KEYWORDS
+            else {}
+        )
+    else:
+        mission_keywords = MISSION_KEYWORDS
+    for mission_name, terms in mission_keywords.items():
+        if terms:
+            menu_lines.append(f"- {mission_name}: {', '.join(terms)}")
+    if CROSS_CUTTING_KEYWORDS:
+        menu_lines.append(f"- Cross-cutting: {', '.join(CROSS_CUTTING_KEYWORDS)}")
+    return "\n".join(menu_lines) or "Error: Could not load keywords.py variables."
+
+
+ALLOWED_KEYWORDS_MENU = build_allowed_keywords_menu("All Missions")
+if "{allowed_keywords}" not in QUERY_GENERATION_PROMPT:
+    raise ValueError("QUERY_GENERATION_PROMPT must include the '{allowed_keywords}' placeholder.")
 
 
 @lru_cache
@@ -520,6 +545,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             line.format(target_count=target_count) for line in QUERY_ENGINEERING_GUIDANCE
         ]
         if is_broad_scan:
+            allowed_keywords = build_allowed_keywords_menu(req.mission)
+            prompt_parts.append(
+                QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords)
+            )
             prompt_parts.append(STARTUP_TRIGGER_INSTRUCTIONS)
         prompt_parts.extend(query_guidance)
         prompt_parts.extend(
