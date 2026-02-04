@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Streamin
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
-from keywords import CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS
+from keywords import BASE_BLOCKLIST, CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS, SOURCE_CONCEPTS
 from models import (
     ChatRequest,
     EnrichRequest,
@@ -23,8 +23,8 @@ from models import (
     UpdateSignalRequest,
 )
 from services import ContentService, LLMService, SearchService, SheetService, get_sheet_service
-from utils import get_logger, is_date_within_time_filter, parse_source_date
-from prompts import SYSTEM_PROMPT, MODE_PROMPTS
+from utils import get_logger, is_date_within_time_filter, normalize_url, parse_source_date
+from prompts import MODE_PROMPTS, QUERY_ENGINEERING_GUIDANCE, SYSTEM_PROMPT
 
 LOGGER = get_logger(__name__)
 
@@ -53,24 +53,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODE_FILTERS = {
-    "policy": "(site:parliament.uk OR site:gov.uk OR site:senedd.wales OR site:overton.io OR site:hansard.parliament.uk)",
-    "grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)",
-}
-
-SOURCE_FILTERS = {
-    "Policy": "(site:gov.uk OR site:parliament.uk OR site:hansard.parliament.uk OR site:senedd.wales)",
-    "Grants": "(site:ukri.org OR site:gtr.ukri.org OR site:nih.gov)",
-    "Emerging Tech": "(site:techcrunch.com OR site:wired.com OR site:venturebeat.com OR site:technologyreview.com OR site:theregister.com OR site:arstechnica.com)",
-    "Open Data": "(site:theodi.org OR site:data.gov.uk OR site:kaggle.com OR site:paperswithcode.com OR site:europeandataportal.eu)",
-    "Academia": "(site:nature.com OR site:sciencemag.org OR site:arxiv.org OR site:sciencedirect.com OR site:.edu OR site:.ac.uk)",
-    "Niche Forums": "(site:reddit.com OR site:news.ycombinator.com)",
-}
-
-# 1. Define the blocklists here (moved from services.py)
-BASE_BLOCKLIST = [
-    "bbc.co.uk", "cnn.com", "nytimes.com", "forbes.com", 
-    "bloomberg.com", "businessinsider.com"
+NEWS_BLOCKLIST = [
+    "bbc.co.uk",
+    "cnn.com",
+    "nytimes.com",
+    "forbes.com",
+    "bloomberg.com",
+    "businessinsider.com",
 ]
 
 TOPIC_BLOCKS = {
@@ -229,21 +218,29 @@ async def global_exception_handler(request: Request, exc: Exception):
 def construct_search_query(query: str, scan_mode: str, source_types: Optional[List[str]] = None) -> str:
     source_types = source_types or []
     scan_mode = (scan_mode or "general").lower()
-    
-    # --- A. Positive Filters (Inclusions) ---
-    mode_filter = MODE_FILTERS.get(scan_mode, "")
-    source_blocks = [SOURCE_FILTERS[source] for source in source_types if source in SOURCE_FILTERS]
-    combined_sources = f"({' OR '.join(source_blocks)})" if source_blocks else ""
+
+    # --- A. Positive Filters (Concept Boosters) ---
+    parts = [query]
+    context_keywords = []
+    for source in source_types:
+        if source in SOURCE_CONCEPTS:
+            context_keywords.append(f"intitle:{SOURCE_CONCEPTS[source]}")
+
+    if context_keywords:
+        parts.append(f"AND {' AND '.join(context_keywords)}")
+
+    if random.random() < 0.3:
+        parts.append("filetype:pdf")
 
     # --- B. Negative Filters (Exclusions) ---
     # 1. Start with Social Media (unless Community mode)
     exclusions = []
     if scan_mode != "community" and "Niche Forums" not in source_types:
-        exclusions.extend(["twitter.com", "facebook.com", "instagram.com", "reddit.com", "quora.com"])
+        exclusions.extend(BASE_BLOCKLIST + ["quora.com"])
 
     # 2. Add Base News Blocklist
     if scan_mode != "general":
-        exclusions.extend(BASE_BLOCKLIST)
+        exclusions.extend(NEWS_BLOCKLIST)
 
         # 3. Add Context-Aware Blocklists
         # Block Tech giants unless looking for Emerging Tech
@@ -257,7 +254,7 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
     # --- C. Combine ---
-    parts = [query, mode_filter, combined_sources, exclusion_str]
+    parts.append(exclusion_str)
     return " ".join(part for part in parts if part)
 
 
@@ -357,7 +354,12 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         today_str = request_date.strftime("%Y-%m-%d")
         existing_records = await sheets.get_records(include_rejected=True)
         existing_urls = await sheets.get_existing_urls()
-        known_urls = [rec.get("URL") for rec in existing_records if rec.get("URL")]
+        normalized_existing_urls = {
+            normalize_url(url) for url in existing_urls if normalize_url(url)
+        }
+        known_urls = [
+            normalize_url(rec.get("URL")) for rec in existing_records if normalize_url(rec.get("URL"))
+        ]
 
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else DEFAULT_SIGNAL_COUNT
 
@@ -415,12 +417,14 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             "It must cover: Signal (What?), Twist (Why weird?), Implication (Why Nesta cares?).",
             "WARNING: Pass this text ONLY to the tool. Do NOT output it in the chat.",
             "3. OPERATIONAL ALGORITHM:",
-            f"STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
-            "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
-            "   - FORBIDDEN: Do not use Boolean operators (AND, +) inside the query text.",
-            "   - BAD QUERY: 'GLP-1 AND reformulation AND strategy AND sales'",
-            "   - GOOD QUERY: 'GLP-1 impact on UK food sales'",
-            "STEP 2: EXECUTION & DEEP VERIFICATION (Mandatory)",
+        ]
+        query_guidance = [
+            line.format(target_count=target_count) for line in QUERY_ENGINEERING_GUIDANCE
+        ]
+        prompt_parts.extend(query_guidance)
+        prompt_parts.extend(
+            [
+                "STEP 2: EXECUTION & DEEP VERIFICATION (Mandatory)",
             "1. Call `perform_web_search`.",
             "2. FILTER: Discard any result that is a homepage, portal, or channel root.",
             "3. TRACE: If you find a 'News' video, get the YouTube /watch link, not the channel.",
@@ -431,7 +435,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             f"1. The user requested EXACTLY {target_count} signals.",
             "2. You MUST NOT STOP until you have successfully generated valid cards for that specific number.",
             "3. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
-        ]
+            ]
+        )
         if known_urls:
             recent_memory = known_urls[-50:] if len(known_urls) > 50 else known_urls
             prompt_parts.append(
@@ -597,8 +602,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             tool_response_added = True
                             continue
 
-                        normalized_url = card["url"].strip().rstrip("/") if card["url"] else ""
-                        if normalized_url in existing_urls:
+                        normalized_url = normalize_url(card["url"])
+                        if normalized_url in normalized_existing_urls:
                             LOGGER.info("Duplicate detected: %s", normalized_url)
                             tool_messages.append(
                                 {
@@ -609,9 +614,9 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             )
                             tool_response_added = True
                             continue
-                        if card["url"] and card["url"] not in seen_urls:
+                        if normalized_url and normalized_url not in seen_urls:
                             accumulated_signals.append(card)
-                            seen_urls.add(card["url"])
+                            seen_urls.add(normalized_url)
                             yield json.dumps({"type": "signal", "data": card}) + "\n"
                             try:
                                 await sheets.upsert_signal(card)
