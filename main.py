@@ -34,6 +34,7 @@ from prompts import (
     MODE_PROMPTS,
     NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
+    QUERY_GENERATION_PROMPT,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
@@ -233,6 +234,19 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
         return False, "Published date cannot be in the future."
 
     return True, ""
+
+
+def build_allowed_keywords_menu() -> str:
+    menu_lines = []
+    for mission, terms in MISSION_KEYWORDS.items():
+        if terms:
+            menu_lines.append(f"- {mission}: {', '.join(terms)}")
+    if CROSS_CUTTING_KEYWORDS:
+        menu_lines.append(f"- Cross-cutting: {', '.join(CROSS_CUTTING_KEYWORDS)}")
+    return "\n".join(menu_lines) or "Error: Could not load keywords.py variables."
+
+
+ALLOWED_KEYWORDS_MENU = build_allowed_keywords_menu()
 
 
 @lru_cache
@@ -520,6 +534,13 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             line.format(target_count=target_count) for line in QUERY_ENGINEERING_GUIDANCE
         ]
         if is_broad_scan:
+            if "{allowed_keywords}" not in QUERY_GENERATION_PROMPT:
+                raise ValueError(
+                    "QUERY_GENERATION_PROMPT must include the '{allowed_keywords}' placeholder."
+                )
+            prompt_parts.append(
+                QUERY_GENERATION_PROMPT.format(allowed_keywords=ALLOWED_KEYWORDS_MENU)
+            )
             prompt_parts.append(STARTUP_TRIGGER_INSTRUCTIONS)
         prompt_parts.extend(query_guidance)
         prompt_parts.extend(
