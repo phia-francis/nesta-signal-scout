@@ -70,7 +70,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PDF_INCLUSION_PROBABILITY = 0.3
+PDF_INCLUSION_PROBABILITY = 0.0
 
 TIME_FILTER_OFFSETS = {
     "w1": timedelta(weeks=1),
@@ -192,7 +192,7 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     url = card_data.get("final_url") or card_data.get("url") or ""
     if not url:
         return False, "Missing URL"
-    if len(url) < 15:
+    if len(url) < 10:
         return False, "URL too short to be a valid deep link"
 
     try:
@@ -203,8 +203,19 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     domain = parsed.netloc.lower()
     path = parsed.path.strip("/")
     query = (parsed.query or "").strip()
-    if not path and not query:
-        return False, f"URL '{url}' looks like a homepage. Deep links only."
+    fragment = (parsed.fragment or "").strip()
+    if not path and not query and not fragment:
+        generic_homepages = {
+            "www.google.com",
+            "google.com",
+            "bing.com",
+            "www.bing.com",
+            "bbc.co.uk",
+            "cnn.com",
+            "wikipedia.org",
+        }
+        if domain in generic_homepages:
+            return False, f"URL '{url}' looks like a generic homepage. Deep links only."
 
     search_domains = {"google.com", "www.google.com", "bing.com", "www.bing.com"}
     if domain in search_domains and parsed.path.startswith("/search"):
@@ -226,12 +237,11 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
 
     published_date = str(card_data.get("published_date") or "").strip()
     if not published_date or published_date.lower() in {"recent", "unknown", "n/a", "na"}:
-        return False, "Published date is missing or generic."
-    parsed_date = parse_source_date(published_date)
-    if not parsed_date:
-        return False, "Published date is invalid or unparsable."
-    if parsed_date > datetime.now():
-        return False, "Published date cannot be in the future."
+        card_data["published_date"] = "Recent"
+    else:
+        parsed_date = parse_source_date(published_date)
+        if parsed_date and parsed_date > datetime.now() + timedelta(days=1):
+            return False, "Published date cannot be in the future."
 
     return True, ""
 
@@ -324,7 +334,7 @@ def construct_search_query(
 
     # 2. Add Base News Blocklist
     if scan_mode != "general":
-        exclusions.extend(NEWS_BLOCKLIST)
+        # exclusions.extend(NEWS_BLOCKLIST)
 
         # 3. Add Context-Aware Blocklists
         # Block Tech giants unless looking for Emerging Tech
@@ -561,9 +571,11 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             "STEP 3: GENERATE CARD",
             "If the signal passes Deep Verification and has a DEEP LINK, call `display_signal_card`.",
             "LOOPING LOGIC (CRITICAL):",
-            f"1. The user requested EXACTLY {target_count} signals.",
-            "2. You MUST NOT STOP until you have successfully generated valid cards for that specific number.",
-            "3. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
+            f"1. The user needs {target_count} HIGH-QUALITY signals.",
+            f"2. GENERATION TARGET: You must generate {target_count * 2} candidate signals.",
+            f"3. RATIONALE: We will discard the bottom 50% based on Novelty scores. If you stop at {target_count}, the quality will be too low.",
+            f"4. KEEP GOING: Do not stop searching until you have generated the full candidate pool ({target_count * 2}) or run out of search attempts.",
+            "5. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
             ]
         )
         if known_urls:
