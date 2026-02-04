@@ -592,7 +592,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
-                                "content": "missing_query",
+                                "content": "Error: The 'query' argument was missing. Please provide a search query.",
                             }
                         )
                         tool_response_added = True
