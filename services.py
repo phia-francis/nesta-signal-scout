@@ -429,6 +429,8 @@ class SearchService:
         requested_results: int = 15,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
+        sleep_time = random.uniform(2.0, 4.0)
+        await asyncio.sleep(sleep_time)
         for attempt in range(self.MAX_RETRIES):
             try:
                 return await self._cached_search(query, date_restrict, requested_results)

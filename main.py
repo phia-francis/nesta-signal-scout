@@ -533,14 +533,20 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
-        accumulated_signals = []
+        candidate_signals = []
         seen_urls = set()
         previous_queries = set()
         failed_queries: List[str] = []
-        max_iterations = 10
+        max_search_attempts = min(5, max(3, target_count))
+        max_iterations = max_search_attempts * 3
         iteration = 0
+        search_attempts = 0
 
-        while len(accumulated_signals) < target_count and iteration < max_iterations:
+        while (
+            len(candidate_signals) < (target_count * 2)
+            and iteration < max_iterations
+            and search_attempts < max_search_attempts
+        ):
             iteration += 1
             yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
             turn_messages = messages[:]
@@ -581,11 +587,23 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
 
             tool_messages: List[Dict[str, Any]] = []
             tool_response_added = False
+            limit_reached = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments or "{}")
 
                 if tool_name == "perform_web_search":
+                    if search_attempts >= max_search_attempts:
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "search_limit_reached: Sniper Mode cap hit. Generate a summary instead.",
+                            }
+                        )
+                        tool_response_added = True
+                        limit_reached = True
+                        continue
                     query = args.get("query")
                     if not query:
                         tool_messages.append(
@@ -611,6 +629,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         tool_response_added = True
                         continue
                     previous_queries.add(query)
+                    search_attempts += 1
                     yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
                     if req.time_filter:
                         date_restrict = req.time_filter
@@ -707,17 +726,6 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             "ui_type": "signal_card",
                         }
 
-                        if len(accumulated_signals) >= (req.signal_count or target_count):
-                            tool_messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "content": "limit_reached",
-                                }
-                            )
-                            tool_response_added = True
-                            continue
-
                         normalized_url = normalize_url(card["url"])
                         if normalized_url in normalized_existing_urls:
                             LOGGER.info("Duplicate detected: %s", normalized_url)
@@ -731,23 +739,16 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             tool_response_added = True
                             continue
                         if normalized_url and normalized_url not in seen_urls:
-                            accumulated_signals.append(card)
+                            candidate_signals.append(card)
                             seen_urls.add(normalized_url)
-                            yield json.dumps({"type": "signal", "data": card}) + "\n"
-                            try:
-                                await sheets.upsert_signal(card)
-                            except Exception as exc:
-                                LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
                             tool_messages.append(
                                 {
                                     "role": "tool",
                                     "tool_call_id": tool_call.id,
-                                    "content": "Signal validated and saved.",
+                                    "content": "Signal validated and saved for curation.",
                                 }
                             )
                             tool_response_added = True
-                            if len(accumulated_signals) >= (req.signal_count or target_count):
-                                break
                         else:
                             tool_messages.append(
                                 {
@@ -781,8 +782,22 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         "content": "Continue generating additional valid signals.",
                     }
                 )
-            if len(accumulated_signals) >= (req.signal_count or target_count):
+            if limit_reached or len(candidate_signals) >= (target_count * 2):
                 break
+
+        if candidate_signals:
+            sorted_signals = sorted(
+                candidate_signals,
+                key=lambda k: (k.get("score_novelty", 0), k.get("score_impact", 0)),
+                reverse=True,
+            )
+            final_selection = sorted_signals[:target_count]
+            for card in final_selection:
+                yield json.dumps({"type": "signal", "data": card}) + "\n"
+                try:
+                    await sheets.upsert_signal(card)
+                except Exception as exc:
+                    LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
 
         yield json.dumps({"type": "done"}) + "\n"
 
