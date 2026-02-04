@@ -44,6 +44,9 @@ LOGGER = get_logger(__name__)
 settings = Settings()
 
 DEFAULT_SIGNAL_COUNT = 5
+MAX_SNIPER_SEARCHES = 5
+MIN_SNIPER_SEARCHES = 3
+ITERATION_MULTIPLIER = 3
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
@@ -410,6 +413,35 @@ async def generate_broad_scan_queries(source_keywords: List[str], num_signals: i
         return [f"latest innovations in {topic}" for topic in selected]
 
 
+def _coerce_score(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+async def _emit_final_signals(
+    candidate_signals: List[Dict[str, Any]],
+    target_count: int,
+    sheets: SheetService,
+):
+    if not candidate_signals:
+        return
+
+    sorted_signals = sorted(
+        candidate_signals,
+        key=lambda k: (_coerce_score(k.get("score_novelty")), _coerce_score(k.get("score_impact"))),
+        reverse=True,
+    )
+    final_selection = sorted_signals[:target_count]
+    for card in final_selection:
+        yield json.dumps({"type": "signal", "data": card}) + "\n"
+        try:
+            await sheets.upsert_signal(card)
+        except Exception as exc:
+            LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
+
+
 async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
     try:
         request_date = datetime.now()
@@ -537,8 +569,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         seen_urls = set()
         previous_queries = set()
         failed_queries: List[str] = []
-        max_search_attempts = min(5, max(3, target_count))
-        max_iterations = max_search_attempts * 3
+        max_search_attempts = min(MAX_SNIPER_SEARCHES, max(MIN_SNIPER_SEARCHES, target_count))
+        max_iterations = max_search_attempts * ITERATION_MULTIPLIER
         iteration = 0
         search_attempts = 0
 
@@ -785,19 +817,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             if limit_reached or len(candidate_signals) >= (target_count * 2):
                 break
 
-        if candidate_signals:
-            sorted_signals = sorted(
-                candidate_signals,
-                key=lambda k: (k.get("score_novelty", 0), k.get("score_impact", 0)),
-                reverse=True,
-            )
-            final_selection = sorted_signals[:target_count]
-            for card in final_selection:
-                yield json.dumps({"type": "signal", "data": card}) + "\n"
-                try:
-                    await sheets.upsert_signal(card)
-                except Exception as exc:
-                    LOGGER.warning("Error upserting signal %s: %s", card.get("url"), exc)
+        async for signal_json in _emit_final_signals(candidate_signals, target_count, sheets):
+            yield signal_json
 
         yield json.dumps({"type": "done"}) + "\n"
 
