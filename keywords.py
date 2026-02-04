@@ -740,6 +740,15 @@ SOURCE_CONCEPTS: Dict[str, str] = {
     "Niche Forums": '("forum" OR "community" OR "discussion" OR "mailing list" OR "specialist group")',
 }
 
+SOURCE_FILTERS: Dict[str, List[str]] = {
+    "Policy": ["gov.uk", "parliament.uk", "legislation.gov.uk", "whitehouse.gov"],
+    "Grants": ["ukri.org", "innovateuk.ukri.org", "grants.gov", "nih.gov"],
+    "Academia": ["arxiv.org", "nature.com", "sciencedirect.com", "journals.plos.org"],
+    "Emerging Tech": ["techcrunch.com", "theverge.com", "wired.com", "thenextweb.com"],
+    "Open Data": ["data.gov", "data.gov.uk", "kaggle.com", "opendatasoft.com"],
+    "Niche Forums": ["stackexchange.com", "discourse.org", "groups.google.com", "boards.ie"],
+}
+
 BASE_BLOCKLIST = ["twitter.com", "facebook.com", "instagram.com", "reddit.com"]
 
 
