@@ -364,6 +364,9 @@ class MockSheetService:
 
 
 class SearchService:
+    MIN_SEARCH_DELAY_S = 2.0
+    MAX_SEARCH_DELAY_S = 4.0
+
     MAX_RETRIES = 3
     BASE_BLOCKLIST = [
         "bbc.co.uk",
@@ -429,6 +432,8 @@ class SearchService:
         requested_results: int = 15,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
+        sleep_time = random.uniform(self.MIN_SEARCH_DELAY_S, self.MAX_SEARCH_DELAY_S)
+        await asyncio.sleep(sleep_time)
         for attempt in range(self.MAX_RETRIES):
             try:
                 return await self._cached_search(query, date_restrict, requested_results)

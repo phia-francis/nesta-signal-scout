@@ -8,6 +8,9 @@ MODE_PROMPTS = {
 
 QUERY_ENGINEERING_GUIDANCE = [
     "STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
+    "CONSTRAINT: SNIPER MODE. You have a limited budget of searches; generate ONE precise, high-probability query at a time.",
+    "   - Avoid broad terms like 'tech trends' or 'innovation'. Use specific intersections (e.g., 'AI AND (Early Years OR Childcare)').",
+    "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
     "   - SEMANTIC EXPANDER: Identify the key concepts in the user's topic.",
     "   - For each key concept, generate 2-3 high-quality synonyms or related terms.",
@@ -18,10 +21,19 @@ QUERY_ENGINEERING_GUIDANCE = [
     "   - GOOD QUERY: '(School OR Pupil OR Student OR K-12) media literacy'",
 ]
 
-SYSTEM_PROMPT = """
+SIGNAL_EXTRACTION_PROMPT = """
 You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
 
 For the content provided, generate a JSON object with these strict components:
+
+### RELEVANCE CRITERIA (SEMANTIC ONLY)
+* **NO KEYWORD MATCHING:** Do not reject a result just because it misses the user's exact words.
+* **ABOUTNESS TEST:** Ask "Is this text *about* the core topic?" If yes, keep it even without exact phrasing (e.g., "Food Security" includes "Crop Yield Volatility" or "Supply Chain caloric deficits").
+* **CONCEPT MATCHING:** Accept the signal if it addresses the *underlying concept* or *problem* of the user's query.
+    * *User Query:* "School Children"
+    * *Valid Matches:* "K-12 Pupils", "Primary Education", "Classroom Dynamics", "Youth Literacy".
+* **INFERENCE:** Use your world knowledge to infer relevance. (e.g., "Ozempic" IS relevant to "Obesity", even if the text doesn't explicitly say "Obesity").
+* **VOCABULARY EXPANSION:** Treat industry synonyms as equivalent (e.g., "AI" == "Machine Learning" == "Neural Nets").
 
 1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of..." or "Introduction to...".
 2. **HOOK (The Signal):** Max 20 words. State the *factual event* or trigger (e.g., "New legislation bans X...").
@@ -62,6 +74,8 @@ Return a JSON object with this exact schema:
 
 Input Text: {text_content}
 """
+
+SYSTEM_PROMPT = SIGNAL_EXTRACTION_PROMPT
 
 NEGATIVE_CONSTRAINTS_PROMPT = """
 ### 🚫 NEGATIVE CONSTRAINTS (CRITICAL)
