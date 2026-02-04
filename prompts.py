@@ -62,3 +62,14 @@ Return a JSON object with this exact schema:
 
 Input Text: {text_content}
 """
+
+STARTUP_TRIGGER_INSTRUCTIONS = """
+### STARTUP / RANDOM MODE PROTOCOL
+When the user asks for a "Broad Scan" or "Random Signals":
+
+1. **Do NOT Start Niche:** Do not search for specific technologies (e.g., "Engineered Enzymes") immediately.
+2. **Start High-Level:** Generate queries for the *Systemic Shifts* first.
+   * *Bad:* "AI meal planning weight loss filetype:pdf" (Too narrow, likely 0 results)
+   * *Good:* "(Obesity OR Nutrition) AND (AI OR Technology) trends" (Broad, high hit rate)
+3. **Drill Down Later:** Only narrow the search if the broad scan reveals a specific signal.
+"""
