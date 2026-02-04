@@ -63,6 +63,16 @@ Return a JSON object with this exact schema:
 Input Text: {text_content}
 """
 
+NEGATIVE_CONSTRAINTS_PROMPT = """
+### 🚫 NEGATIVE CONSTRAINTS (CRITICAL)
+The following topics have ALREADY been searched and failed.
+**DO NOT generate any queries related to these concepts again:**
+{failed_topics}
+
+If a topic is in the list above, you must PIVOT to a completely different sector or domain.
+*Example:* If "Lab-grown meat" failed, do not try "Cultured protein". Switch to "Regenerative Agriculture" or "Supply Chain Logistics".
+"""
+
 STARTUP_TRIGGER_INSTRUCTIONS = """
 ### STARTUP / RANDOM MODE PROTOCOL
 When the user asks for a "Broad Scan" or "Random Signals":
