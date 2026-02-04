@@ -364,10 +364,12 @@ class MockSheetService:
 
 
 class SearchService:
-    MIN_SEARCH_DELAY_S = 2.0
-    MAX_SEARCH_DELAY_S = 4.0
+    # CHANGED: Increased delays to prevent hitting rate limits initially
+    MIN_SEARCH_DELAY_S = 5.0
+    MAX_SEARCH_DELAY_S = 10.0
 
-    MAX_RETRIES = 3
+    # CHANGED: Increased max retries from 3 to 6 to survive temporary blocks
+    MAX_RETRIES = 6
     BASE_BLOCKLIST = [
         "bbc.co.uk",
         "cnn.com",
@@ -424,7 +426,7 @@ class SearchService:
         wait=wait_exponential(multiplier=1, min=2, max=20),
         stop=stop_after_attempt(3),
     )
-    
+    # Note: The decorator handles non-429 errors. 429s are handled in the loop below.
     async def search_google(
         self,
         query: str,
@@ -440,12 +442,19 @@ class SearchService:
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code if exc.response else None
                 if status_code == 429:
-                    wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    LOGGER.warning("429 rate limit. Waiting %.2fs...", wait_time)
+                    wait_time = (5 * (2 ** attempt)) + random.uniform(0, 3)
+                    LOGGER.warning(
+                        "429 rate limit (Attempt %s/%s). Waiting %.2fs...",
+                        attempt + 1,
+                        self.MAX_RETRIES,
+                        wait_time,
+                    )
                     await asyncio.sleep(wait_time)
                     continue
+                if status_code == 403:
+                    LOGGER.error("403 Forbidden - Likely Daily Quota Exceeded or Invalid Key.")
                 raise
-        LOGGER.warning("Failed after %s retries. Skipping query.", self.MAX_RETRIES)
+        LOGGER.error("Failed to search Google after %s retries. Returning empty.", self.MAX_RETRIES)
         return ""
 
 class ContentService:
