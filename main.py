@@ -502,11 +502,17 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             phrase in message_lower
             for phrase in ("broad scan", "random signals", "high-novelty novel signals")
         )
-        allowed_keywords = build_allowed_keywords_menu()
+        is_broad_scan = any(
+            phrase in message_lower
+            for phrase in ("broad scan", "random signals", "high-novelty novel signals")
+        )
         prompt_parts = [
             user_request_block,
-            QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords),
             f"CURRENT DATE: {today_str}",
+        ]
+        if is_broad_scan:
+            allowed_keywords = build_allowed_keywords_menu()
+            prompt_parts.insert(1, QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords))
             "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
             "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
