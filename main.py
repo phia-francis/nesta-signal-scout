@@ -32,6 +32,7 @@ from services import ContentService, LLMService, SearchService, SheetService, ge
 from utils import get_logger, is_date_within_time_filter, normalize_url, parse_source_date
 from prompts import (
     MODE_PROMPTS,
+    NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
@@ -534,12 +535,24 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         ]
         accumulated_signals = []
         seen_urls = set()
+        previous_queries = set()
+        failed_queries: List[str] = []
         max_iterations = 10
         iteration = 0
 
         while len(accumulated_signals) < target_count and iteration < max_iterations:
             iteration += 1
             yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
+            if failed_queries:
+                failed_topics = "\n- ".join(failed_queries)
+            else:
+                failed_topics = "None"
+            messages.append(
+                {
+                    "role": "user",
+                    "content": NEGATIVE_CONSTRAINTS_PROMPT.format(failed_topics=failed_topics),
+                }
+            )
             response = await llm_service.chat_complete(messages, tools=TOOLS)
             message = response.choices[0].message
             tool_calls = message.tool_calls or []
@@ -572,6 +585,31 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 args = json.loads(tool_call.function.arguments or "{}")
 
                 if tool_name == "perform_web_search":
+                    query = args.get("query")
+                    if not query:
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": "missing_query",
+                            }
+                        )
+                        tool_response_added = True
+                        continue
+                    if query in previous_queries:
+                        tool_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": (
+                                    "duplicate_query_skipped: This query has already been tried. "
+                                    "Generate a different topic."
+                                ),
+                            }
+                        )
+                        tool_response_added = True
+                        continue
+                    previous_queries.add(query)
                     yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
                     if req.time_filter:
                         date_restrict = req.time_filter
@@ -580,7 +618,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         date_restrict = "m1"
                     requested_results = args.get("requested_results") or 15
                     res = await perform_google_search(
-                        args.get("query"),
+                        query,
                         date_restrict,
                         requested_results=requested_results,
                         scan_mode=req.scan_mode,
@@ -588,7 +626,9 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         time_filter=req.time_filter,
                     )
                     if not res:
-                        LOGGER.warning("No results found for query: %s", args.get("query"))
+                        if query not in failed_queries:
+                            failed_queries.append(query)
+                        LOGGER.warning("No results found for query: %s", query)
                         tool_messages.append(
                             {"role": "tool", "tool_call_id": tool_call.id, "content": ""}
                         )
