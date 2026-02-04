@@ -9,7 +9,7 @@ MODE_PROMPTS = {
 QUERY_ENGINEERING_GUIDANCE = [
     "STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
     "CONSTRAINT: SNIPER MODE. You have a limited budget of searches; generate ONE precise, high-probability query at a time.",
-    "   - Avoid broad terms like 'tech trends' or 'innovation'. Use specific intersections (e.g., 'AI AND (Early Years OR Childcare)').",
+    "   - Avoid broad terms like 'tech shortage' or 'innovation'. Use specific intersections (e.g., 'AI AND (Early Years OR Childcare)').",
     "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
     "   - SEMANTIC EXPANDER: Identify the key concepts in the user's topic.",
@@ -26,7 +26,23 @@ QUERY_GENERATION_PROMPT = """
 You are currently in **Broad Scan Mode**.
 1. **NO FREESTYLING:** You must generate a query using ONLY the topics listed in the `Input Data` section below.
 2. **NO COMBINATORIAL HALLUCINATIONS:** Do not combine a topic with a technology unless the `Input Data` explicitly allows it.
-3. **FORMAT:** Select a high-priority topic from the list and append a discovery verb (e.g. "trends", "innovation").
+3. **FORMAT:** Select a high-priority topic from the list and append a Conflict Verb (e.g. "shortage", "ban", "regulation", "lawsuit", "pilot", "crisis", "breakthrough").
+
+### 🚫 FORBIDDEN WORDS
+Do NOT use the word "trends" or "outlook" in your search query. These return generic marketing content.
+
+### ✅ REQUIRED VOCABULARY
+Instead, pair your topic with "Conflict Verbs" to find specific events:
+* "Shortage"
+* "Ban"
+* "Regulation"
+* "Lawsuit"
+* "Pilot"
+* "Crisis"
+* "Breakthrough"
+
+* *Bad:* "Childcare trends"
+* *Good:* "Childcare shortage crisis" OR "Childcare pilot results"
 
 ### INPUT DATA (VALID TOPICS FROM KEYWORDS.PY)
 {allowed_keywords}
@@ -105,6 +121,6 @@ When the user asks for a "Broad Scan" or "Random Signals":
 1. **Do NOT Start Niche:** Do not search for specific technologies (e.g., "Engineered Enzymes") immediately.
 2. **Start High-Level:** Generate queries for the *Systemic Shifts* first.
    * *Bad:* "AI meal planning weight loss filetype:pdf" (Too narrow, likely 0 results)
-   * *Good:* "(Obesity OR Nutrition) AND (AI OR Technology) trends" (Broad, high hit rate)
+   * *Good:* "(Obesity OR Nutrition) AND (AI OR Technology) crisis" (Broad, high hit rate)
 3. **Drill Down Later:** Only narrow the search if the broad scan reveals a specific signal.
 """
