@@ -45,7 +45,8 @@ def normalize_url(url: str) -> str:
     if not url:
         return ""
     parsed = urlparse(url)
-    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    clean_path = parsed.path.rstrip("/")
+    return urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
 
 
 def validate_url_security(url: str) -> Tuple[object, str, str]:

@@ -53,6 +53,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PDF_INCLUSION_PROBABILITY = 0.3
+
 NEWS_BLOCKLIST = [
     "bbc.co.uk",
     "cnn.com",
@@ -229,7 +231,7 @@ def construct_search_query(query: str, scan_mode: str, source_types: Optional[Li
     if context_keywords:
         parts.append(f"AND {' AND '.join(context_keywords)}")
 
-    if random.random() < 0.3:
+    if random.random() < PDF_INCLUSION_PROBABILITY:
         parts.append("filetype:pdf")
 
     # --- B. Negative Filters (Exclusions) ---
@@ -353,13 +355,12 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         request_date = datetime.now()
         today_str = request_date.strftime("%Y-%m-%d")
         existing_records = await sheets.get_records(include_rejected=True)
-        existing_urls = await sheets.get_existing_urls()
-        normalized_existing_urls = {
-            normalize_url(url) for url in existing_urls if normalize_url(url)
-        }
         known_urls = [
-            normalize_url(rec.get("URL")) for rec in existing_records if normalize_url(rec.get("URL"))
+            normalized_url
+            for rec in existing_records
+            if (normalized_url := normalize_url(rec.get("URL")))
         ]
+        normalized_existing_urls = set(known_urls)
 
         target_count = req.signal_count if req.signal_count and req.signal_count > 0 else DEFAULT_SIGNAL_COUNT
 
