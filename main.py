@@ -34,6 +34,7 @@ from prompts import (
     MODE_PROMPTS,
     NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
+    QUERY_GENERATION_PROMPT,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
@@ -233,6 +234,16 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
         return False, "Published date cannot be in the future."
 
     return True, ""
+
+
+def build_allowed_keywords_menu() -> str:
+    menu_lines = []
+    for mission, terms in MISSION_KEYWORDS.items():
+        if terms:
+            menu_lines.append(f"- {mission}: {', '.join(terms)}")
+    if CROSS_CUTTING_KEYWORDS:
+        menu_lines.append(f"- Cross-cutting: {', '.join(CROSS_CUTTING_KEYWORDS)}")
+    return "\n".join(menu_lines) or "Error: Could not load keywords.py variables."
 
 
 @lru_cache
@@ -491,8 +502,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             phrase in message_lower
             for phrase in ("broad scan", "random signals", "high-novelty novel signals")
         )
+        allowed_keywords = build_allowed_keywords_menu()
         prompt_parts = [
             user_request_block,
+            QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords),
             f"CURRENT DATE: {today_str}",
             "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
