@@ -543,17 +543,18 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         while len(accumulated_signals) < target_count and iteration < max_iterations:
             iteration += 1
             yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
+            turn_messages = messages[:]
             if failed_queries:
                 failed_topics = "\n- ".join(failed_queries)
             else:
                 failed_topics = "None"
-            messages.append(
+            turn_messages.append(
                 {
                     "role": "user",
                     "content": NEGATIVE_CONSTRAINTS_PROMPT.format(failed_topics=failed_topics),
                 }
             )
-            response = await llm_service.chat_complete(messages, tools=TOOLS)
+            response = await llm_service.chat_complete(turn_messages, tools=TOOLS)
             message = response.choices[0].message
             tool_calls = message.tool_calls or []
 
