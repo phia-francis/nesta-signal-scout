@@ -62,6 +62,22 @@ app.add_middleware(
 
 PDF_INCLUSION_PROBABILITY = 0.3
 
+TIME_FILTER_OFFSETS = {
+    "w1": timedelta(weeks=1),
+    "m1": relativedelta(months=1),
+    "m3": relativedelta(months=3),
+    "m6": relativedelta(months=6),
+    "y1": relativedelta(years=1),
+    "past 7 days": timedelta(weeks=1),
+    "past month": relativedelta(months=1),
+    "past 3 months": relativedelta(months=3),
+    "past 6 months": relativedelta(months=6),
+    "past year": relativedelta(years=1),
+    "week": timedelta(weeks=1),
+    "month": relativedelta(months=1),
+    "year": relativedelta(years=1),
+}
+
 NEWS_BLOCKLIST = [
     "bbc.co.uk",
     "cnn.com",
@@ -227,22 +243,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 def calculate_cutoff_date(time_filter: Optional[str]) -> date:
     today = date.today()
     normalized = (time_filter or "").strip().lower()
-    offsets = {
-        "w1": timedelta(weeks=1),
-        "m1": relativedelta(months=1),
-        "m3": relativedelta(months=3),
-        "m6": relativedelta(months=6),
-        "y1": relativedelta(years=1),
-        "past 7 days": timedelta(weeks=1),
-        "past month": relativedelta(months=1),
-        "past 3 months": relativedelta(months=3),
-        "past 6 months": relativedelta(months=6),
-        "past year": relativedelta(years=1),
-        "week": timedelta(weeks=1),
-        "month": relativedelta(months=1),
-        "year": relativedelta(years=1),
-    }
-    offset = offsets.get(normalized)
+    offset = TIME_FILTER_OFFSETS.get(normalized)
     if offset:
         return today - offset
     return today - relativedelta(months=18)

@@ -364,6 +364,7 @@ class MockSheetService:
 
 
 class SearchService:
+    MAX_RETRIES = 3
     BASE_BLOCKLIST = [
         "bbc.co.uk",
         "cnn.com",
@@ -428,8 +429,7 @@ class SearchService:
         requested_results: int = 15,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
-        max_retries = 3
-        for attempt in range(max_retries):
+        for attempt in range(self.MAX_RETRIES):
             try:
                 return await self._cached_search(query, date_restrict, requested_results)
             except httpx.HTTPStatusError as exc:
@@ -440,7 +440,7 @@ class SearchService:
                     await asyncio.sleep(wait_time)
                     continue
                 raise
-        LOGGER.warning("Failed after %s retries. Skipping query.", max_retries)
+        LOGGER.warning("Failed after %s retries. Skipping query.", self.MAX_RETRIES)
         return ""
 
 class ContentService:
