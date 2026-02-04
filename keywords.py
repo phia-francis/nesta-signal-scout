@@ -730,6 +730,18 @@ MISSION_KEYWORDS: Dict[str, List[str]] = {
     ),
 }
 
+SOURCE_CONCEPTS: Dict[str, str] = {
+    "Emerging Tech": '("technology" OR "startup" OR "innovation" OR "AI" OR "digital" OR "software")',
+    "Open Data": '("open data" OR "dataset" OR "data portal" OR "dashboard" OR "data.gov")',
+    "Academia": '("journal" OR "study" OR "preprint" OR "university" OR "research paper")',
+    "Policy": '("regulation" OR "government" OR "white paper" OR "bill" OR "parliament" OR "compliance")',
+    "Grants": '("grant" OR "funding" OR "R&D call" OR "call for proposals" OR "fellowship")',
+    "Finance": '("market" OR "investment" OR "venture capital" OR "stocks" OR "economy")',
+    "Niche Forums": '("forum" OR "community" OR "discussion" OR "mailing list" OR "specialist group")',
+}
+
+BASE_BLOCKLIST = ["twitter.com", "facebook.com", "instagram.com", "reddit.com"]
+
 
 QUERY_GENERATION_MODEL = "gpt-4o-mini"
 

@@ -6,6 +6,18 @@ MODE_PROMPTS = {
     "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run.",
 }
 
+QUERY_ENGINEERING_GUIDANCE = [
+    "STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
+    "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
+    "   - SEMANTIC EXPANDER: Identify the key concepts in the user's topic.",
+    "   - For each key concept, generate 2-3 high-quality synonyms or related terms.",
+    "   - Combine synonyms using the OR operator inside parentheses.",
+    "   - EXPAND: Don't just use the user's word. EXPAND it with synonyms using the OR operator.",
+    "   - EXAMPLE: If topic is 'School Children', use '(School OR Pupil OR Student OR K-12)'.",
+    "   - BAD QUERY: 'School children media literacy'",
+    "   - GOOD QUERY: '(School OR Pupil OR Student OR K-12) media literacy'",
+]
+
 SYSTEM_PROMPT = """
 You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
 
@@ -31,6 +43,22 @@ SCORING:
 - Novelty (1-10): 10 = Completely new paradigm. 1 = Mainstream news.
 - Evidence (1-10): 10 = Academic paper/Legislation. 1 = Opinion blog.
 - Impact (1-10): 10 = Systemic change/Market failure correction. 1 = Minor incremental update.
+
+OUTPUT FORMAT: JSON
+Return a JSON object with this exact schema:
+{
+  "signals": [
+    {
+      "title": "String",
+      "source": "String",
+      "date": "String",
+      "summary": "String",
+      "analysis": "String",
+      "scores": {"novelty": Int, "evidence": Int, "impact": Int},
+      "url": "String"
+    }
+  ]
+}
 
 Input Text: {text_content}
 """

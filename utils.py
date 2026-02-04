@@ -7,7 +7,7 @@ import re
 import socket
 from datetime import datetime
 from typing import Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from dateutil.relativedelta import relativedelta
 from dateutil import parser
@@ -39,6 +39,14 @@ def get_logger(name: str) -> logging.Logger:
 
 
 LOGGER = get_logger(__name__)
+
+
+def normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    clean_path = parsed.path.rstrip("/")
+    return urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
 
 
 def validate_url_security(url: str) -> Tuple[object, str, str]:
