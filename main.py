@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 import random
 from datetime import date, datetime, timedelta
@@ -628,10 +629,19 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         seen_urls = set()
         previous_queries = set()
         failed_queries: List[str] = []
-        max_search_attempts = min(MAX_SNIPER_SEARCHES, max(MIN_SNIPER_SEARCHES, target_count))
+        estimated_searches_needed = max(1, math.ceil(target_count / 2))
+        max_search_attempts = estimated_searches_needed + 2
+        if max_search_attempts > 8:
+            max_search_attempts = 8
         max_iterations = max_search_attempts * ITERATION_MULTIPLIER
         iteration = 0
         search_attempts = 0
+        yield json.dumps(
+            {
+                "type": "debug",
+                "message": f"Search Budget: {max_search_attempts} queries allocated.",
+            }
+        ) + "\n"
 
         while (
             len(candidate_signals) < (target_count * 2)
@@ -679,6 +689,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             tool_messages: List[Dict[str, Any]] = []
             tool_response_added = False
             limit_reached = False
+            quota_exceeded = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments or "{}")
@@ -736,6 +747,16 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         source_types=req.source_types,
                         time_filter=req.time_filter,
                     )
+                    if res == "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED":
+                        yield json.dumps(
+                            {
+                                "type": "error",
+                                "message": "Daily Search Quota Exceeded (100/100 used). Stopping scan.",
+                            }
+                        ) + "\n"
+                        quota_exceeded = True
+                        tool_response_added = True
+                        break
                     if not res:
                         if query not in failed_queries:
                             failed_queries.append(query)
@@ -873,7 +894,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         "content": "Continue generating additional valid signals.",
                     }
                 )
-            if limit_reached or len(candidate_signals) >= (target_count * 2):
+            if quota_exceeded or limit_reached or len(candidate_signals) >= (target_count * 2):
                 break
 
         async for signal_json in _emit_final_signals(candidate_signals, target_count, sheets):

@@ -7,7 +7,13 @@ MODE_PROMPTS = {
 }
 
 QUERY_ENGINEERING_GUIDANCE = [
-    "STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
+    "STEP 1: QUERY ENGINEERING.",
+    "CONSTRAINT: LIMITED SEARCH BUDGET.",
+    "   - You have a strict allowance of searches. You cannot afford to waste one.",
+    "   - ONE SEARCH must yield MULTIPLE signals.",
+    "   - DO NOT refine queries incrementally (e.g., searching 'AI', then 'AI Health', then 'AI Health UK').",
+    "   - Go straight for the high-yield query: 'AI Health innovations UK pilot results'.",
+    "You have exactly {target_count} seeds.",
     "STRATEGY: HARVEST MODE (EFFICIENCY IS PARAMOUNT).",
     "   - GOAL: Generate queries that yield a CLUSTER of results (3-5 hits per search), not just one.",
     "   - LOCALE NEUTRALITY: Avoid UK-specific acronyms unless the user asks for 'UK'.",

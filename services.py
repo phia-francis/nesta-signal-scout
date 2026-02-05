@@ -423,8 +423,8 @@ class SearchService:
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPError, RuntimeError)),
-        wait=wait_exponential(multiplier=1, min=2, max=20),
-        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=30),
+        stop=stop_after_attempt(5),
     )
     # Note: The decorator handles non-429 errors. 429s are handled in the loop below.
     async def search_google(
@@ -435,7 +435,9 @@ class SearchService:
         requested_results: int = 10,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
-        sleep_time = random.uniform(self.MIN_SEARCH_DELAY_S, self.MAX_SEARCH_DELAY_S)
+        if requested_results > 10:
+            requested_results = 10
+        sleep_time = random.uniform(3.0, 6.0)
         await asyncio.sleep(sleep_time)
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -443,17 +445,13 @@ class SearchService:
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code if exc.response else None
                 if status_code == 429:
-                    wait_time = (5 * (2 ** attempt)) + random.uniform(0, 3)
-                    LOGGER.warning(
-                        "429 rate limit (Attempt %s/%s). Waiting %.2fs...",
-                        attempt + 1,
-                        self.MAX_RETRIES,
-                        wait_time,
-                    )
+                    wait_time = (5 * (2 ** attempt)) + random.uniform(1, 5)
+                    LOGGER.warning("429 Rate Limit. Backing off for %.1fs...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
                 if status_code == 403:
-                    LOGGER.error("403 Forbidden - Likely Daily Quota Exceeded or Invalid Key.")
+                    LOGGER.critical("403 QUOTA EXCEEDED: You have hit the 100/day limit.")
+                    return "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED"
                 raise
         LOGGER.error("Failed to search Google after %s retries. Returning empty.", self.MAX_RETRIES)
         return ""
