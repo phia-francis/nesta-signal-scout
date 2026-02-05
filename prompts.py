@@ -8,17 +8,14 @@ MODE_PROMPTS = {
 
 QUERY_ENGINEERING_GUIDANCE = [
     "STEP 1: QUERY ENGINEERING. You have exactly {target_count} seeds.",
-    "CONSTRAINT: SNIPER MODE. You have a limited budget of searches; generate ONE precise, high-probability query at a time.",
-    "   - Avoid broad terms like 'tech shortage' or 'innovation'. Use specific intersections (e.g., 'AI AND (Early Years OR Childcare)').",
+    "STRATEGY: HARVEST MODE (EFFICIENCY IS PARAMOUNT).",
+    "   - GOAL: Generate queries that yield a CLUSTER of results (3-5 hits per search), not just one.",
+    "   - SYNONYM STACKING: Use the OR operator aggressively to capture multiple phrasings in one go.",
+    "   - EXAMPLE: Instead of searching 'AI in schools' (too broad) or 'AI automated marking' (too narrow), use:",
+    "     '(AI OR Chatbot OR Automated Marking) AND (Schools OR Teachers OR Classrooms) pilot results'",
+    "   - AVOID SINGLE-SHOT QUERIES: Do not waste a search on a hyper-specific phrase that might return 0 results.",
     "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
-    "   - SEMANTIC EXPANDER: Identify the key concepts in the user's topic.",
-    "   - For each key concept, generate 2-3 high-quality synonyms or related terms.",
-    "   - Combine synonyms using the OR operator inside parentheses.",
-    "   - EXPAND: Don't just use the user's word. EXPAND it with synonyms using the OR operator.",
-    "   - EXAMPLE: If topic is 'School Children', use '(School OR Pupil OR Student OR K-12)'.",
-    "   - BAD QUERY: 'School children media literacy'",
-    "   - GOOD QUERY: '(School OR Pupil OR Student OR K-12) media literacy'",
 ]
 
 QUERY_GENERATION_PROMPT = """

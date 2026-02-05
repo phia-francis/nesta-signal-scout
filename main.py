@@ -536,6 +536,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             f"DIVERSITY SEEDS: {keywords_str}",
             "Core Directive: YOU ARE A RESEARCH ENGINE, NOT A WRITER.",
             "- NO SEARCH = NO SIGNAL: If you cannot find a direct URL, the signal does not exist.",
+            "- EFFICIENCY RULE (CRITICAL):",
+            "  1. BATCH PROCESSING: When a search returns results, you must extract ALL valid signals from that list.",
+            "  2. DO NOT search again if the current list contains enough valid, high-novelty candidates to meet your target.",
+            "  3. ONLY search again if you have exhausted the current results or they are all irrelevant.",
             "- QUALITY CONTROL (CRITICAL - DEEP LINKS ONLY):",
             "  1. NO HOMEPAGES: You must NEVER output a root domain (e.g., 'www.bbc.co.uk') or a generic category page.",
             "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., 'youtube.com/c/NewsChannel'). You must find the specific VIDEO link (e.g., 'youtube.com/watch?v=...').",
@@ -710,7 +714,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                     else:
                         # Safety fallback: If frontend sends nothing/null, default to Past Month
                         date_restrict = "m1"
-                    requested_results = args.get("requested_results") or 15
+                    requested_results = args.get("requested_results") or 10
                     res = await perform_google_search(
                         query,
                         date_restrict,

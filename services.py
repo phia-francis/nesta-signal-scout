@@ -431,7 +431,8 @@ class SearchService:
         self,
         query: str,
         date_restrict: str = "m1",
-        requested_results: int = 15,
+        # CHANGED: Reduced from 15 to 10 to cap searches at 1 API call.
+        requested_results: int = 10,
     ) -> str:
         # Removed: scan_mode, source_types (Logic moved to main.py)
         sleep_time = random.uniform(self.MIN_SEARCH_DELAY_S, self.MAX_SEARCH_DELAY_S)
