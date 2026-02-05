@@ -329,10 +329,9 @@ def construct_search_query(
     # --- B. Negative Filters (Exclusions) ---
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
-        if "reddit.com" in exclusions:
-            exclusions.remove("reddit.com")
-        if "quora.com" in exclusions:
-            exclusions.remove("quora.com")
+        exclusions = [
+            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
+        ]
 
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
