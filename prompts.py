@@ -1,6 +1,4 @@
-# prompts.py
-
-from typing import Any, Dict, List
+from typing import Dict, List, Any
 
 MODE_PROMPTS = {
     "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
@@ -105,16 +103,29 @@ When the user asks for a "Broad Scan" or "Random Signals":
 3. **Drill Down Later:** Only narrow the search if the broad scan reveals a specific signal.
 """
 
+# === ASSEMBLING THE MASTER BRAIN ===
+
+# 1. Flatten the guidance list into a string
 _guidance_str = "\n".join(QUERY_ENGINEERING_GUIDANCE)
 
+# 2. Define the Master System Prompt that includes Search Strategy + Extraction Logic
 MASTER_SYSTEM_PROMPT = f"""
 {_guidance_str}
 
 {STARTUP_TRIGGER_INSTRUCTIONS}
 
 ---
-PHASE 2: ANALYSIS & EXTRACTION
+PHASE 2: ANALYSIS & EXTRACTION (HIGHEST PRIORITY)
 {SIGNAL_EXTRACTION_PROMPT}
+
+### ⚡️ EXECUTION LOOP (MUST FOLLOW STRICTLY)
+1. **SEARCH:** Call `perform_web_search`.
+2. **STOP & EXTRACT:** You must IMMEDIATELY process the results. 
+   - DO NOT search again until you have checked every single result in the list.
+   - If a result looks promising, call `fetch_article_text` or `display_signal_card`.
+   - **IT IS FORBIDDEN** to discard a list of 10 results without extracting at least 1 signal, unless they are all clearly spam.
+3. **REPEAT:** Only search again if the current batch is exhausted.
 """
 
+# 3. Expose this as the final variable
 SYSTEM_PROMPT = MASTER_SYSTEM_PROMPT
