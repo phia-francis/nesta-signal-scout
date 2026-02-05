@@ -50,6 +50,29 @@ MAX_SNIPER_SEARCHES = 5
 MIN_SNIPER_SEARCHES = 3
 ITERATION_MULTIPLIER = 3
 PDF_INCLUSION_PROBABILITY = 0.2
+_SHORTHAND_OFFSETS = {
+    "m1": timedelta(days=30),
+    "m3": timedelta(days=90),
+    "m6": timedelta(days=180),
+    "y1": timedelta(days=365),
+}
+_FRIENDLY_OFFSETS = {
+    "past month": timedelta(days=30),
+    "past 3 months": timedelta(days=90),
+    "past 6 months": timedelta(days=180),
+    "past year": timedelta(days=365),
+}
+_SOCIAL_DOMAINS = {
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "instagram.com",
+    "pinterest.com",
+    "tiktok.com",
+    "reddit.com",
+    "quora.com",
+    "linkedin.com",
+}
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
@@ -273,29 +296,16 @@ def calculate_cutoff_date(time_filter: Optional[str]) -> datetime:
     if not time_filter:
         return now - timedelta(days=30)
     normalized = time_filter.strip().lower()
-    shorthand_offsets = {
-        "m1": timedelta(days=30),
-        "m3": timedelta(days=90),
-        "m6": timedelta(days=180),
-        "y1": timedelta(days=365),
-    }
-    if normalized in shorthand_offsets:
-        return now - shorthand_offsets[normalized]
-    friendly_offsets = {
-        "past month": timedelta(days=30),
-        "past 3 months": timedelta(days=90),
-        "past 6 months": timedelta(days=180),
-        "past year": timedelta(days=365),
-    }
-    if normalized in friendly_offsets:
-        return now - friendly_offsets[normalized]
+    if normalized in _SHORTHAND_OFFSETS:
+        return now - _SHORTHAND_OFFSETS[normalized]
+    if normalized in _FRIENDLY_OFFSETS:
+        return now - _FRIENDLY_OFFSETS[normalized]
     return now - timedelta(days=30)
 
 
 def construct_search_query(
     query: str,
     scan_mode: str,
-    source_types: Optional[List[str]] = None,
     time_filter: Optional[str] = "y1",
 ) -> str:
     """
@@ -315,9 +325,7 @@ def construct_search_query(
 
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
-        exclusions = [
-            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
-        ]
+        exclusions = [domain for domain in exclusions if domain not in _SOCIAL_DOMAINS]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
     parts.append(exclusion_str)
 
