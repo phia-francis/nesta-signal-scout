@@ -1,13 +1,13 @@
 # prompts.py
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from keywords import DOMAIN_EXAMPLES, QUERY_SUGGESTIONS
 
 MODE_PROMPTS = {
-    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on regulatory instruments, consultation documents, and formal policy statements.",
-    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, eligibility criteria, and award notices.",
-    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and practitioner discussions.",
+    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
+    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.",
+    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run.",
 }
 
 QUERY_ENGINEERING_GUIDANCE = [
@@ -23,9 +23,14 @@ QUERY_ENGINEERING_GUIDANCE = [
     "   - LOCALE NEUTRALITY: Avoid UK-specific acronyms unless the user asks for 'UK'.",
     "     * BAD: 'NHS backlog solutions', 'DfE funding', 'Whitehall policy'",
     "     * GOOD: 'Public health wait time solutions', 'Education ministry funding', 'Government policy'",
-    "   - NATURAL LANGUAGE: Write queries as plain language search phrases.",
-    "     * BAD: '(AI OR Chatbot) AND (Schools OR Teachers) pilot results'",
-    "     * GOOD: 'AI classroom pilot results for teachers'",
+    "   - GLOBAL CONTEXT: We must break the UK/US bubble.",
+    "     * STRATEGY: For 50% of queries, append specific high-innovation geographies.",
+    "     * GOOD: '...in Scandinavia', '...in Singapore', '...South Korea pilot', '...EU regulation'.",
+    "     * BAD: '...International' or '...Global' (These terms return generic, low-value reports).",
+    "     * NEGATIVE FILTER: Occasionally use '-UK' or '-London' to force the search engine to look elsewhere.",
+    "   - SYNONYM STACKING: Use the OR operator aggressively to capture multiple phrasings in one go.",
+    "   - EXAMPLE: Instead of searching 'AI in schools' (too broad) or 'AI automated marking' (too narrow), use:",
+    "     '(AI OR Chatbot OR Automated Marking) AND (Schools OR Teachers OR Classrooms) pilot results'",
     "   - AVOID SINGLE-SHOT QUERIES: Do not waste a search on a hyper-specific phrase that might return 0 results.",
     "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
@@ -82,48 +87,27 @@ Instead, pair your topic with "Conflict Verbs" to find specific events:
 """
 
 SIGNAL_EXTRACTION_PROMPT = """
-You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change, not just summarize news.
+You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Signals" of change.
+
+### DATA EXTRACTION RULES
+1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of...".
+2. **URL:** Provide the direct source link for the signal (deep link, not a generic homepage).
+3. **HOOK:** Max 20 words. State the factual event.
+4. **ANALYSIS:** Max 40 words. Format: "Old View: [Assumptions]. New Insight: [Shift]."
+5. **IMPLICATION:** Max 30 words. Focus on systemic impact.
+6. **MISSION:** Must be exactly one of:
+   - "🌳 A Sustainable Future"
+   - "📚 A Fairer Start"
+   - "❤️‍🩹 A Healthy Life"
+   - "Mission Adjacent - [Topic]"
+7. **SCORES (0-10):** Novelty, Evidence, Impact, Evocativeness.
 
 ### ⛔️ CRITICAL OUTPUT INSTRUCTION
-DO NOT write JSON text.
-DO NOT write a summary.
-YOU MUST USE THE TOOL `display_signal_card` to save your findings.
+**DO NOT write JSON text.**
+**DO NOT write a summary.**
+**YOU MUST USE THE TOOL `display_signal_card` to save your findings.**
 
-If you find a valid signal, call the function `display_signal_card` immediately with the fields defined below.
-
-### RELEVANCE CRITERIA (SEMANTIC ONLY)
-* **NO KEYWORD MATCHING:** Do not reject a result just because it misses the user's exact words.
-* **ABOUTNESS TEST:** Ask "Is this text *about* the core topic?" If yes, keep it even without exact phrasing (e.g., "Food Security" includes "Crop Yield Volatility" or "Supply Chain caloric deficits").
-* **CONCEPT MATCHING:** Accept the signal if it addresses the *underlying concept* or *problem* of the user's query.
-    * *User Query:* "School Children"
-    * *Valid Matches:* "K-12 Pupils", "Primary Education", "Classroom Dynamics", "Youth Literacy".
-* **INFERENCE:** Use your world knowledge to infer relevance. (e.g., "Ozempic" IS relevant to "Obesity", even if the text doesn't explicitly say "Obesity").
-* **VOCABULARY EXPANSION:** Treat industry synonyms as equivalent (e.g., "AI" == "Machine Learning" == "Neural Nets").
-
-1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of..." or "Introduction to...".
-2. **URL:** Provide the direct source link for the signal (deep link, not a generic homepage).
-3. **HOOK (Summary / The Signal):** Max 20 words. State the *factual event* or trigger (e.g., "New legislation bans X...").
-4. **ANALYSIS (The Shift):** Max 40 words. Explain the structural change.
-   - **MANDATORY FORMAT:** "Old View: [Previous assumption]. New Insight: [What has changed/Second-order effect]."
-5. **IMPLICATION (Why it matters):** Max 30 words. Explain the consequence for the UK or Policy.
-   - Focus on *systemic* impacts (e.g., market failure, inequality, new regulatory needs).
-6. **SCORE:** Provide a single overall score (1-10) for the signal.
-7. **MISSION CLASSIFICATION:**
-   - You MUST classify the signal into exactly one of these strings:
-     - "🌳 A Sustainable Future" (Net Zero, Energy, Decarbonization)
-     - "📚 A Fairer Start" (Education, Early Years, Childcare, Inequality)
-     - "❤️‍🩹 A Healthy Life" (Health, Obesity, Food Systems, Longevity)
-   - If it does NOT fit the above, output: "Mission Adjacent - [Topic]" (e.g., "Mission Adjacent - AI Ethics" or "Mission Adjacent - Quantum Computing").
-   - DO NOT output plain text like "Healthy Life" or "Sustainable Future". You MUST include the emoji.
-8. **ORIGIN COUNTRY:**
-   - Provide the 2-letter ISO country code (e.g., "GB", "US") or "Global" if no country applies.
-
-SCORING:
-- Novelty (1-10): 10 = Completely new paradigm. 1 = Mainstream news.
-- Evidence (1-10): 10 = Academic paper/Legislation. 1 = Opinion blog.
-- Impact (1-10): 10 = Systemic change/Market failure correction. 1 = Minor incremental update.
-
-Input Text: {text_content}
+If you find a valid signal, call the function `display_signal_card` immediately with the fields defined above.
 """
 
 def _format_dict_for_prompt(data: Dict[str, List[str]]) -> str:

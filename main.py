@@ -49,6 +49,30 @@ DEFAULT_SIGNAL_COUNT = 5
 MAX_SNIPER_SEARCHES = 5
 MIN_SNIPER_SEARCHES = 3
 ITERATION_MULTIPLIER = 3
+PDF_INCLUSION_PROBABILITY = 0.2
+_SHORTHAND_OFFSETS = {
+    "m1": timedelta(days=30),
+    "m3": timedelta(days=90),
+    "m6": timedelta(days=180),
+    "y1": timedelta(days=365),
+}
+_FRIENDLY_OFFSETS = {
+    "past month": timedelta(days=30),
+    "past 3 months": timedelta(days=90),
+    "past 6 months": timedelta(days=180),
+    "past year": timedelta(days=365),
+}
+_SOCIAL_DOMAINS = {
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "instagram.com",
+    "pinterest.com",
+    "tiktok.com",
+    "reddit.com",
+    "quora.com",
+    "linkedin.com",
+}
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
@@ -267,18 +291,45 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def construct_search_query(query: str, scan_mode: str = "general") -> str:
-    # --- Negative Filters (Exclusions) ---
+def calculate_cutoff_date(time_filter: Optional[str]) -> datetime:
+    now = datetime.utcnow()
+    if not time_filter:
+        return now - timedelta(days=30)
+    normalized = time_filter.strip().lower()
+    if normalized in _SHORTHAND_OFFSETS:
+        return now - _SHORTHAND_OFFSETS[normalized]
+    if normalized in _FRIENDLY_OFFSETS:
+        return now - _FRIENDLY_OFFSETS[normalized]
+    return now - timedelta(days=30)
+
+
+def construct_search_query(
+    query: str,
+    scan_mode: str,
+    time_filter: Optional[str] = "y1",
+) -> str:
+    """
+    Simplified: Cleanly joins query + date + blocklist.
+    Removes all legacy 'site:' injection and 'intitle:' keywords.
+    """
     scan_mode = (scan_mode or "general").lower()
+
+    parts = [query]
+
+    cutoff_date = calculate_cutoff_date(time_filter)
+    date_operator = f"after:{cutoff_date.strftime('%Y-%m-%d')}"
+    parts.append(date_operator)
+
+    if random.random() < PDF_INCLUSION_PROBABILITY:
+        parts.append("filetype:pdf")
+
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
-        exclusions = [
-            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
-        ]
+        exclusions = [domain for domain in exclusions if domain not in _SOCIAL_DOMAINS]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
+    parts.append(exclusion_str)
 
-    # --- Combine ---
-    return " ".join(filter(None, [query, exclusion_str]))
+    return " ".join(filter(None, parts))
 
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
@@ -330,6 +381,7 @@ async def perform_google_search(
     final_query = construct_search_query(
         query,
         scan_mode,
+        time_filter=date_restrict,
     )
     
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
