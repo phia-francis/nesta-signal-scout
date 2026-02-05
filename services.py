@@ -424,7 +424,7 @@ class SearchService:
     @retry(
         retry=retry_if_exception_type((httpx.HTTPError, RuntimeError)),
         wait=wait_exponential(multiplier=1, min=4, max=30),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(MAX_RETRIES),
     )
     # Note: The decorator handles non-429 errors. 429s are handled in the loop below.
     async def search_google(
