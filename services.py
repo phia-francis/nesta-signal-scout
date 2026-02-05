@@ -371,16 +371,14 @@ class SearchService:
     # CHANGED: Increased max retries from 3 to 6 to survive temporary blocks
     MAX_RETRIES = 6
     BASE_BLOCKLIST = [
-        "bbc.co.uk",
-        "cnn.com",
-        "nytimes.com",
-        "forbes.com",
-        "bloomberg.com",
-        "businessinsider.com",
+        "nesta.org.uk",
+        "twitter.com",
+        "facebook.com",
+        "linkedin.com",
     ]
     TOPIC_BLOCKS = {
-        "tech": ["techcrunch.com", "theverge.com", "wired.com"],
-        "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
+        "tech": [],
+        "policy": [],
     }
 
     def __init__(self, api_key: Optional[str], cx: Optional[str]):

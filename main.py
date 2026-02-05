@@ -90,15 +90,6 @@ TIME_FILTER_OFFSETS = {
     "year": relativedelta(years=1),
 }
 
-NEWS_BLOCKLIST = [
-    "bbc.co.uk",
-    "cnn.com",
-    "nytimes.com",
-    "forbes.com",
-    "bloomberg.com",
-    "businessinsider.com",
-]
-
 GENERIC_HOMEPAGE_BLOCKLIST = {
     "www.google.com",
     "google.com",
@@ -110,8 +101,8 @@ GENERIC_HOMEPAGE_BLOCKLIST = {
 }
 
 TOPIC_BLOCKS = {
-    "tech": ["techcrunch.com", "theverge.com", "wired.com"],
-    # CHANGED: Empty list to allow government sites in general searches.
+    # CHANGED: Empty lists to avoid blocking mainstream or government domains.
+    "tech": [],
     "policy": [],
 }
 
@@ -336,23 +327,12 @@ def construct_search_query(
         source_string = f"(site:{' OR site:'.join(all_allowed_sites)})"
 
     # --- B. Negative Filters (Exclusions) ---
-    # 1. Start with Social Media (unless Community mode)
-    exclusions = []
-    if scan_mode != "community" and "Niche Forums" not in source_types:
-        exclusions.extend(BASE_BLOCKLIST + ["quora.com"])
-
-    # 2. Add Base News Blocklist
-    if scan_mode != "general":
-        # exclusions.extend(NEWS_BLOCKLIST)
-
-        # 3. Add Context-Aware Blocklists
-        # Block Tech giants unless looking for Emerging Tech
-        if "Emerging Tech" not in source_types:
-            exclusions.extend(TOPIC_BLOCKS["tech"])
-        
-        # Block Gov sites unless looking for Policy
-        if scan_mode != "policy" and "Policy" not in source_types:
-            exclusions.extend(TOPIC_BLOCKS["policy"])
+    exclusions = BASE_BLOCKLIST.copy()
+    if scan_mode == "community":
+        if "reddit.com" in exclusions:
+            exclusions.remove("reddit.com")
+        if "quora.com" in exclusions:
+            exclusions.remove("quora.com")
 
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 

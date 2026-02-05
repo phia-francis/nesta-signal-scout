@@ -759,7 +759,18 @@ SOURCE_FILTERS: Dict[str, List[str]] = {
     ],
 }
 
-BASE_BLOCKLIST = ["twitter.com", "facebook.com", "instagram.com", "reddit.com"]
+BASE_BLOCKLIST = [
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "instagram.com",
+    "pinterest.com",
+    "tiktok.com",
+    "reddit.com",
+    "quora.com",
+    "linkedin.com",
+    "nesta.org.uk",
+]
 
 
 QUERY_GENERATION_MODEL = "gpt-4o-mini"
