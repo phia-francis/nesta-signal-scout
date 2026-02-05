@@ -5,7 +5,7 @@ import json
 import math
 import re
 import random
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 from functools import lru_cache
@@ -20,8 +20,7 @@ from keywords import (
     BASE_BLOCKLIST,
     CROSS_CUTTING_KEYWORDS,
     MISSION_KEYWORDS,
-    SOURCE_CONCEPTS,
-    SOURCE_FILTERS,
+    TENSION_KEYWORDS,
 )
 from models import (
     ChatRequest,
@@ -37,10 +36,10 @@ from prompts import (
     NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
     QUERY_GENERATION_PROMPT,
+    SEARCH_STRATEGIES,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
-from dateutil.relativedelta import relativedelta
 
 LOGGER = get_logger(__name__)
 
@@ -72,24 +71,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PDF_INCLUSION_PROBABILITY = 0.0
-
-TIME_FILTER_OFFSETS = {
-    "w1": timedelta(weeks=1),
-    "m1": relativedelta(months=1),
-    "m3": relativedelta(months=3),
-    "m6": relativedelta(months=6),
-    "y1": relativedelta(years=1),
-    "past 7 days": timedelta(weeks=1),
-    "past month": relativedelta(months=1),
-    "past 3 months": relativedelta(months=3),
-    "past 6 months": relativedelta(months=6),
-    "past year": relativedelta(years=1),
-    "week": timedelta(weeks=1),
-    "month": relativedelta(months=1),
-    "year": relativedelta(years=1),
-}
-
 GENERIC_HOMEPAGE_BLOCKLIST = {
     "www.google.com",
     "google.com",
@@ -111,15 +92,17 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "perform_web_search",
-            "description": "Search the web for relevant results.",
+            "description": (
+                "Search the web. You must construct a complete, natural language query that "
+                "includes document-type keywords when needed (e.g., 'white paper', "
+                "'consultation', 'grant call')."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string"},
+                    "query": {"type": "string", "description": "The full search string."},
                     "date_restrict": {"type": "string"},
                     "requested_results": {"type": "integer"},
-                    "scan_mode": {"type": "string"},
-                    "source_types": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["query"],
             },
@@ -284,60 +267,13 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def calculate_cutoff_date(time_filter: Optional[str]) -> date:
-    today = date.today()
-    normalized = (time_filter or "").strip().lower()
-    offset = TIME_FILTER_OFFSETS.get(normalized)
-    if offset:
-        return today - offset
-    return today - relativedelta(months=18)
-
-
-def construct_search_query(
-    query: str,
-    scan_mode: str,
-    source_types: Optional[List[str]] = None,
-    time_filter: Optional[str] = "y1",
-) -> str:
-    source_types = source_types or []
-    scan_mode = (scan_mode or "general").lower()
-
-    # --- A. Positive Filters (Concept Boosters) ---
-    parts = [query]
-    cutoff_date = calculate_cutoff_date(time_filter)
-    date_operator = f"after:{cutoff_date.strftime('%Y-%m-%d')}"
-    context_keywords = []
-    for source in source_types:
-        if source in SOURCE_CONCEPTS:
-            context_keywords.append(f"intitle:{SOURCE_CONCEPTS[source]}")
-
-    if context_keywords:
-        parts.append(f"AND {' AND '.join(context_keywords)}")
-
-    if random.random() < PDF_INCLUSION_PROBABILITY:
-        parts.append("filetype:pdf")
-
-    all_allowed_sites = []
-    for source in source_types:
-        if source in SOURCE_FILTERS:
-            all_allowed_sites.extend(SOURCE_FILTERS[source])
-
-    source_string = ""
-    if all_allowed_sites:
-        source_string = f"(site:{' OR site:'.join(all_allowed_sites)})"
-
-    # --- B. Negative Filters (Exclusions) ---
+def construct_search_query(query: str) -> str:
+    # --- Negative Filters (Exclusions) ---
     exclusions = BASE_BLOCKLIST.copy()
-    if scan_mode == "community":
-        exclusions = [
-            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
-        ]
-
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
-    # --- C. Combine ---
-    parts.extend([date_operator, source_string, exclusion_str])
-    return " ".join(filter(None, parts))
+    # --- Combine ---
+    return " ".join(filter(None, [query, exclusion_str]))
 
 
 def build_enrichment_prompt(article_text: str, url: str) -> List[Dict[str, str]]:
@@ -384,15 +320,9 @@ async def perform_google_search(
     query: str,
     date_restrict: str = "m1",
     requested_results: int = 15,
-    scan_mode: str = "general",
-    source_types: Optional[List[str]] = None,
-    time_filter: Optional[str] = None,
 ) -> str:
     final_query = construct_search_query(
         query,
-        scan_mode,
-        source_types,
-        time_filter=time_filter,
     )
     
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
@@ -558,8 +488,15 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             prompt_parts.append(
                 QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords)
             )
+            prompt_parts.append(
+                "TENSION KEYWORDS (PAIR WITH MISSION SEEDS TO FIND EVENTS): "
+                + ", ".join(TENSION_KEYWORDS)
+            )
+            prompt_parts.append(SEARCH_STRATEGIES["broad_scan"])
             prompt_parts.append(STARTUP_TRIGGER_INSTRUCTIONS)
         prompt_parts.extend(query_guidance)
+        if req.scan_mode == "general":
+            prompt_parts.append(SEARCH_STRATEGIES["general"])
         prompt_parts.extend(
             [
                 "STEP 2: EXECUTION & DEEP VERIFICATION (Mandatory)",
@@ -591,18 +528,27 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 "MODE ADAPTATION: GRANT STALKER.CRITICAL: You must TRANSLATE consumer/mission keywords into Academic/Scientific terminology before searching.\n"
                 "Input: 'School Readiness' → Search: ('Cognitive development' OR 'Pedagogical interventions')\n"
                 "Input: 'Healthy Snacking' → Search: ('Nutrient reformulation' OR 'Metabolic health')\n"
-                "SOURCE RULE: Apply these translated keywords to the User-Provided Source List (e.g., selected_sources). Do NOT hardcode site:ukri.org if the user has selected other filters (like VC Blogs or News)."
+                "SOURCE RULE: Keep the translated terms in the natural language query. Do NOT append site: filters."
             )
         prompt = "\n\n".join(prompt_parts)
 
         if req.tech_mode:
             prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
 
-        bias_sources = req.source_types
-        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Selected Source Filters: {', '.join(bias_sources)}."
+        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}."
 
+        selected_sources = [source for source in req.source_types if source]
+        mode_instruction = ""
+        if selected_sources:
+            mode_instruction = (
+                "\nUSER SETTINGS:\n"
+                f"The user has explicitly requested to filter for: {', '.join(selected_sources)}.\n"
+                "You MUST apply the search strategies for these types and bake the intent into the query."
+            )
+
+        full_system_prompt = SYSTEM_PROMPT + mode_instruction
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": full_system_prompt},
             {"role": "user", "content": prompt},
         ]
         candidate_signals = []
@@ -723,9 +669,6 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         query,
                         date_restrict,
                         requested_results=requested_results,
-                        scan_mode=req.scan_mode,
-                        source_types=req.source_types,
-                        time_filter=req.time_filter,
                     )
                     if res == "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED":
                         yield json.dumps(
