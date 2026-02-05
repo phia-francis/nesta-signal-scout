@@ -419,20 +419,14 @@ async def generate_broad_scan_queries(source_keywords: List[str], num_signals: i
         return [f"latest innovations in {topic}" for topic in selected]
 
 
-async def _emit_final_signals(
+async def _persist_signals(
     candidate_signals: List[Dict[str, Any]],
-    target_count: int,
     sheets: SheetService,
-    emitted_urls: Optional[set[str]] = None,
 ):
     if not candidate_signals:
         return
 
     for card in candidate_signals:
-        normalized_url = normalize_url(card.get("url"))
-        if not emitted_urls or normalized_url not in emitted_urls:
-            yield json.dumps({"type": "signal", "data": card}) + "\n"
-
         try:
             await sheets.upsert_signal(card)
         except Exception as exc:
@@ -580,7 +574,6 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             {"role": "user", "content": prompt},
         ]
         candidate_signals = []
-        seen_urls = set()
         emitted_urls: set[str] = set()
         previous_queries = set()
         failed_queries: List[str] = []
@@ -835,12 +828,20 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             )
                             tool_response_added = True
                             continue
-                        if normalized_url and normalized_url not in seen_urls:
+                        if normalized_url and normalized_url not in emitted_urls:
+                            if len(candidate_signals) >= target_count:
+                                tool_messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tool_call.id,
+                                        "content": "target_reached_skipped",
+                                    }
+                                )
+                                tool_response_added = True
+                                continue
                             candidate_signals.append(card)
-                            seen_urls.add(normalized_url)
-                            if normalized_url not in emitted_urls:
-                                emitted_urls.add(normalized_url)
-                                yield json.dumps({"type": "signal", "data": card}) + "\n"
+                            emitted_urls.add(normalized_url)
+                            yield json.dumps({"type": "signal", "data": card}) + "\n"
                             tool_messages.append(
                                 {
                                     "role": "tool",
@@ -885,13 +886,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             if quota_exceeded or limit_reached or len(candidate_signals) >= target_count:
                 break
 
-        async for signal_json in _emit_final_signals(
-            candidate_signals,
-            target_count,
-            sheets,
-            emitted_urls,
-        ):
-            yield signal_json
+        await _persist_signals(candidate_signals, sheets)
 
         yield json.dumps({"type": "done"}) + "\n"
 
