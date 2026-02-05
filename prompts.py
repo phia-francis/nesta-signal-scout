@@ -89,7 +89,7 @@ DO NOT write JSON text.
 DO NOT write a summary.
 YOU MUST USE THE TOOL `display_signal_card` to save your findings.
 
-If you find a valid signal, call the function `display_signal_card` immediately with the fields defined above.
+If you find a valid signal, call the function `display_signal_card` immediately with the fields defined below.
 
 ### RELEVANCE CRITERIA (SEMANTIC ONLY)
 * **NO KEYWORD MATCHING:** Do not reject a result just because it misses the user's exact words.
@@ -101,19 +101,21 @@ If you find a valid signal, call the function `display_signal_card` immediately 
 * **VOCABULARY EXPANSION:** Treat industry synonyms as equivalent (e.g., "AI" == "Machine Learning" == "Neural Nets").
 
 1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of..." or "Introduction to...".
-2. **HOOK (Summary / The Signal):** Max 20 words. State the *factual event* or trigger (e.g., "New legislation bans X...").
-3. **ANALYSIS (The Shift):** Max 40 words. Explain the structural change.
+2. **URL:** Provide the direct source link for the signal (deep link, not a generic homepage).
+3. **HOOK (Summary / The Signal):** Max 20 words. State the *factual event* or trigger (e.g., "New legislation bans X...").
+4. **ANALYSIS (The Shift):** Max 40 words. Explain the structural change.
    - **MANDATORY FORMAT:** "Old View: [Previous assumption]. New Insight: [What has changed/Second-order effect]."
-4. **IMPLICATION (Why it matters):** Max 30 words. Explain the consequence for the UK or Policy.
+5. **IMPLICATION (Why it matters):** Max 30 words. Explain the consequence for the UK or Policy.
    - Focus on *systemic* impacts (e.g., market failure, inequality, new regulatory needs).
-5. **MISSION CLASSIFICATION:**
+6. **SCORE:** Provide a single overall score (1-10) for the signal.
+7. **MISSION CLASSIFICATION:**
    - You MUST classify the signal into exactly one of these strings:
      - "🌳 A Sustainable Future" (Net Zero, Energy, Decarbonization)
      - "📚 A Fairer Start" (Education, Early Years, Childcare, Inequality)
      - "❤️‍🩹 A Healthy Life" (Health, Obesity, Food Systems, Longevity)
    - If it does NOT fit the above, output: "Mission Adjacent - [Topic]" (e.g., "Mission Adjacent - AI Ethics" or "Mission Adjacent - Quantum Computing").
    - DO NOT output plain text like "Healthy Life" or "Sustainable Future". You MUST include the emoji.
-6. **ORIGIN COUNTRY:**
+8. **ORIGIN COUNTRY:**
    - Provide the 2-letter ISO country code (e.g., "GB", "US") or "Global" if no country applies.
 
 SCORING:
