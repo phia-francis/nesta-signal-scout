@@ -730,18 +730,65 @@ MISSION_KEYWORDS: Dict[str, List[str]] = {
     ),
 }
 
-SOURCE_CONCEPTS: Dict[str, str] = {
-    "Emerging Tech": '("technology" OR "startup" OR "innovation" OR "AI" OR "digital" OR "software")',
-    "Open Data": '("open data" OR "dataset" OR "data portal" OR "dashboard" OR "data.gov")',
-    "Academia": '("journal" OR "study" OR "preprint" OR "university" OR "research paper")',
-    "Policy": '("regulation" OR "government" OR "white paper" OR "bill" OR "parliament" OR "compliance")',
-    "Grants": '("grant" OR "funding" OR "R&D call" OR "call for proposals" OR "fellowship")',
-    "Finance": '("market" OR "investment" OR "venture capital" OR "stocks" OR "economy")',
-    "Niche Forums": '("forum" OR "community" OR "discussion" OR "mailing list" OR "specialist group")',
-    "Think Tanks": '("report" OR "analysis" OR "policy paper" OR "strategic insight" OR "think tank")',
+QUERY_SUGGESTIONS: Dict[str, List[str]] = {
+    "Emerging Tech": [
+        "pilot program",
+        "prototype",
+        "technology demonstration",
+        "product launch",
+        "innovation roadmap",
+    ],
+    "Open Data": [
+        "open dataset",
+        "data portal",
+        "public dashboard",
+        "data release",
+        "open access repository",
+    ],
+    "Academia": [
+        "meta-analysis",
+        "peer-reviewed study",
+        "clinical trial results",
+        "systematic review",
+        "preprint paper",
+    ],
+    "Policy": [
+        "white paper",
+        "green paper",
+        "consultation",
+        "regulatory framework",
+        "statutory instrument",
+    ],
+    "Grants": [
+        "call for proposals",
+        "funding opportunity",
+        "eligibility criteria",
+        "innovation grant",
+    ],
+    "Finance": [
+        "investment memo",
+        "market outlook",
+        "capital raise",
+        "venture round",
+        "financial disclosure",
+    ],
+    "Niche Forums": [
+        "specialist forum",
+        "mailing list archive",
+        "community thread",
+        "technical discussion",
+        "peer Q&A",
+    ],
+    "Think Tanks": [
+        "policy report",
+        "strategic analysis",
+        "briefing paper",
+        "evidence review",
+        "issue brief",
+    ],
 }
 
-SOURCE_FILTERS: Dict[str, List[str]] = {
+DOMAIN_EXAMPLES: Dict[str, List[str]] = {
     "Policy": ["gov.uk", "parliament.uk", "legislation.gov.uk", "whitehouse.gov"],
     "Grants": ["ukri.org", "innovateuk.ukri.org", "grants.gov", "nih.gov"],
     "Academia": ["arxiv.org", "nature.com", "sciencedirect.com", "journals.plos.org"],
@@ -770,6 +817,20 @@ BASE_BLOCKLIST = [
     "quora.com",
     "linkedin.com",
     "nesta.org.uk",
+]
+
+TENSION_KEYWORDS = [
+    "shortage",
+    "delay",
+    "lawsuit",
+    "pilot results",
+    "regulatory dispute",
+    "breakthrough",
+    "market exit",
+    "protest",
+    "new standard",
+    "funding crisis",
+    "merger",
 ]
 
 

@@ -1,9 +1,11 @@
 # prompts.py
 
+from keywords import DOMAIN_EXAMPLES, QUERY_SUGGESTIONS
+
 MODE_PROMPTS = {
-    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
-    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.",
-    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and Reddit discussions. NOTE: The standard ban on Social Media/UGC is LIFTED for this run.",
+    "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on regulatory instruments, consultation documents, and formal policy statements.",
+    "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, eligibility criteria, and award notices.",
+    "community": "MODE ADAPTATION: COMMUNITY SENSING. ROLE: You are a Digital Anthropologist. PRIORITY: Value personal anecdotes, 'DIY' experiments, and practitioner discussions.",
 }
 
 QUERY_ENGINEERING_GUIDANCE = [
@@ -19,18 +21,36 @@ QUERY_ENGINEERING_GUIDANCE = [
     "   - LOCALE NEUTRALITY: Avoid UK-specific acronyms unless the user asks for 'UK'.",
     "     * BAD: 'NHS backlog solutions', 'DfE funding', 'Whitehall policy'",
     "     * GOOD: 'Public health wait time solutions', 'Education ministry funding', 'Government policy'",
-    "   - GLOBAL CONTEXT: We must break the UK/US bubble.",
-    "     * STRATEGY: For 50% of queries, append specific high-innovation geographies.",
-    "     * GOOD: '...in Scandinavia', '...in Singapore', '...South Korea pilot', '...EU regulation'.",
-    "     * BAD: '...International' or '...Global' (These terms return generic, low-value reports).",
-    "     * NEGATIVE FILTER: Occasionally use '-UK' or '-London' to force the search engine to look elsewhere.",
-    "   - SYNONYM STACKING: Use the OR operator aggressively to capture multiple phrasings in one go.",
-    "   - EXAMPLE: Instead of searching 'AI in schools' (too broad) or 'AI automated marking' (too narrow), use:",
-    "     '(AI OR Chatbot OR Automated Marking) AND (Schools OR Teachers OR Classrooms) pilot results'",
+    "   - NATURAL LANGUAGE: Write queries as plain language search phrases.",
+    "     * BAD: '(AI OR Chatbot) AND (Schools OR Teachers) pilot results'",
+    "     * GOOD: 'AI classroom pilot results for teachers'",
     "   - AVOID SINGLE-SHOT QUERIES: Do not waste a search on a hyper-specific phrase that might return 0 results.",
     "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
 ]
+
+SEARCH_STRATEGIES = {
+    "general": "\n".join(
+        [
+            "STRATEGY: GENERAL MODE (TOPIC PROVIDED).",
+            "Instruction: When the user gives a topic but no source filter, do NOT perform a generic information search.",
+            "You are looking for change. Pair the user's topic with a Tension Keyword.",
+            "Bad Query: 'Heat pumps'",
+            "Good Query: 'Heat pump installation delays and planning permission disputes'",
+            "Good Query: 'Heat pump supply chain shortages and manufacturer bankruptcies'",
+        ]
+    ),
+    "broad_scan": "\n".join(
+        [
+            "STRATEGY: BROAD SCAN (NO TOPIC).",
+            "Instruction: The user wants to be surprised. You have been given random Mission Seeds.",
+            "You must pair these seeds with Conflict Verbs to find unknown unknowns.",
+            "Constraint: Do not search for 'trends'. Search for specific incidents.",
+            "Good Query: 'School readiness post-pandemic literacy crisis data'",
+            "Good Query: 'Obesity drug supply chain shortage impact UK'",
+        ]
+    ),
+}
 
 QUERY_GENERATION_PROMPT = """
 ### 🔒 CONSTRAINT: STRICT KEYWORD SELECTION
@@ -113,7 +133,28 @@ Return a JSON object with this exact schema:
 Input Text: {text_content}
 """
 
-SYSTEM_PROMPT = SIGNAL_EXTRACTION_PROMPT
+def _format_dict_for_prompt(data: Dict[str, List[str]]) -> str:
+    lines = []
+    for key, values in data.items():
+        lines.append(f"- {key}: {', '.join(values)}")
+    return "\n".join(lines)
+
+
+SEARCH_STRATEGY_SECTION = f"""
+## SEARCH STRATEGY & QUERY ENGINEERING
+1. PATTERN MATCHING: Do not search only for the topic. Search for the evidence signature.
+   - If the user wants Policy, look for white papers, consultations, and regulations.
+   - If the user wants Grants, look for calls for proposals, funding opportunities, and eligibility criteria.
+2. NATURAL LANGUAGE: Write queries in plain language that Google understands. Avoid complex nested boolean operators.
+3. GEOGRAPHY: SEARCH GLOBALLY. Do not append country names (UK/US) unless the user specifically asks for a region.
+4. SOURCE CONTEXT (NON-BINDING): Use the following document-type suggestions by mode:
+{_format_dict_for_prompt(QUERY_SUGGESTIONS)}
+5. DOMAIN EXAMPLES (CONTEXT ONLY): Look for sites similar to the examples below without using site: operators:
+{_format_dict_for_prompt(DOMAIN_EXAMPLES)}
+""".strip()
+
+
+SYSTEM_PROMPT = f"{SIGNAL_EXTRACTION_PROMPT}\n\n{SEARCH_STRATEGY_SECTION}"
 
 NEGATIVE_CONSTRAINTS_PROMPT = """
 ### 🚫 NEGATIVE CONSTRAINTS (CRITICAL)
