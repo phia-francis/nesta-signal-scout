@@ -111,7 +111,8 @@ GENERIC_HOMEPAGE_BLOCKLIST = {
 
 TOPIC_BLOCKS = {
     "tech": ["techcrunch.com", "theverge.com", "wired.com"],
-    "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
+    # CHANGED: Empty list to allow government sites in general searches.
+    "policy": [],
 }
 
 TOOLS = [
