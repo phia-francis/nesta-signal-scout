@@ -100,6 +100,8 @@ GENERIC_HOMEPAGE_BLOCKLIST = {
     "wikipedia.org",
 }
 
+COMMUNITY_SCAN_ALLOWED_DOMAINS = {"reddit.com", "quora.com"}
+
 TOOLS = [
     {
         "type": "function",
@@ -315,7 +317,7 @@ def construct_search_query(
     if scan_mode == "community":
         # Allow Reddit/Quora in community mode
         exclusions = [
-            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
+            domain for domain in exclusions if domain not in COMMUNITY_SCAN_ALLOWED_DOMAINS
         ]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
     parts.append(exclusion_str)
@@ -660,7 +662,18 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             quota_exceeded = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
-                args = json.loads(tool_call.function.arguments or "{}")
+                try:
+                    args = json.loads(tool_call.function.arguments or "{}")
+                except json.JSONDecodeError:
+                    tool_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": "Error: Invalid JSON arguments. Please call the tool with valid JSON.",
+                        }
+                    )
+                    tool_response_added = True
+                    continue
 
                 if tool_name == "perform_web_search":
                     if search_attempts >= max_search_attempts:
@@ -674,7 +687,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         tool_response_added = True
                         limit_reached = True
                         continue
-                    query = args.get("query")
+                    query = (args.get("query") or "").strip()
                     if not query:
                         tool_messages.append(
                             {
@@ -771,7 +784,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                     tool_response_added = True
                 elif tool_name == "generate_broad_scan_queries":
                     num_signals = args.get("num_signals") or (req.signal_count or target_count)
-                    queries = await asyncio.to_thread(
+                    queries = await generate_broad_scan_queries(
                         CROSS_CUTTING_KEYWORDS,
                         num_signals,
                     )

@@ -422,7 +422,7 @@ class SearchService:
     @retry(
         retry=retry_if_exception_type((httpx.HTTPError, RuntimeError)),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        stop=stop_after_attempt(3),
+        stop=stop_after_attempt(MAX_RETRIES),
     )
     async def search_google(
         self,
