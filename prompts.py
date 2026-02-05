@@ -133,17 +133,10 @@ Return a JSON object with this exact schema:
 Input Text: {text_content}
 """
 
-def _format_query_suggestions() -> str:
+def _format_dict_for_prompt(data: Dict[str, List[str]]) -> str:
     lines = []
-    for mode, suggestions in QUERY_SUGGESTIONS.items():
-        lines.append(f"- {mode}: {', '.join(suggestions)}")
-    return "\n".join(lines)
-
-
-def _format_domain_examples() -> str:
-    lines = []
-    for mode, examples in DOMAIN_EXAMPLES.items():
-        lines.append(f"- {mode}: {', '.join(examples)}")
+    for key, values in data.items():
+        lines.append(f"- {key}: {', '.join(values)}")
     return "\n".join(lines)
 
 
@@ -155,9 +148,9 @@ SEARCH_STRATEGY_SECTION = f"""
 2. NATURAL LANGUAGE: Write queries in plain language that Google understands. Avoid complex nested boolean operators.
 3. GEOGRAPHY: SEARCH GLOBALLY. Do not append country names (UK/US) unless the user specifically asks for a region.
 4. SOURCE CONTEXT (NON-BINDING): Use the following document-type suggestions by mode:
-{_format_query_suggestions()}
+{_format_dict_for_prompt(QUERY_SUGGESTIONS)}
 5. DOMAIN EXAMPLES (CONTEXT ONLY): Look for sites similar to the examples below without using site: operators:
-{_format_domain_examples()}
+{_format_dict_for_prompt(DOMAIN_EXAMPLES)}
 """.strip()
 
 

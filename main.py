@@ -267,9 +267,13 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def construct_search_query(query: str) -> str:
+def construct_search_query(query: str, scan_mode: str = "general") -> str:
     # --- Negative Filters (Exclusions) ---
     exclusions = BASE_BLOCKLIST.copy()
+    if scan_mode == "community":
+        exclusions = [
+            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
+        ]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
     # --- Combine ---
@@ -320,9 +324,11 @@ async def perform_google_search(
     query: str,
     date_restrict: str = "m1",
     requested_results: int = 15,
+    scan_mode: str = "general",
 ) -> str:
     final_query = construct_search_query(
         query,
+        scan_mode,
     )
     
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
@@ -669,6 +675,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         query,
                         date_restrict,
                         requested_results=requested_results,
+                        scan_mode=req.scan_mode,
                     )
                     if res == "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED":
                         yield json.dumps(
