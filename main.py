@@ -36,7 +36,6 @@ from prompts import (
     NEGATIVE_CONSTRAINTS_PROMPT,
     QUERY_ENGINEERING_GUIDANCE,
     QUERY_GENERATION_PROMPT,
-    SEARCH_STRATEGIES,
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
@@ -73,6 +72,7 @@ _SOCIAL_DOMAINS = {
     "quora.com",
     "linkedin.com",
 }
+COMMUNITY_ALLOWED_DOMAINS = _SOCIAL_DOMAINS
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
@@ -306,7 +306,6 @@ def calculate_cutoff_date(time_filter: Optional[str]) -> datetime:
 def construct_search_query(
     query: str,
     scan_mode: str,
-    source_types: Optional[List[str]] = None,
     time_filter: Optional[str] = "y1",
 ) -> str:
     """
@@ -326,7 +325,9 @@ def construct_search_query(
 
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
-        exclusions = [domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}]
+        exclusions = [
+            domain for domain in exclusions if domain not in COMMUNITY_ALLOWED_DOMAINS
+        ]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
     parts.append(exclusion_str)
 
@@ -555,11 +556,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 "TENSION KEYWORDS (PAIR WITH MISSION SEEDS TO FIND EVENTS): "
                 + ", ".join(TENSION_KEYWORDS)
             )
-            prompt_parts.append(SEARCH_STRATEGIES["broad_scan"])
             prompt_parts.append(STARTUP_TRIGGER_INSTRUCTIONS)
         prompt_parts.extend(query_guidance)
-        if req.scan_mode == "general":
-            prompt_parts.append(SEARCH_STRATEGIES["general"])
         prompt_parts.extend(
             [
                 "STEP 2: EXECUTION & DEEP VERIFICATION (Mandatory)",
