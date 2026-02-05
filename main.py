@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import random
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -237,12 +238,17 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
         return False, f"URL domain '{domain}' is disallowed."
 
     published_date = str(card_data.get("published_date") or "").strip()
-    if not published_date or published_date.lower() in {"recent", "unknown", "n/a", "na"}:
-        card_data["published_date"] = "Recent"
-    else:
-        parsed_date = parse_source_date(published_date)
-        if parsed_date and parsed_date > datetime.now() + timedelta(days=1):
-            return False, "Published date cannot be in the future."
+    if not published_date or published_date.lower() in {"unknown", "n/a", "na", "recent"}:
+        snippet = card_data.get("snippet") or ""
+        year_match = re.search(r"\b(202[4-9])\b", snippet)
+        if year_match:
+            card_data["published_date"] = f"{year_match.group(1)} (Inferred)"
+        else:
+            card_data["published_date"] = "Unknown"
+
+    parsed_date = parse_source_date(card_data["published_date"])
+    if parsed_date and parsed_date > datetime.now() + timedelta(days=2):
+        return False, f"Published date {parsed_date} is in the future."
 
     return True, ""
 
@@ -536,6 +542,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             "  1. OUTPUT: Strictly use British English spelling (e.g., 'programme', 'labour') for the final card text.",
             "  2. SEARCH SCOPE: GLOBAL. Do NOT default to UK sources. Actively prioritise signals from the US, EU, Asia, and Global South.",
             "  3. NON-ENGLISH SOURCES: You are encouraged to find English-language reporting on international events (e.g., 'Al Jazeera English', 'Deutsche Welle', 'Nikkei Asia').",
+            "DATA EXTRACTION RULES:",
+            "- DATE: Look for a date in the text/metadata. If found, format as YYYY-MM-DD.",
+            "- MISSING DATE: Check the search snippet text. If you see 'Nov 12, 2025', use it.",
+            "- HONESTY: If you absolutely cannot find a date, output 'Unknown'. DO NOT guess 'Recent'.",
             f"DIVERSITY SEEDS: {keywords_str}",
             "Core Directive: YOU ARE A RESEARCH ENGINE, NOT A WRITER.",
             "- NO SEARCH = NO SIGNAL: If you cannot find a direct URL, the signal does not exist.",
