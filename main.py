@@ -5,7 +5,7 @@ import json
 import math
 import re
 import random
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 from functools import lru_cache
@@ -20,7 +20,8 @@ from keywords import (
     BASE_BLOCKLIST,
     CROSS_CUTTING_KEYWORDS,
     MISSION_KEYWORDS,
-    TENSION_KEYWORDS,
+    QUERY_SUGGESTIONS,
+    DOMAIN_EXAMPLES,
 )
 from models import (
     ChatRequest,
@@ -39,6 +40,7 @@ from prompts import (
     STARTUP_TRIGGER_INSTRUCTIONS,
     SYSTEM_PROMPT,
 )
+from dateutil.relativedelta import relativedelta
 
 LOGGER = get_logger(__name__)
 
@@ -48,31 +50,6 @@ DEFAULT_SIGNAL_COUNT = 5
 MAX_SNIPER_SEARCHES = 5
 MIN_SNIPER_SEARCHES = 3
 ITERATION_MULTIPLIER = 3
-PDF_INCLUSION_PROBABILITY = 0.2
-_SHORTHAND_OFFSETS = {
-    "m1": timedelta(days=30),
-    "m3": timedelta(days=90),
-    "m6": timedelta(days=180),
-    "y1": timedelta(days=365),
-}
-_FRIENDLY_OFFSETS = {
-    "past month": timedelta(days=30),
-    "past 3 months": timedelta(days=90),
-    "past 6 months": timedelta(days=180),
-    "past year": timedelta(days=365),
-}
-_SOCIAL_DOMAINS = {
-    "twitter.com",
-    "x.com",
-    "facebook.com",
-    "instagram.com",
-    "pinterest.com",
-    "tiktok.com",
-    "reddit.com",
-    "quora.com",
-    "linkedin.com",
-}
-COMMUNITY_ALLOWED_DOMAINS = _SOCIAL_DOMAINS
 
 search_service = SearchService(settings.GOOGLE_SEARCH_API_KEY, settings.GOOGLE_SEARCH_CX)
 content_service = ContentService()
@@ -95,6 +72,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PDF_INCLUSION_PROBABILITY = 0.0
+
+TIME_FILTER_OFFSETS = {
+    "w1": timedelta(weeks=1),
+    "m1": relativedelta(months=1),
+    "m3": relativedelta(months=3),
+    "m6": relativedelta(months=6),
+    "y1": relativedelta(years=1),
+    "past 7 days": timedelta(weeks=1),
+    "past month": relativedelta(months=1),
+    "past 3 months": relativedelta(months=3),
+    "past 6 months": relativedelta(months=6),
+    "past year": relativedelta(years=1),
+    "week": timedelta(weeks=1),
+    "month": relativedelta(months=1),
+    "year": relativedelta(years=1),
+}
+
 GENERIC_HOMEPAGE_BLOCKLIST = {
     "www.google.com",
     "google.com",
@@ -105,28 +100,19 @@ GENERIC_HOMEPAGE_BLOCKLIST = {
     "wikipedia.org",
 }
 
-TOPIC_BLOCKS = {
-    # CHANGED: Empty lists to avoid blocking mainstream or government domains.
-    "tech": [],
-    "policy": [],
-}
-
 TOOLS = [
     {
         "type": "function",
         "function": {
             "name": "perform_web_search",
-            "description": (
-                "Search the web. You must construct a complete, natural language query that "
-                "includes document-type keywords when needed (e.g., 'white paper', "
-                "'consultation', 'grant call')."
-            ),
+            "description": "Search the web for relevant results.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "The full search string."},
+                    "query": {"type": "string", "description": "Full natural language search query."},
                     "date_restrict": {"type": "string"},
                     "requested_results": {"type": "integer"},
+                    "scan_mode": {"type": "string"},
                 },
                 "required": ["query"],
             },
@@ -291,42 +277,45 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def calculate_cutoff_date(time_filter: Optional[str]) -> datetime:
-    now = datetime.utcnow()
-    if not time_filter:
-        return now - timedelta(days=30)
-    normalized = time_filter.strip().lower()
-    if normalized in _SHORTHAND_OFFSETS:
-        return now - _SHORTHAND_OFFSETS[normalized]
-    if normalized in _FRIENDLY_OFFSETS:
-        return now - _FRIENDLY_OFFSETS[normalized]
-    return now - timedelta(days=30)
+def calculate_cutoff_date(time_filter: Optional[str]) -> date:
+    today = date.today()
+    normalized = (time_filter or "").strip().lower()
+    offset = TIME_FILTER_OFFSETS.get(normalized)
+    if offset:
+        return today - offset
+    return today - relativedelta(months=18)
 
 
 def construct_search_query(
     query: str,
     scan_mode: str,
+    source_types: Optional[List[str]] = None,
     time_filter: Optional[str] = "y1",
 ) -> str:
     """
-    Simplified: Cleanly joins query + date + blocklist.
-    Removes all legacy 'site:' injection and 'intitle:' keywords so the LLM has full control.
+    Simplified: Cleanly joins query + date + blocklist. 
+    Removes all legacy 'site:' injection and 'intitle:' keywords.
     """
     scan_mode = (scan_mode or "general").lower()
 
+    # 1. The Core Query (Natural Language from LLM)
     parts = [query]
 
+    # 2. Date Filter
     cutoff_date = calculate_cutoff_date(time_filter)
     date_operator = f"after:{cutoff_date.strftime('%Y-%m-%d')}"
     parts.append(date_operator)
 
+    # 3. PDF Probability (Optional)
     if random.random() < PDF_INCLUSION_PROBABILITY:
         parts.append("filetype:pdf")
 
+    # 4. Negative Filters (Blocklist Only)
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
+        # Allow Reddit/Quora in community mode
         exclusions = [
-            domain for domain in exclusions if domain not in COMMUNITY_ALLOWED_DOMAINS
+            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
         ]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
     parts.append(exclusion_str)
@@ -379,15 +368,18 @@ async def perform_google_search(
     date_restrict: str = "m1",
     requested_results: int = 15,
     scan_mode: str = "general",
+    source_types: Optional[List[str]] = None,
+    time_filter: Optional[str] = None,
 ) -> str:
     final_query = construct_search_query(
         query,
         scan_mode,
-        time_filter=date_restrict,
+        source_types,
+        time_filter=time_filter,
     )
-    
+
     LOGGER.info("Searching: %s (%s)", final_query, date_restrict)
-    
+
     # Service call is now clean/dumb
     return await search_service.search_google(
         final_query,
@@ -395,10 +387,8 @@ async def perform_google_search(
         requested_results=requested_results
     )
 
-async def generate_broad_scan_queries(
-    source_keywords: List[str],
-    num_signals: int = 5,
-) -> List[str]:
+
+async def generate_broad_scan_queries(source_keywords: List[str], num_signals: int = 5) -> List[str]:
     """Generates specific Google Search queries using the main LLM service."""
     if num_signals > len(source_keywords):
         selected = source_keywords
@@ -412,7 +402,7 @@ async def generate_broad_scan_queries(
         "to these topics. Output as a JSON list of strings (e.g. [\"query1\", \"query2\"]). "
         "No markdown."
     )
-    
+
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": f"Topics: {topics_str}"},
@@ -453,6 +443,7 @@ async def _emit_final_signals(
     final_selection = sorted_signals[:target_count]
     for card in final_selection:
         yield json.dumps({"type": "signal", "data": card}) + "\n"
+
         try:
             await sheets.upsert_signal(card)
         except Exception as exc:
@@ -530,7 +521,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             "  3. ONLY search again if you have exhausted the current results or they are all irrelevant.",
             "- QUALITY CONTROL (CRITICAL - DEEP LINKS ONLY):",
             "  1. NO HOMEPAGES: You must NEVER output a root domain (e.g., 'www.bbc.co.uk') or a generic category page.",
-            "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., 'youtube.com/c/NewsChannel'). You must find the specific VIDEO link (e.g., 'youtube.com/watch?v=...').",
+            "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., '[youtube.com/c/NewsChannel](https://youtube.com/c/NewsChannel)'). You must find the specific VIDEO link (e.g., '[youtube.com/watch?v=](https://youtube.com/watch?v=)...').",
             "  3. DEEP LINK REQUIRED: Valid URLs must point to a specific article, study, or document. They usually contain segments like '/article/', '/story/', '/news/', or a document ID.",
             "  4. TRACEABILITY: If a search result is generic, you MUST dig deeper or search again to find the specific source URL.",
             "1. THE SCORING RUBRIC (Strict Calculation):",
@@ -552,27 +543,23 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             prompt_parts.append(
                 QUERY_GENERATION_PROMPT.format(allowed_keywords=allowed_keywords)
             )
-            prompt_parts.append(
-                "TENSION KEYWORDS (PAIR WITH MISSION SEEDS TO FIND EVENTS): "
-                + ", ".join(TENSION_KEYWORDS)
-            )
             prompt_parts.append(STARTUP_TRIGGER_INSTRUCTIONS)
         prompt_parts.extend(query_guidance)
         prompt_parts.extend(
             [
                 "STEP 2: EXECUTION & DEEP VERIFICATION (Mandatory)",
-            "1. Call `perform_web_search`.",
-            "2. FILTER: Discard any result that is a homepage, portal, or channel root.",
-            "3. TRACE: If you find a 'News' video, get the YouTube /watch link, not the channel.",
-            "4. DEEP READ: Call `fetch_article_text` on the DEEP URL.",
-            "STEP 3: GENERATE CARD",
-            "If the signal passes Deep Verification and has a DEEP LINK, call `display_signal_card`.",
-            "LOOPING LOGIC (CRITICAL):",
-            f"1. The user needs {target_count} HIGH-QUALITY signals.",
-            f"2. GENERATION TARGET: You must generate {target_count * 2} candidate signals.",
-            f"3. RATIONALE: We will discard the bottom 50% based on Novelty scores. If you stop at {target_count}, the quality will be too low.",
-            f"4. KEEP GOING: Do not stop searching until you have generated the full candidate pool ({target_count * 2}) or run out of search attempts.",
-            "5. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
+                "1. Call `perform_web_search`.",
+                "2. FILTER: Discard any result that is a homepage, portal, or channel root.",
+                "3. TRACE: If you find a 'News' video, get the YouTube /watch link, not the channel.",
+                "4. DEEP READ: Call `fetch_article_text` on the DEEP URL.",
+                "STEP 3: GENERATE CARD",
+                "If the signal passes Deep Verification and has a DEEP LINK, call `display_signal_card`.",
+                "LOOPING LOGIC (CRITICAL):",
+                f"1. The user needs {target_count} HIGH-QUALITY signals.",
+                f"2. GENERATION TARGET: You must generate {target_count * 2} candidate signals.",
+                f"3. RATIONALE: We will discard the bottom 50% based on Novelty scores. If you stop at {target_count}, the quality will be too low.",
+                f"4. KEEP GOING: Do not stop searching until you have generated the full candidate pool ({target_count * 2}) or run out of search attempts.",
+                "5. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
             ]
         )
         if known_urls:
@@ -584,32 +571,24 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             )
         if mode_prompt := MODE_PROMPTS.get(req.scan_mode):
             prompt_parts.append(mode_prompt)
-        if req.scan_mode == "grants":
+
+        bias_sources = req.source_types
+        if bias_sources:
             prompt_parts.append(
-                "MODE ADAPTATION: GRANT STALKER.CRITICAL: You must TRANSLATE consumer/mission keywords into Academic/Scientific terminology before searching.\n"
-                "Input: 'School Readiness' → Search: ('Cognitive development' OR 'Pedagogical interventions')\n"
-                "Input: 'Healthy Snacking' → Search: ('Nutrient reformulation' OR 'Metabolic health')\n"
-                "SOURCE RULE: Keep the translated terms in the natural language query. Do NOT append site: filters."
+                f"SOURCE CONTEXT: The user is interested in signals from: {', '.join(bias_sources)}.\n"
+                "Refer to these QUERY SUGGESTIONS to craft your search terms:\n"
+                f"{json.dumps({k: QUERY_SUGGESTIONS[k] for k in bias_sources if k in QUERY_SUGGESTIONS})}"
             )
+
         prompt = "\n\n".join(prompt_parts)
 
         if req.tech_mode:
             prompt += "\nCONSTRAINT: Hard Tech / Emerging Tech ONLY."
 
-        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}."
+        prompt += f"\nCONSTRAINT: Time Horizon {req.time_filter}. Selected Source Filters: {', '.join(bias_sources)}."
 
-        selected_sources = [source for source in req.source_types if source]
-        mode_instruction = ""
-        if selected_sources:
-            mode_instruction = (
-                "\nUSER SETTINGS:\n"
-                f"The user has explicitly requested to filter for: {', '.join(selected_sources)}.\n"
-                "You MUST apply the search strategies for these types and bake the intent into the query."
-            )
-
-        full_system_prompt = SYSTEM_PROMPT + mode_instruction
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": full_system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
         candidate_signals = []
@@ -637,6 +616,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         ):
             iteration += 1
             yield json.dumps({"type": "progress", "message": "Searching for signals..."}) + "\n"
+
             turn_messages = messages[:]
             if failed_queries:
                 failed_topics = "\n- ".join(failed_queries)
@@ -653,6 +633,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             tool_calls = message.tool_calls or []
 
             if not tool_calls:
+                LOGGER.warning("Agent returned no tool calls. Content: %s", message.content)
                 break
 
             messages.append(
@@ -679,18 +660,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             quota_exceeded = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
-                try:
-                    args = json.loads(tool_call.function.arguments or "{}")
-                except json.JSONDecodeError:
-                    tool_messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": "Error: Tool arguments were not valid JSON.",
-                        }
-                    )
-                    tool_response_added = True
-                    continue
+                args = json.loads(tool_call.function.arguments or "{}")
 
                 if tool_name == "perform_web_search":
                     if search_attempts >= max_search_attempts:
@@ -704,7 +674,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         tool_response_added = True
                         limit_reached = True
                         continue
-                    query = str(args.get("query") or "").strip()
+                    query = args.get("query")
                     if not query:
                         tool_messages.append(
                             {
@@ -731,10 +701,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                     previous_queries.add(query)
                     search_attempts += 1
                     yield json.dumps({"type": "progress", "message": "Searching for sources..."}) + "\n"
+
                     if req.time_filter:
                         date_restrict = req.time_filter
                     else:
-                        # Safety fallback: If frontend sends nothing/null, default to Past Month
                         date_restrict = "m1"
                     requested_results = args.get("requested_results") or 10
                     res = await perform_google_search(
@@ -742,6 +712,8 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         date_restrict,
                         requested_results=requested_results,
                         scan_mode=req.scan_mode,
+                        source_types=req.source_types,
+                        time_filter=req.time_filter,
                     )
                     if res == "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED":
                         yield json.dumps(
@@ -750,6 +722,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                                 "message": "Daily Search Quota Exceeded (100/100 used). Stopping scan.",
                             }
                         ) + "\n"
+
                         quota_exceeded = True
                         tool_response_added = True
                         break
@@ -762,15 +735,24 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         )
                         tool_response_added = True
                         continue
-                    tool_messages.append(
-                        {"role": "tool", "tool_call_id": tool_call.id, "content": res}
+
+                    # CHANGED: Inject specific instruction to force processing
+                    final_content = (
+                        f"{res}\n\nSYSTEM INSTRUCTION: Search complete. "
+                        "You must now EXTRACT valid signals from this list using `display_signal_card`. "
+                        "Do not search again until you have analyzed these results."
                     )
+                    tool_messages.append(
+                        {"role": "tool", "tool_call_id": tool_call.id, "content": final_content}
+                    )
+
                     yield json.dumps(
                         {
                             "type": "progress",
                             "message": f"Searching: {args.get('query')}...",
                         }
                     ) + "\n"
+
                     tool_response_added = True
                 elif tool_name == "fetch_article_text":
                     url_to_fetch = args.get("url")
@@ -789,7 +771,10 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                     tool_response_added = True
                 elif tool_name == "generate_broad_scan_queries":
                     num_signals = args.get("num_signals") or (req.signal_count or target_count)
-                    queries = await generate_broad_scan_queries(CROSS_CUTTING_KEYWORDS, num_signals)
+                    queries = await asyncio.to_thread(
+                        CROSS_CUTTING_KEYWORDS,
+                        num_signals,
+                    )
                     tool_messages.append(
                         {
                             "role": "tool",
@@ -898,6 +883,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
     except Exception as exc:
         LOGGER.exception("Unhandled exception in stream_chat_generator: %s", exc)
         yield json.dumps({"type": "error", "message": "An internal error has occurred."}) + "\n"
+
         yield json.dumps({"type": "done"}) + "\n"
 
 

@@ -33,7 +33,7 @@ class SheetService:
     async def _run_in_executor(self, func, *args):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, func, *args)
-    
+
     def _get_sheet(self):
         if not self.credentials_json or not self.sheet_id:
             LOGGER.warning("Google Sheets credentials missing.")
@@ -364,12 +364,12 @@ class MockSheetService:
 
 
 class SearchService:
-    # CHANGED: Increased delays to prevent hitting rate limits initially
-    MIN_SEARCH_DELAY_S = 5.0
-    MAX_SEARCH_DELAY_S = 10.0
+    # CHANGED: Optimized for speed
+    MIN_SEARCH_DELAY_S = 1.0
+    MAX_SEARCH_DELAY_S = 2.0
 
-    # CHANGED: Increased max retries from 3 to 6 to survive temporary blocks
-    MAX_RETRIES = 6
+    # CHANGED: Reduced max retries to avoid long timeouts
+    MAX_RETRIES = 3
     BASE_BLOCKLIST = [
         "nesta.org.uk",
         "twitter.com",
@@ -421,21 +421,19 @@ class SearchService:
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPError, RuntimeError)),
-        wait=wait_exponential(multiplier=1, min=4, max=30),
-        stop=stop_after_attempt(MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
     )
-    # Note: The decorator handles non-429 errors. 429s are handled in the loop below.
     async def search_google(
         self,
         query: str,
         date_restrict: str = "m1",
-        # CHANGED: Reduced from 15 to 10 to cap searches at 1 API call.
         requested_results: int = 10,
     ) -> str:
-        # Removed: scan_mode, source_types (Logic moved to main.py)
         if requested_results > 10:
             requested_results = 10
-        sleep_time = random.uniform(3.0, 6.0)
+        # Reduced sleep time
+        sleep_time = random.uniform(1.0, 2.0)
         await asyncio.sleep(sleep_time)
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -443,7 +441,7 @@ class SearchService:
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code if exc.response else None
                 if status_code == 429:
-                    wait_time = (5 * (2 ** attempt)) + random.uniform(1, 5)
+                    wait_time = (2 * (2 ** attempt)) + random.uniform(1, 3)
                     LOGGER.warning("429 Rate Limit. Backing off for %.1fs...", wait_time)
                     await asyncio.sleep(wait_time)
                     continue
@@ -454,6 +452,7 @@ class SearchService:
         LOGGER.error("Failed to search Google after %s retries. Returning empty.", self.MAX_RETRIES)
         return ""
 
+
 class ContentService:
     def __init__(self, timeout: float = 10.0, max_redirects: int = 3):
         self.timeout = timeout
@@ -461,7 +460,7 @@ class ContentService:
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPError, RuntimeError, ValueError)),
-        wait=wait_exponential(multiplier=1, min=2, max=20),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
         stop=stop_after_attempt(3),
     )
     async def fetch_page_content(self, url: str) -> str:
@@ -496,8 +495,8 @@ class LLMService:
 
     @retry(
         retry=retry_if_exception_type(openai.RateLimitError),
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(5),
     )
     async def chat_complete(
         self,
