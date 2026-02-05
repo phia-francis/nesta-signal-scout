@@ -306,11 +306,12 @@ def calculate_cutoff_date(time_filter: Optional[str]) -> datetime:
 def construct_search_query(
     query: str,
     scan_mode: str,
+    source_types: Optional[List[str]] = None,
     time_filter: Optional[str] = "y1",
 ) -> str:
     """
     Simplified: Cleanly joins query + date + blocklist.
-    Removes all legacy 'site:' injection and 'intitle:' keywords.
+    Removes all legacy 'site:' injection and 'intitle:' keywords so the LLM has full control.
     """
     scan_mode = (scan_mode or "general").lower()
 
@@ -325,7 +326,7 @@ def construct_search_query(
 
     exclusions = BASE_BLOCKLIST.copy()
     if scan_mode == "community":
-        exclusions = [domain for domain in exclusions if domain not in _SOCIAL_DOMAINS]
+        exclusions = [domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}]
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
     parts.append(exclusion_str)
 

@@ -2,8 +2,6 @@
 
 from typing import Any, Dict, List
 
-from keywords import DOMAIN_EXAMPLES, QUERY_SUGGESTIONS
-
 MODE_PROMPTS = {
     "policy": "MODE ADAPTATION: POLICY TRACKER. ROLE: You are a Policy Analyst. PRIORITY: Focus on Hansard debates, White Papers, and Devolved Administration records.",
     "grants": "MODE ADAPTATION: GRANT STALKER. ROLE: You are a Funding Scout. PRIORITY: Focus on new grants, R&D calls, and UKRI funding.",
@@ -35,29 +33,6 @@ QUERY_ENGINEERING_GUIDANCE = [
     "   - If a previous query failed, pivot to a distinctly different domain.",
     "   - RULE: Generate BROAD, natural language queries (Max 4-6 words).",
 ]
-
-SEARCH_STRATEGIES = {
-    "general": "\n".join(
-        [
-            "STRATEGY: GENERAL MODE (TOPIC PROVIDED).",
-            "Instruction: When the user gives a topic but no source filter, do NOT perform a generic information search.",
-            "You are looking for change. Pair the user's topic with a Tension Keyword.",
-            "Bad Query: 'Heat pumps'",
-            "Good Query: 'Heat pump installation delays and planning permission disputes'",
-            "Good Query: 'Heat pump supply chain shortages and manufacturer bankruptcies'",
-        ]
-    ),
-    "broad_scan": "\n".join(
-        [
-            "STRATEGY: BROAD SCAN (NO TOPIC).",
-            "Instruction: The user wants to be surprised. You have been given random Mission Seeds.",
-            "You must pair these seeds with Conflict Verbs to find unknown unknowns.",
-            "Constraint: Do not search for 'trends'. Search for specific incidents.",
-            "Good Query: 'School readiness post-pandemic literacy crisis data'",
-            "Good Query: 'Obesity drug supply chain shortage impact UK'",
-        ]
-    ),
-}
 
 QUERY_GENERATION_PROMPT = """
 ### 🔒 CONSTRAINT: STRICT KEYWORD SELECTION
@@ -91,16 +66,15 @@ You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Sign
 
 ### DATA EXTRACTION RULES
 1. **TITLE:** Punchy, 5-8 words. Avoid "The Rise of...".
-2. **URL:** Provide the direct source link for the signal (deep link, not a generic homepage).
-3. **HOOK:** Max 20 words. State the factual event.
-4. **ANALYSIS:** Max 40 words. Format: "Old View: [Assumptions]. New Insight: [Shift]."
-5. **IMPLICATION:** Max 30 words. Focus on systemic impact.
-6. **MISSION:** Must be exactly one of:
+2. **HOOK:** Max 20 words. State the factual event.
+3. **ANALYSIS:** Max 40 words. Format: "Old View: [Assumptions]. New Insight: [Shift]."
+4. **IMPLICATION:** Max 30 words. Focus on systemic impact.
+5. **MISSION:** Must be exactly one of:
    - "🌳 A Sustainable Future"
    - "📚 A Fairer Start"
    - "❤️‍🩹 A Healthy Life"
    - "Mission Adjacent - [Topic]"
-7. **SCORES (0-10):** Novelty, Evidence, Impact, Evocativeness.
+6. **SCORES (0-10):** Novelty, Evidence, Impact, Evocativeness.
 
 ### ⛔️ CRITICAL OUTPUT INSTRUCTION
 **DO NOT write JSON text.**
@@ -109,27 +83,6 @@ You are an expert Strategic Analyst for Nesta. Your job is to extract "Weak Sign
 
 If you find a valid signal, call the function `display_signal_card` immediately with the fields defined above.
 """
-
-def _format_dict_for_prompt(data: Dict[str, List[str]]) -> str:
-    lines = []
-    for key, values in data.items():
-        lines.append(f"- {key}: {', '.join(values)}")
-    return "\n".join(lines)
-
-
-SEARCH_STRATEGY_SECTION = f"""
-## SEARCH STRATEGY & QUERY ENGINEERING
-1. PATTERN MATCHING: Do not search only for the topic. Search for the evidence signature.
-   - If the user wants Policy, look for white papers, consultations, and regulations.
-   - If the user wants Grants, look for calls for proposals, funding opportunities, and eligibility criteria.
-2. NATURAL LANGUAGE: Write queries in plain language that Google understands. Avoid complex nested boolean operators.
-3. GEOGRAPHY: SEARCH GLOBALLY. Do not append country names (UK/US) unless the user specifically asks for a region.
-4. SOURCE CONTEXT (NON-BINDING): Use the following document-type suggestions by mode:
-{_format_dict_for_prompt(QUERY_SUGGESTIONS)}
-5. DOMAIN EXAMPLES (CONTEXT ONLY): Look for sites similar to the examples below without using site: operators:
-{_format_dict_for_prompt(DOMAIN_EXAMPLES)}
-""".strip()
-
 
 NEGATIVE_CONSTRAINTS_PROMPT = """
 ### 🚫 NEGATIVE CONSTRAINTS (CRITICAL)
