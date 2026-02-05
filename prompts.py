@@ -37,23 +37,22 @@ QUERY_GENERATION_PROMPT = """
 You are currently in **Broad Scan Mode**.
 1. **NO FREESTYLING:** You must generate a query using ONLY the topics listed in the `Input Data` section below.
 2. **NO COMBINATORIAL HALLUCINATIONS:** Do not combine a topic with a technology unless the `Input Data` explicitly allows it.
-3. **FORMAT:** Select a high-priority topic from the list and append a Conflict Verb (e.g. "shortage", "ban", "regulation", "lawsuit", "pilot", "crisis", "breakthrough").
+3. **FORMAT:** Select a high-priority topic from the list and pair it with one of the Spectrum of Change frames below.
+4. **EXECUTION:** Immediately call `perform_web_search` with ONE query string. Do NOT output a list of queries.
 
 ### 🚫 FORBIDDEN WORDS
 Do NOT use the word "trends" or "outlook" in your search query. These return generic marketing content.
 
-### ✅ REQUIRED VOCABULARY
-Instead, pair your topic with "Conflict Verbs" to find specific events:
-* "Shortage"
-* "Ban"
-* "Regulation"
-* "Lawsuit"
-* "Pilot"
-* "Crisis"
-* "Breakthrough"
+### ✅ SPECTRUM OF CHANGE (Pick one)
+Frame your query using one of these lenses to surface signal-quality events:
+* "Niche experiment" (early trials, pilots, prototypes)
+* "Regulatory friction" (lawsuits, bans, policy consultations)
+* "Infrastructure shift" (new standards, platforms, supply chains)
+* "Behavioural inflection" (adoption surges, cultural shifts)
+* "Market anomaly" (price spikes, shortages, unexpected demand)
 
 * *Bad:* "Childcare trends"
-* *Good:* "Childcare shortage crisis" OR "Childcare pilot results"
+* *Good:* "Childcare niche experiment pilot" OR "Childcare regulatory friction consultation"
 
 ### INPUT DATA (VALID TOPICS FROM KEYWORDS.PY)
 {allowed_keywords}
@@ -113,6 +112,8 @@ MASTER_SYSTEM_PROMPT = f"""
 {_guidance_str}
 
 {STARTUP_TRIGGER_INSTRUCTIONS}
+
+Broad scan note: Even in broad scan mode, always call `perform_web_search` directly. Do not output a list of queries.
 
 ---
 PHASE 2: ANALYSIS & EXTRACTION (HIGHEST PRIORITY)

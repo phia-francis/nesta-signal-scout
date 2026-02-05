@@ -46,17 +46,16 @@ window.FRICTION_TOPICS = [
 
 // Ensure modifiers exist (if not already defined)
 window.FRICTION_MODIFIERS = window.FRICTION_MODIFIERS || [
-    "unregulated", "black market", "homebrew", "lawsuit", "loophole", 
-    "backlash", "diy", "hack", "illegal", "shortage"
-];
-
-window.FRICTION_MODIFIERS = [
     "unregulated",
-    "lawsuit",
     "black market",
     "homebrew",
-    "banned",
-    "shortage",
+    "lawsuit",
     "loophole",
+    "backlash",
+    "diy",
+    "hack",
+    "illegal",
+    "shortage",
+    "banned",
     "counterfeit"
 ];

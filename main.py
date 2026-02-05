@@ -72,7 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PDF_INCLUSION_PROBABILITY = 0.0
+PDF_INCLUSION_PROBABILITY = 0.2
 
 TIME_FILTER_OFFSETS = {
     "w1": timedelta(weeks=1),
@@ -90,13 +90,11 @@ TIME_FILTER_OFFSETS = {
     "year": relativedelta(years=1),
 }
 
-GENERIC_HOMEPAGE_BLOCKLIST = {
+CORE_ROOT_BLOCKLIST = {
     "www.google.com",
     "google.com",
     "bing.com",
     "www.bing.com",
-    "bbc.co.uk",
-    "cnn.com",
     "wikipedia.org",
 }
 
@@ -203,9 +201,8 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
     path = parsed.path.strip("/")
     query = (parsed.query or "").strip()
     fragment = (parsed.fragment or "").strip()
-    if not path and not query and not fragment:
-        if domain in GENERIC_HOMEPAGE_BLOCKLIST:
-            return False, f"URL '{url}' looks like a generic homepage. Deep links only."
+    if domain in CORE_ROOT_BLOCKLIST and not path and not query and not fragment:
+        return False, f"URL '{url}' looks like a generic homepage. Deep links only."
 
     search_domains = {"google.com", "www.google.com", "bing.com", "www.bing.com"}
     if domain in search_domains and parsed.path.startswith("/search"):
@@ -368,7 +365,7 @@ async def generate_enriched_fields(article_text: str, url: str) -> Dict[str, str
 async def perform_google_search(
     query: str,
     date_restrict: str = "m1",
-    requested_results: int = 15,
+    requested_results: int = 25,
     scan_mode: str = "general",
     source_types: Optional[List[str]] = None,
     time_filter: Optional[str] = None,
@@ -422,29 +419,19 @@ async def generate_broad_scan_queries(source_keywords: List[str], num_signals: i
         return [f"latest innovations in {topic}" for topic in selected]
 
 
-def _coerce_score(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
 async def _emit_final_signals(
     candidate_signals: List[Dict[str, Any]],
     target_count: int,
     sheets: SheetService,
+    emitted_urls: Optional[set[str]] = None,
 ):
     if not candidate_signals:
         return
 
-    sorted_signals = sorted(
-        candidate_signals,
-        key=lambda k: (_coerce_score(k.get("score_novelty")), _coerce_score(k.get("score_impact"))),
-        reverse=True,
-    )
-    final_selection = sorted_signals[:target_count]
-    for card in final_selection:
-        yield json.dumps({"type": "signal", "data": card}) + "\n"
+    for card in candidate_signals:
+        normalized_url = normalize_url(card.get("url"))
+        if not emitted_urls or normalized_url not in emitted_urls:
+            yield json.dumps({"type": "signal", "data": card}) + "\n"
 
         try:
             await sheets.upsert_signal(card)
@@ -558,10 +545,9 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                 "If the signal passes Deep Verification and has a DEEP LINK, call `display_signal_card`.",
                 "LOOPING LOGIC (CRITICAL):",
                 f"1. The user needs {target_count} HIGH-QUALITY signals.",
-                f"2. GENERATION TARGET: You must generate {target_count * 2} candidate signals.",
-                f"3. RATIONALE: We will discard the bottom 50% based on Novelty scores. If you stop at {target_count}, the quality will be too low.",
-                f"4. KEEP GOING: Do not stop searching until you have generated the full candidate pool ({target_count * 2}) or run out of search attempts.",
-                "5. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
+                f"2. GENERATION TARGET: Generate {target_count} validated signals, then stop.",
+                f"3. KEEP GOING: Do not stop searching until you have reached {target_count} signals or run out of search attempts.",
+                "4. BAD LINK CHECK: If you are about to output a URL that ends in '.com/' or '/c/Name', STOP. Find the specific article instead.",
             ]
         )
         if known_urls:
@@ -595,6 +581,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         ]
         candidate_signals = []
         seen_urls = set()
+        emitted_urls: set[str] = set()
         previous_queries = set()
         failed_queries: List[str] = []
         estimated_searches_needed = max(1, math.ceil(target_count / 2))
@@ -612,7 +599,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         ) + "\n"
 
         while (
-            len(candidate_signals) < (target_count * 2)
+            len(candidate_signals) < target_count
             and iteration < max_iterations
             and search_attempts < max_search_attempts
         ):
@@ -719,7 +706,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         date_restrict = req.time_filter
                     else:
                         date_restrict = "m1"
-                    requested_results = args.get("requested_results") or 10
+                    requested_results = args.get("requested_results") or 25
                     res = await perform_google_search(
                         query,
                         date_restrict,
@@ -744,7 +731,14 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                             failed_queries.append(query)
                         LOGGER.warning("No results found for query: %s", query)
                         tool_messages.append(
-                            {"role": "tool", "tool_call_id": tool_call.id, "content": ""}
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": (
+                                    f"No results for query '{query}'. The query may be too narrow or include "
+                                    "forbidden year keywords. Try a broader, conceptual query without specific years."
+                                ),
+                            }
                         )
                         tool_response_added = True
                         continue
@@ -844,6 +838,9 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         if normalized_url and normalized_url not in seen_urls:
                             candidate_signals.append(card)
                             seen_urls.add(normalized_url)
+                            if normalized_url not in emitted_urls:
+                                emitted_urls.add(normalized_url)
+                                yield json.dumps({"type": "signal", "data": card}) + "\n"
                             tool_messages.append(
                                 {
                                     "role": "tool",
@@ -885,10 +882,15 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         "content": "Continue generating additional valid signals.",
                     }
                 )
-            if quota_exceeded or limit_reached or len(candidate_signals) >= (target_count * 2):
+            if quota_exceeded or limit_reached or len(candidate_signals) >= target_count:
                 break
 
-        async for signal_json in _emit_final_signals(candidate_signals, target_count, sheets):
+        async for signal_json in _emit_final_signals(
+            candidate_signals,
+            target_count,
+            sheets,
+            emitted_urls,
+        ):
             yield signal_json
 
         yield json.dumps({"type": "done"}) + "\n"
