@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import re
 import random
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -88,15 +90,6 @@ TIME_FILTER_OFFSETS = {
     "year": relativedelta(years=1),
 }
 
-NEWS_BLOCKLIST = [
-    "bbc.co.uk",
-    "cnn.com",
-    "nytimes.com",
-    "forbes.com",
-    "bloomberg.com",
-    "businessinsider.com",
-]
-
 GENERIC_HOMEPAGE_BLOCKLIST = {
     "www.google.com",
     "google.com",
@@ -108,8 +101,9 @@ GENERIC_HOMEPAGE_BLOCKLIST = {
 }
 
 TOPIC_BLOCKS = {
-    "tech": ["techcrunch.com", "theverge.com", "wired.com"],
-    "policy": ["gov.uk", "parliament.uk", "whitehouse.gov"],
+    # CHANGED: Empty lists to avoid blocking mainstream or government domains.
+    "tech": [],
+    "policy": [],
 }
 
 TOOLS = [
@@ -237,12 +231,17 @@ def validate_signal_data(card_data: Dict[str, Any]) -> tuple[bool, str]:
         return False, f"URL domain '{domain}' is disallowed."
 
     published_date = str(card_data.get("published_date") or "").strip()
-    if not published_date or published_date.lower() in {"recent", "unknown", "n/a", "na"}:
-        card_data["published_date"] = "Recent"
-    else:
-        parsed_date = parse_source_date(published_date)
-        if parsed_date and parsed_date > datetime.now() + timedelta(days=1):
-            return False, "Published date cannot be in the future."
+    if not published_date or published_date.lower() in {"unknown", "n/a", "na", "recent"}:
+        snippet = card_data.get("snippet") or ""
+        year_match = re.search(r"\b(202[4-9])\b", snippet)
+        if year_match:
+            card_data["published_date"] = f"{year_match.group(1)} (Inferred)"
+        else:
+            card_data["published_date"] = "Unknown"
+
+    parsed_date = parse_source_date(card_data["published_date"])
+    if parsed_date and parsed_date > datetime.now() + timedelta(days=2):
+        return False, f"Published date {parsed_date} is in the future."
 
     return True, ""
 
@@ -328,23 +327,11 @@ def construct_search_query(
         source_string = f"(site:{' OR site:'.join(all_allowed_sites)})"
 
     # --- B. Negative Filters (Exclusions) ---
-    # 1. Start with Social Media (unless Community mode)
-    exclusions = []
-    if scan_mode != "community" and "Niche Forums" not in source_types:
-        exclusions.extend(BASE_BLOCKLIST + ["quora.com"])
-
-    # 2. Add Base News Blocklist
-    if scan_mode != "general":
-        # exclusions.extend(NEWS_BLOCKLIST)
-
-        # 3. Add Context-Aware Blocklists
-        # Block Tech giants unless looking for Emerging Tech
-        if "Emerging Tech" not in source_types:
-            exclusions.extend(TOPIC_BLOCKS["tech"])
-        
-        # Block Gov sites unless looking for Policy
-        if scan_mode != "policy" and "Policy" not in source_types:
-            exclusions.extend(TOPIC_BLOCKS["policy"])
+    exclusions = BASE_BLOCKLIST.copy()
+    if scan_mode == "community":
+        exclusions = [
+            domain for domain in exclusions if domain not in {"reddit.com", "quora.com"}
+        ]
 
     exclusion_str = " ".join([f"-site:{d}" for d in exclusions])
 
@@ -532,10 +519,21 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             f"CURRENT DATE: {today_str}",
             "SEARCH CONSTRAINT: Do NOT include ANY specific years (e.g., '2024', '2025', '2026') in your query keywords. Rely strictly on the tool's date filter. Queries with hardcoded years return stale SEO spam.",
             "ROLE: You are the Lead Foresight Researcher for Nesta's 'Discovery Hub.' Your goal is to identify 'Novel Signals'—strong, high-potential indicators of emerging change.",
-            "LANGUAGE PROTOCOL (CRITICAL): You must strictly use British English spelling and terminology.",
+            "LANGUAGE PROTOCOL:",
+            "  1. OUTPUT: Strictly use British English spelling (e.g., 'programme', 'labour') for the final card text.",
+            "  2. SEARCH SCOPE: GLOBAL. Do NOT default to UK sources. Actively prioritise signals from the US, EU, Asia, and Global South.",
+            "  3. NON-ENGLISH SOURCES: You are encouraged to find English-language reporting on international events (e.g., 'Al Jazeera English', 'Deutsche Welle', 'Nikkei Asia').",
+            "DATA EXTRACTION RULES:",
+            "- DATE: Look for a date in the text/metadata. If found, format as YYYY-MM-DD.",
+            "- MISSING DATE: Check the search snippet text. If you see 'Nov 12, 2025', use it.",
+            "- HONESTY: If you absolutely cannot find a date, output 'Unknown'. DO NOT guess 'Recent'.",
             f"DIVERSITY SEEDS: {keywords_str}",
             "Core Directive: YOU ARE A RESEARCH ENGINE, NOT A WRITER.",
             "- NO SEARCH = NO SIGNAL: If you cannot find a direct URL, the signal does not exist.",
+            "- EFFICIENCY RULE (CRITICAL):",
+            "  1. BATCH PROCESSING: When a search returns results, you must extract ALL valid signals from that list.",
+            "  2. DO NOT search again if the current list contains enough valid, high-novelty candidates to meet your target.",
+            "  3. ONLY search again if you have exhausted the current results or they are all irrelevant.",
             "- QUALITY CONTROL (CRITICAL - DEEP LINKS ONLY):",
             "  1. NO HOMEPAGES: You must NEVER output a root domain (e.g., 'www.bbc.co.uk') or a generic category page.",
             "  2. NO CHANNEL ROOTS: You must NEVER output a YouTube channel page (e.g., 'youtube.com/c/NewsChannel'). You must find the specific VIDEO link (e.g., 'youtube.com/watch?v=...').",
@@ -611,10 +609,19 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
         seen_urls = set()
         previous_queries = set()
         failed_queries: List[str] = []
-        max_search_attempts = min(MAX_SNIPER_SEARCHES, max(MIN_SNIPER_SEARCHES, target_count))
+        estimated_searches_needed = max(1, math.ceil(target_count / 2))
+        max_search_attempts = estimated_searches_needed + 2
+        if max_search_attempts > 8:
+            max_search_attempts = 8
         max_iterations = max_search_attempts * ITERATION_MULTIPLIER
         iteration = 0
         search_attempts = 0
+        yield json.dumps(
+            {
+                "type": "debug",
+                "message": f"Search Budget: {max_search_attempts} queries allocated.",
+            }
+        ) + "\n"
 
         while (
             len(candidate_signals) < (target_count * 2)
@@ -662,6 +669,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
             tool_messages: List[Dict[str, Any]] = []
             tool_response_added = False
             limit_reached = False
+            quota_exceeded = False
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments or "{}")
@@ -710,7 +718,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                     else:
                         # Safety fallback: If frontend sends nothing/null, default to Past Month
                         date_restrict = "m1"
-                    requested_results = args.get("requested_results") or 15
+                    requested_results = args.get("requested_results") or 10
                     res = await perform_google_search(
                         query,
                         date_restrict,
@@ -719,6 +727,16 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         source_types=req.source_types,
                         time_filter=req.time_filter,
                     )
+                    if res == "SYSTEM_ERROR: GOOGLE_SEARCH_QUOTA_EXCEEDED":
+                        yield json.dumps(
+                            {
+                                "type": "error",
+                                "message": "Daily Search Quota Exceeded (100/100 used). Stopping scan.",
+                            }
+                        ) + "\n"
+                        quota_exceeded = True
+                        tool_response_added = True
+                        break
                     if not res:
                         if query not in failed_queries:
                             failed_queries.append(query)
@@ -856,7 +874,7 @@ async def stream_chat_generator(req: ChatRequest, sheets: SheetService):
                         "content": "Continue generating additional valid signals.",
                     }
                 )
-            if limit_reached or len(candidate_signals) >= (target_count * 2):
+            if quota_exceeded or limit_reached or len(candidate_signals) >= (target_count * 2):
                 break
 
         async for signal_json in _emit_final_signals(candidate_signals, target_count, sheets):

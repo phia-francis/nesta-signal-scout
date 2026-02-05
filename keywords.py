@@ -738,6 +738,7 @@ SOURCE_CONCEPTS: Dict[str, str] = {
     "Grants": '("grant" OR "funding" OR "R&D call" OR "call for proposals" OR "fellowship")',
     "Finance": '("market" OR "investment" OR "venture capital" OR "stocks" OR "economy")',
     "Niche Forums": '("forum" OR "community" OR "discussion" OR "mailing list" OR "specialist group")',
+    "Think Tanks": '("report" OR "analysis" OR "policy paper" OR "strategic insight" OR "think tank")',
 }
 
 SOURCE_FILTERS: Dict[str, List[str]] = {
@@ -747,9 +748,29 @@ SOURCE_FILTERS: Dict[str, List[str]] = {
     "Emerging Tech": ["techcrunch.com", "theverge.com", "wired.com", "thenextweb.com"],
     "Open Data": ["data.gov", "data.gov.uk", "kaggle.com", "opendatasoft.com"],
     "Niche Forums": ["stackexchange.com", "discourse.org", "groups.google.com", "boards.ie"],
+    "Think Tanks": [
+        "brookings.edu",
+        "chathamhouse.org",
+        "rand.org",
+        "rusi.org",
+        "instituteforgovernment.org.uk",
+        "ippr.org",
+        "policyexchange.org.uk",
+    ],
 }
 
-BASE_BLOCKLIST = ["twitter.com", "facebook.com", "instagram.com", "reddit.com"]
+BASE_BLOCKLIST = [
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "instagram.com",
+    "pinterest.com",
+    "tiktok.com",
+    "reddit.com",
+    "quora.com",
+    "linkedin.com",
+    "nesta.org.uk",
+]
 
 
 QUERY_GENERATION_MODEL = "gpt-4o-mini"
