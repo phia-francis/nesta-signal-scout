@@ -35,11 +35,13 @@ function escapeHtml(text) {
             liveTerminalInterval: null,
             liveTerminalIndex: 0,
             networkChart: null,
-            currentSynth: null
+            currentSynth: null,
+            lastBackendOkAt: null
         };
 
         const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
         const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
+        const PREFLIGHT_STALE_MS = 5 * 60 * 1000;
         
         // Nesta Mission Colors for Radar
         const MISSION_COLORS = {
@@ -50,6 +52,44 @@ function escapeHtml(text) {
         };
 
         // --- IMPROVED BACKEND WARMUP LOGIC FOR RENDER COLD STARTS ---
+        function updatePreflightState() {
+            const startBtn = document.getElementById('search-btn');
+            const broadBtn = document.getElementById('broad-btn');
+            const now = Date.now();
+            const isStale = !AppState.lastBackendOkAt || (now - AppState.lastBackendOkAt) > PREFLIGHT_STALE_MS;
+
+            const applyState = (button, options) => {
+                if (!button) return;
+                const label = button.querySelector('span') || button;
+                if (!button.dataset.originalText) {
+                    button.dataset.originalText = label.textContent.trim();
+                }
+                if (isStale) {
+                    label.textContent = 'Waking up Agent...';
+                    button.classList.add(...options.staleAdd);
+                    button.classList.remove(...options.staleRemove);
+                } else {
+                    label.textContent = button.dataset.originalText;
+                    button.classList.add(...options.freshAdd);
+                    button.classList.remove(...options.freshRemove);
+                }
+            };
+
+            applyState(startBtn, {
+                staleAdd: ['bg-amber-500', 'hover:bg-amber-600'],
+                staleRemove: ['bg-nesta-blue', 'hover:bg-blue-700'],
+                freshAdd: ['bg-nesta-blue', 'hover:bg-blue-700'],
+                freshRemove: ['bg-amber-500', 'hover:bg-amber-600']
+            });
+
+            applyState(broadBtn, {
+                staleAdd: ['text-amber-700', 'border-amber-300', 'bg-amber-50'],
+                staleRemove: ['text-nesta-darkgrey', 'border-transparent', 'bg-amber-50'],
+                freshAdd: ['text-nesta-darkgrey', 'border-transparent'],
+                freshRemove: ['text-amber-700', 'border-amber-300', 'bg-amber-50']
+            });
+        }
+
         async function warmBackend() {
             // Helper function for a single check
             const check = async () => {
@@ -57,7 +97,12 @@ function escapeHtml(text) {
                 const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout for each ping
                 try {
                     const res = await fetch(`${API_BASE_URL}/`, { method: 'GET', cache: 'no-store', signal: controller.signal });
-                    return res.ok;
+                    if (res.ok) {
+                        AppState.lastBackendOkAt = Date.now();
+                        updatePreflightState();
+                        return true;
+                    }
+                    return false;
                 } catch (e) {
                     console.error('Backend check failed:', e);
                     return false;
@@ -100,6 +145,8 @@ function escapeHtml(text) {
             // Load the UI skeleton first so the page isn't blank
             toggleButtonState(); 
             switchFilter('scan');
+            updatePreflightState();
+            setInterval(updatePreflightState, 60000);
 
             // Now perform the robust connection check
             const ready = await warmBackend();
@@ -126,6 +173,7 @@ function escapeHtml(text) {
                 broadBtn.classList.remove('hidden');
                 searchBtn.classList.add('hidden');
             }
+            updatePreflightState();
         }
 
         function generateFrictionQuery() {
