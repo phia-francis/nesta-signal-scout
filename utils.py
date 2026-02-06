@@ -85,30 +85,22 @@ def validate_url_security(url: str) -> Tuple[object, str, str]:
 
 
 def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
-# 1. Immediate rejection of bad data
-    if not date_str or str(date_str).lower() in {"recent", "unknown", "n/a", "na", "none"}:
-        return None
-    
-    # 2. Basic Cleanup: Remove common separators that confuse parsers
-    # This turns "2023 | Technology" into "2023   Technology"
-    cleaned = re.sub(r"[|•]", " ", str(date_str)).strip()
-    
-    try:
-        # 3. The Magic: parser.parse
-        # fuzzy=True: Ignores non-date text (e.g., extracts date from "Published on May 1st")
-        # dayfirst=True: IMPORTANT for UK. Interprets 01/02/23 as Feb 1st, not Jan 2nd.
-        return parser.parse(cleaned, fuzzy=True, dayfirst=True)
-        
-    except (ValueError, TypeError, OverflowError):
-        # If even the smart parser can't find a date, return None
+    if not date_str or str(date_str).lower() in {"recent", "unknown", "n/a", "na", "none", "tbd"}:
         return None
 
+    cleaned = re.sub(r"[|•]", " ", str(date_str)).strip()
+
+    year_first_match = re.search(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b", cleaned)
+    if year_first_match:
+        year, month, day = map(int, year_first_match.groups())
+        return datetime(year, month, day)
+
+    day_first_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b", cleaned)
+    if day_first_match:
+        day, month, year = map(int, day_first_match.groups())
+        return datetime(year, month, day)
+
     formats = [
-        "%Y-%m-%d",
-        "%Y/%m/%d",
-        "%d/%m/%Y",
-        "%m/%d/%Y",
-        "%d-%m-%Y",
         "%B %d, %Y",
         "%b %d, %Y",
         "%d %B %Y",
@@ -128,9 +120,14 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
         except ValueError:
             continue
 
-    if re.fullmatch(r"\d{4}", cleaned):
-        return datetime(int(cleaned), 1, 1)
-    return None
+    year_match = re.search(r"\b(20\d{2})\b", cleaned)
+    if year_match:
+        return datetime(int(year_match.group(1)), 1, 1)
+
+    try:
+        return parser.parse(cleaned, fuzzy=True, dayfirst=True, yearfirst=True)
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 TIME_FILTER_OFFSETS = {

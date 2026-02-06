@@ -1,1725 +1,834 @@
-function escapeHtml(text) {
-            if (!text) return "";
-            return String(text)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-
-        function formatAnalysis(text) {
-            if (!text) return '';
-            return String(text)
-                .split('\n')
-                .map(line => line.trim())
-                .filter(Boolean)
-                .map(line => `<p>${escapeHtml(line)}</p>`)
-                .join('');
-        }
-        
-        const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-            ? 'http://127.0.0.1:8000' 
-            : 'https://nesta-signal-backend.onrender.com';
-
-        // --- GLOBAL STATE ---
-        const AppState = {
-            currentSignals: [], // Displayed signals (Scan or DB View)
-            lastScanResults: [], // Cache for "Current Scan" view
-            currentSaved: [], // Full DB cache
-            activeFilter: 'scan', // Track current filter
-            radarChart: null,
-            isProcessing: false,
-            scanController: null,
-            loadIntervals: [],
-            liveTerminalInterval: null,
-            liveTerminalIndex: 0,
-            networkChart: null,
-            currentSynth: null,
-            lastBackendOkAt: null
-        };
-
-        const MISSION_EMOJIS = { 'A Fairer Start': '📚', 'A Healthy Life': '❤️‍🩹', 'A Sustainable Future': '🌳' };
-        const LENS_EMOJIS = { 'Social': '👥', 'Tech': '🤖', 'Media': '🎙️', 'Powerhouse': '⚡' };
-        const PREFLIGHT_STALE_MS = 5 * 60 * 1000;
-        
-        // Nesta Mission Colors for Radar
-        const MISSION_COLORS = {
-            'A Fairer Start': '#FDB633', // Yellow
-            'A Healthy Life': '#F6A4B7', // Pink
-            'A Sustainable Future': '#18A48C', // Green
-            'Default': '#646363' // Dark Grey for Mission Adjacent/Others
-        };
-
-        // --- IMPROVED BACKEND WARMUP LOGIC FOR RENDER COLD STARTS ---
-        function updatePreflightState() {
-            const startBtn = document.getElementById('search-btn');
-            const broadBtn = document.getElementById('broad-btn');
-            const now = Date.now();
-            const isStale = !AppState.lastBackendOkAt || (now - AppState.lastBackendOkAt) > PREFLIGHT_STALE_MS;
-
-            const applyState = (button, options) => {
-                if (!button) return;
-                const label = button.querySelector('span') || button;
-                if (!button.dataset.originalText) {
-                    button.dataset.originalText = label.textContent.trim();
-                }
-                if (isStale) {
-                    label.textContent = 'Waking up Agent...';
-                    button.classList.add(...options.staleAdd);
-                    button.classList.remove(...options.staleRemove);
-                } else {
-                    label.textContent = button.dataset.originalText;
-                    button.classList.add(...options.freshAdd);
-                    button.classList.remove(...options.freshRemove);
-                }
-            };
-
-            applyState(startBtn, {
-                staleAdd: ['bg-amber-500', 'hover:bg-amber-600'],
-                staleRemove: ['bg-nesta-blue', 'hover:bg-blue-700'],
-                freshAdd: ['bg-nesta-blue', 'hover:bg-blue-700'],
-                freshRemove: ['bg-amber-500', 'hover:bg-amber-600']
-            });
-
-            applyState(broadBtn, {
-                staleAdd: ['text-amber-700', 'border-amber-300', 'bg-amber-50'],
-                staleRemove: ['text-nesta-darkgrey', 'border-transparent', 'bg-amber-50'],
-                freshAdd: ['text-nesta-darkgrey', 'border-transparent'],
-                freshRemove: ['text-amber-700', 'border-amber-300', 'bg-amber-50']
-            });
-        }
-
-        async function warmBackend() {
-            // Helper function for a single check
-            const check = async () => {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout for each ping
-                try {
-                    const res = await fetch(`${API_BASE_URL}/`, { method: 'GET', cache: 'no-store', signal: controller.signal });
-                    if (res.ok) {
-                        AppState.lastBackendOkAt = Date.now();
-                        updatePreflightState();
-                        return true;
-                    }
-                    return false;
-                } catch (e) {
-                    console.error('Backend check failed:', e);
-                    return false;
-                } finally {
-                    clearTimeout(timeout);
-                }
-            };
-
-            // 1. Try once immediately. If it's already warm, we are done.
-            if (await check()) return true;
-
-            // 2. If first check fails, backend is sleeping. Start Polling Loop.
-            // Render free tier can take 30-90 seconds to wake up.
-            showToast('Waking up Scout Agent... (This may take 60s)', 'normal');
-            
-            const start = Date.now();
-            const MAX_WAIT_MS = 90000; // 90 seconds max wait
-            let attempt = 0;
-
-            while (Date.now() - start < MAX_WAIT_MS) {
-                attempt++;
-                await new Promise(r => setTimeout(r, 4000)); // Wait 4s between checks
-                
-                if (await check()) {
-                    showToast('Agent Online!', 'success');
-                    return true;
-                }
-
-                // Update user every 3rd failed attempt (approx 12s) to keep them engaged
-                if (attempt % 3 === 0) {
-                     showToast('Still waking up... please wait', 'normal');
-                }
-            }
-            
-            showToast('Connection failed. Please refresh.', 'error');
-            return false;
-        }
-
-        async function initDashboard() {
-            // Load the UI skeleton first so the page isn't blank
-            toggleButtonState(); 
-            switchFilter('scan');
-            updatePreflightState();
-            setInterval(updatePreflightState, 60000);
-
-            // Now perform the robust connection check
-            const ready = await warmBackend();
-            
-            if (!ready) {
-                document.getElementById('preview-grid').innerHTML = '<div class="text-center py-10 text-nesta-red font-bold">Backend Offline. Retrying preview load...</div>';
-            }
-            
-            // Backend may still be waking up, attempt to fetch data regardless
-            loadPreview();
-        }
-
-        function toggleButtonState() {
-            if (AppState.isProcessing) return;
-            const input = document.getElementById('topic-input');
-            const broadBtn = document.getElementById('broad-btn');
-            const searchBtn = document.getElementById('search-btn');
-            const hasText = input.value.trim().length > 0;
-
-            if (hasText) {
-                broadBtn.classList.add('hidden');
-                searchBtn.classList.remove('hidden');
-            } else {
-                broadBtn.classList.remove('hidden');
-                searchBtn.classList.add('hidden');
-            }
-            updatePreflightState();
-        }
-
-        function generateFrictionQuery() {
-            const topics = window.FRICTION_TOPICS || [];
-            const modifiers = window.FRICTION_MODIFIERS || [];
-            
-            if (!topics.length || !modifiers.length) {
-                 console.warn("Friction configuration missing. Check friction-config.js");
-                 return;
-            }
-            
-            const topic = topics[Math.floor(Math.random() * topics.length)];
-            const modifier = modifiers[Math.floor(Math.random() * modifiers.length)];
-                
-            const input = document.getElementById('topic-input');
-            input.value = `${topic} + "${modifier}"`;
-            toggleButtonState();
-          }
-
-        // --- LOADING ANIMATION LOGIC ---
-        function startLoadingSimulation(requestedCount) {
-            const statuses = [
-                "Initialising Scout Agent...", "Scanning Global Sources...", "Filtering Mainstream Noise...",
-                "Applying Friction Method...", "Scoring Novelty & Evidence...", "Synthesising Intelligence..."
-            ];
-            let statusIndex = 0;
-            stopLoadingSimulation(); 
-
-            // Base duration roughly 25s for 1 signal, scaling up non-linearly
-            // e.g., 5 signals might take 45s, 10 signals ~70s
-            // This is just a simulation, but gives feedback based on request size.
-            const SIMULATION_BASE_FACTOR = 250;
-            const DEFAULT_REQUEST_COUNT = 5;
-            const COUNT_MULTIPLIER = 40;
-
-            const baseFactor = SIMULATION_BASE_FACTOR;
-            const countFactor = (requestedCount || DEFAULT_REQUEST_COUNT) * COUNT_MULTIPLIER;
-            const speed = baseFactor + countFactor;
-
-            const statInt = setInterval(() => {
-                statusIndex = (statusIndex + 1) % statuses.length;
-                const el = document.getElementById('loading-status-text');
-                if(el) {
-                    el.style.opacity = '0';
-                    setTimeout(() => { el.innerText = statuses[statusIndex]; el.style.opacity = '1'; }, 200);
-                }
-            }, 3500);
-            AppState.loadIntervals.push(statInt);
-
-            let progress = 0;
-            const progInt = setInterval(() => {
-                if(progress < 99) {
-                    let increment = (100 - progress) / speed;
-                    if(increment < 0.05) increment = 0.05; 
-                    progress += increment;
-                    const textEl = document.getElementById('loading-percent-text');
-                    const barEl = document.getElementById('loading-bar-inner');
-                    if(textEl) textEl.innerText = Math.floor(progress) + '%';
-                    if(barEl) barEl.style.width = progress + '%';
-                }
-            }, 100);
-            AppState.loadIntervals.push(progInt);
-        }
-
-        function stopLoadingSimulation() {
-            AppState.loadIntervals.forEach(clearInterval);
-            AppState.loadIntervals = [];
-        }
-
-        function addTerminalLine(text) {
-            const terminal = document.getElementById('live-terminal');
-            if (!terminal) return;
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const line = document.createElement('div');
-            line.textContent = `> [${time}] ${text}`;
-            terminal.appendChild(line);
-            terminal.scrollTop = terminal.scrollHeight;
-        }
-
-        function startLiveTerminal() {
-            const terminal = document.getElementById('live-terminal');
-            if (terminal) {
-                terminal.innerHTML = '<div class="opacity-70">&gt; Waiting for scan...</div>';
-            }
-            const messages = [
-                'Initialising scout agent...',
-                'Searching for relevant sources...',
-                'Verifying deep links...',
-                'Scraping signal context...',
-                'Scoring novelty and evidence...',
-                'Synthesising candidate signals...'
-            ];
-            AppState.liveTerminalIndex = 0;
-            addTerminalLine(messages[AppState.liveTerminalIndex]);
-            if (AppState.liveTerminalInterval) {
-                clearInterval(AppState.liveTerminalInterval);
-            }
-            AppState.liveTerminalInterval = setInterval(() => {
-                AppState.liveTerminalIndex = (AppState.liveTerminalIndex + 1) % messages.length;
-                addTerminalLine(messages[AppState.liveTerminalIndex]);
-            }, 4000);
-        }
-
-        function stopLiveTerminal() {
-            if (AppState.liveTerminalInterval) {
-                clearInterval(AppState.liveTerminalInterval);
-                AppState.liveTerminalInterval = null;
-            }
-            addTerminalLine('Scan complete.');
-        }
-
-        function downloadSignalsAsCSV() {
-            const signals = AppState.currentSignals.length > 0 ? AppState.currentSignals : AppState.lastScanResults;
-            if (!signals || signals.length === 0) {
-                showToast('No signals to download', 'error');
-                return;
-            }
-            const headers = ['Title', 'URL', 'Hook', 'Novelty Score', 'Evidence Score', 'Mission'];
-            const escapeCSV = (value) => {
-                if (value === null || value === undefined) return '';
-                const stringValue = String(value).replace(/"/g, '""');
-                return `"${stringValue}"`;
-            };
-            const rows = signals.map((signal) => [
-                escapeCSV(signal.title),
-                escapeCSV(signal.final_url || signal.url),
-                escapeCSV(signal.hook),
-                escapeCSV(signal.score_novelty),
-                escapeCSV(signal.score_evidence),
-                escapeCSV(signal.mission)
-            ]);
-            const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-            const mode = getSelectedScanMode();
-            const modeLabel = mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'General';
-            const dateString = new Date().toISOString().split('T')[0];
-            const filename = `SignalScout_${modeLabel}_${dateString}.csv`;
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            URL.revokeObjectURL(url);
-            showToast('CSV downloaded', 'success');
-        }
-
-        function getMissionEmoji(mission) {
-            for (const [key, emoji] of Object.entries(MISSION_EMOJIS)) { if (mission.includes(key)) return emoji; }
-            return ''; 
-        }
-
-        function getMissionColor(mission) {
-            if (!mission) return MISSION_COLORS['Default'];
-            for (const [key, color] of Object.entries(MISSION_COLORS)) {
-                if (mission.includes(key)) return color;
-            }
-            return MISSION_COLORS['Default'];
-        }
-
-        const getDomain = (url) => {
-            try {
-                return new URL(url).hostname.replace('www.', '').toUpperCase();
-            } catch {
-                return 'SOURCE';
-            }
-        };
-
-        function formatSource(url) {
-            try {
-                const hostname = new URL(url).hostname.replace('www.', '');
-                const name = hostname.split('.')[0];
-                return name.length <= 3 ? name.toUpperCase() : name.charAt(0).toUpperCase() + name.slice(1);
-            } catch { return 'Source'; }
-        }
-
-        function renderCard(data) {
-            // 1. Theme Mapping (Solid Colors & Contrast Rules)
-            const themes = {
-                'A Healthy Life': {
-                    bg: 'bg-nesta-pink',
-                    text: 'text-nesta-navy',
-                    border: 'border-nesta-pink',
-                    badge: 'bg-white text-nesta-pink',
-                    icon: 'text-nesta-navy',
-                    link: 'text-nesta-navy hover:text-white',
-                    innerBox: 'bg-white/90 text-nesta-navy'
-                },
-                'A Fairer Start': {
-                    bg: 'bg-nesta-purple',
-                    text: 'text-white',
-                    border: 'border-nesta-purple',
-                    badge: 'bg-white text-nesta-purple',
-                    icon: 'text-white',
-                    link: 'text-white/80 hover:text-white',
-                    innerBox: 'bg-white/95 text-nesta-navy'
-                },
-                'A Sustainable Future': {
-                    bg: 'bg-nesta-green',
-                    text: 'text-white',
-                    border: 'border-nesta-green',
-                    badge: 'bg-white text-nesta-green',
-                    icon: 'text-white',
-                    link: 'text-white/80 hover:text-white',
-                    innerBox: 'bg-white/95 text-nesta-navy'
-                },
-                'default': {
-                    bg: 'bg-nesta-blue',
-                    text: 'text-white',
-                    border: 'border-nesta-blue',
-                    badge: 'bg-white text-nesta-blue',
-                    icon: 'text-white',
-                    link: 'text-white/80 hover:text-white',
-                    innerBox: 'bg-white/95 text-nesta-navy'
-                }
-            };
-
-            // 2. Normalize Mission
-            const normalize = (m) => {
-                if (!m) return { key: 'default', label: '⚡ Mission Adjacent' };
-                const lower = m.toLowerCase();
-                if (lower.includes('health')) return { key: 'A Healthy Life', label: '❤️‍🩹 A Healthy Life' };
-                if (lower.includes('fairer') || lower.includes('start')) return { key: 'A Fairer Start', label: '📚 A Fairer Start' };
-                if (lower.includes('sustain') || lower.includes('green')) return { key: 'A Sustainable Future', label: '🌳 A Sustainable Future' };
-                return { key: 'default', label: m.includes('Adjacent') ? m : `⚡ ${m}` };
-            };
-
-            const missionInfo = normalize(data.mission);
-            const style = themes[missionInfo.key] || themes['default'];
-            
-            // 3. Fix Source Link (Must be absolute)
-            let safeUrl = '';
-            if (data.url && typeof data.url === 'string') {
-                // FIX: Remove citations like [1], [2], quotes " ' and surrounding spaces
-                let cleaned = data.url.replace(/\[\d+\]/g, '').replace(/["']/g, '').trim();
-                
-                // Auto-fix missing 'https://'
-                if (!/^https?:\/\//i.test(cleaned) && cleaned.length > 0) {
-                    cleaned = 'https://' + cleaned.replace(/^\/+/, '');
-                }
-            
-                try {
-                    // Validate it is a real URL structure
-                    safeUrl = new URL(cleaned).toString();
-                } catch (e) {
-                    console.warn("Invalid URL found:", data.url);
-                    safeUrl = '';
-                }
-            }
-
-            const getDomain = (u) => {
-                try { return new URL(u).hostname.replace('www.', '').toUpperCase(); } 
-                catch { return "SOURCE"; }
-            };
-            const domainLabel = safeUrl ? getDomain(safeUrl) : "SOURCE";
-            const getCountryDisplay = (c) => {
-                    if (!c || c.toLowerCase() === 'global') return '🌍 Global';
-                    // Basic mapping for common flags, fallback to Pin
-                    const map = { 'uk': '🇬🇧', 'usa': '🇺🇸', 'us': '🇺🇸', 'eu': '🇪🇺', 'china': '🇨🇳' };
-                    const flag = map[c.toLowerCase()] || '📍';
-                    // Title Case: "united kingdom" -> "United Kingdom"
-                    const name = c.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    return `${flag} ${name}`;
-                };
-                const countryTag = getCountryDisplay(data.origin_country);
-
-            const tooltips = {
-                nov: "How new or surprising is this signal?",
-                ev: "Strength of evidence backing this claim.",
-                imp: "Potential scale of systemic impact."
-            };
-
-            // 4. Content Blocks
-            const hasDeepDive = (data.analysis && data.analysis.length > 10);
-
-            const analysisBlock = hasDeepDive
-                ? `<div class="${style.innerBox} rounded-lg p-4 shadow-sm">
-                     <h4 class="font-display font-bold text-nesta-navy/50 text-[10px] uppercase tracking-widest mb-2">The Shift</h4>
-                     <div class="prose prose-sm max-w-none font-body leading-relaxed text-sm editable-analysis max-h-40 overflow-y-auto custom-scrollbar">
-                        ${formatAnalysis(data.analysis)}
-                     </div>
-                   </div>`
-                : `<div id="enrich-container-${data.id}" class="py-4 flex justify-center">
-                     <button type="button" onclick="triggerEnrichment('${safeUrl}', '${data.id}')" 
-                        class="px-4 py-2 bg-white rounded-full text-xs font-bold uppercase tracking-widest text-nesta-navy shadow-lg hover:scale-105 transition-transform">
-                        🪄 Generate Deep Dive
-                     </button>
-                   </div>`;
-
-            const implicationBlock = hasDeepDive
-                ? `<div class="mt-4 border-l-2 border-white/40 pl-4">
-                     <h4 class="${style.text} opacity-80 font-display font-bold text-xs uppercase tracking-widest mb-1">🚀 Why It Matters</h4>
-                     <p class="${style.text} text-sm italic font-body leading-relaxed editable-implication">"${escapeHtml(data.implication)}"</p>
-                   </div>`
-                : ``;
-
-            const titleMarkup = safeUrl
-                ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="hover:underline decoration-2 underline-offset-4">
-                        ${escapeHtml(data.title)}
-                    </a>`
-                : `<span class="opacity-70 cursor-not-allowed">${escapeHtml(data.title)}</span>`;
-
-            const sourceMarkup = safeUrl
-                ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" 
-                       class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${style.link}">
-                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                       ${domainLabel}
-                    </a>`
-                : `<span class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${style.text} opacity-60 cursor-not-allowed">
-                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                       SOURCE
-                    </span>`;
-
-            // 5. Render Card (Solid Background)
-            return `
-            <div id="card-${data.id}" class="signal-card ${style.bg} rounded-xl shadow-lg border-0 p-6 flex flex-col gap-5 relative group transition-transform hover:-translate-y-1 hover:shadow-xl" 
-                 data-mission="${missionInfo.label}" data-url="${safeUrl}">
-                
-                <div class="flex justify-between items-center">
-                    <span class="px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md shadow-sm ${style.badge}">
-                        ${missionInfo.label}
-                    </span>
-                    
-                    <div class="flex items-center gap-2">
-                         <button type="button" onclick="toggleEdit('${data.id}', this)" class="${style.text} opacity-60 hover:opacity-100 transition-opacity">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                        </button>
-                        <div class="absolute top-4 right-4 z-30 group/score">
-                            <div class="bg-nesta-blue text-white font-bold rounded-full w-12 h-12 flex items-center justify-center shadow-md cursor-help transition-transform group-hover/score:scale-105 border-2 border-white">
-                                ${data.score || '-'}
-                            </div>
-                            <div class="absolute right-0 top-full mt-2 w-64 bg-white p-4 rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover/score:opacity-100 group-hover/score:visible transition-all duration-200 z-50 text-left pointer-events-none transform origin-top-right">
-                                <div class="text-[10px] font-bold text-nesta-navy uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">Score Breakdown</div>
-                                <div class="grid grid-cols-3 gap-2 mb-3">
-                                     <div class="bg-gray-50 rounded p-1.5 text-center">
-                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Nov</div>
-                                        <div class="font-bold text-nesta-blue text-sm">${data.score_novelty || '-'}</div>
-                                     </div>
-                                     <div class="bg-gray-50 rounded p-1.5 text-center">
-                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Imp</div>
-                                        <div class="font-bold text-nesta-blue text-sm">${data.score_impact || '-'}</div>
-                                     </div>
-                                     <div class="bg-gray-50 rounded p-1.5 text-center">
-                                        <div class="text-[9px] text-gray-500 uppercase mb-0.5">Evi</div>
-                                        <div class="font-bold text-nesta-blue text-sm">${data.score_evidence || '-'}</div>
-                                     </div>
-                                </div>
-                                <div class="space-y-2 text-[10px] text-nesta-darkgrey leading-tight">
-                                     ${tooltips.nov ? `<div><span class="font-bold text-nesta-blue">Novelty:</span> ${tooltips.nov}</div>` : ''}
-                                     ${tooltips.imp ? `<div><span class="font-bold text-nesta-blue">Impact:</span> ${tooltips.imp}</div>` : ''}
-                                     ${tooltips.ev ? `<div><span class="font-bold text-nesta-blue">Evidence:</span> ${tooltips.ev}</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="font-display font-bold text-xl mb-3 leading-snug ${style.text}">
-                        ${titleMarkup}
-                    </h3>
-                    <p class="${style.text} text-base leading-relaxed font-body editable-hook">
-                        ${escapeHtml(data.hook)}
-                    </p>
-                </div>
-
-                ${analysisBlock}
-
-                ${implicationBlock}
-
-                <div class="mt-auto pt-4 border-t border-white/20 flex flex-wrap justify-between items-center gap-4">
-                    <div class="flex items-center gap-2">
-                        ${sourceMarkup}
-                        <span class="text-[10px] font-bold uppercase tracking-wider ${style.text} opacity-80">[${countryTag}]</span>
-                    </div>
-
-                    <div class="flex gap-2 items-center">
-                        <span class="w-2 h-2 rounded-full bg-nesta-aqua" title="Novelty Scored"></span>
-                        <span class="w-2 h-2 rounded-full bg-nesta-blue" title="Impact Scored"></span>
-                        <span class="w-2 h-2 rounded-full bg-nesta-purple" title="Evidence Scored"></span>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function buildActionBar(cardData, cardId, cardElementId) {
-            const actionBar = document.createElement('div');
-            actionBar.className = "flex items-center justify-between gap-3 mt-auto pt-4 border-t border-black/10";
-            actionBar.innerHTML = `
-                <button id="reject-btn-${cardId}" class="px-3 py-1.5 rounded-full border border-black/20 bg-white/20 hover:bg-white hover:text-red-600 text-[10px] font-bold uppercase transition">👎 Reject</button>
-                <button id="copy-shortlist-${cardId}" class="px-3 py-1.5 rounded-full border border-black/20 bg-white/20 hover:bg-white hover:text-nesta-navy text-[10px] font-bold uppercase transition">📋 Copy</button>
-                <button id="keep-btn-${cardId}" class="px-3 py-1.5 rounded-full border border-black/20 bg-white/20 hover:bg-white hover:text-yellow-500 text-[10px] font-bold uppercase transition">⭐ Star</button>
-            `;
-
-            const rejectButton = actionBar.querySelector(`#reject-btn-${cardId}`);
-            if (rejectButton) {
-                rejectButton.addEventListener('click', () => rejectSignal(cardData.url, cardElementId));
-            }
-
-            const shortlistButton = actionBar.querySelector(`#copy-shortlist-${cardId}`);
-            if (shortlistButton) {
-                shortlistButton.addEventListener('click', () => shortlistSignal({ ...cardData, url: cardData.url, id: `copy-shortlist-${cardId}` }));
-            }
-
-            const keepButton = actionBar.querySelector(`#keep-btn-${cardId}`);
-            if (keepButton) {
-                keepButton.addEventListener('click', () => keepSignal(cardData.url, `keep-btn-${cardId}`));
-            }
-
-            return actionBar;
-        }
-
-        function attachCardListeners(cardElement, cardId) {
-            const editButton = cardElement.querySelector('[data-action="toggle-edit"]');
-            if (editButton) {
-                editButton.addEventListener('click', () => toggleEdit(cardId, editButton));
-            }
-
-            const enrichButton = cardElement.querySelector('[data-action="enrich"]');
-            if (enrichButton) {
-                enrichButton.addEventListener('click', () => triggerEnrichment(enrichButton.dataset.url, cardId, enrichButton));
-            }
-        }
-
-        function updateCardMarkup(cardId) {
-            const cardData = AppState.cardDataById?.[cardId];
-            if (!cardData) return;
-            const existingCard = document.querySelector(`[data-card-id="${cardId}"]`);
-            if (!existingCard) return;
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = renderCard(cardData).trim();
-            const newCard = tempDiv.firstChild;
-            const showActions = existingCard.dataset.showActions === 'true';
-            if (showActions) {
-                newCard.appendChild(buildActionBar(cardData, cardId, newCard.id));
-            }
-            newCard.dataset.cardId = cardId;
-            newCard.dataset.showActions = existingCard.dataset.showActions;
-            if (existingCard.dataset.index) {
-                newCard.dataset.index = existingCard.dataset.index;
-            }
-            existingCard.replaceWith(newCard);
-        }
-
-        async function triggerEnrichment(url, cardId, buttonEl) {
-            if (!url) return;
-            const cardData = AppState.cardDataById?.[cardId];
-            if (!cardData) return;
-            if (buttonEl) {
-                buttonEl.disabled = true;
-                buttonEl.classList.add('opacity-60', 'cursor-wait');
-                buttonEl.innerHTML = '<span>🪄 Generating...</span>';
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/enrich_signal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                const result = await response.json();
-                if (result.status === 'success') {
-                    cardData.analysis = result.analysis;
-                    cardData.implication = result.implication;
-                    AppState.cardDataById[cardId] = cardData;
-                    updateCardMarkup(cardId);
-                } else {
-                    showToast(result.message || 'Enrichment failed', 'error');
-                    updateCardMarkup(cardId);
-                }
-            } catch (e) {
-                showToast('Connection Failed', 'error');
-                updateCardMarkup(cardId);
-            }
-        }
-
-        async function toggleEdit(cardId, buttonEl) {
-            const cardData = AppState.cardDataById?.[cardId];
-            const card = document.getElementById(`card-${cardId}`);
-            if (!card || !cardData) return;
-            const isEditing = card.dataset.editing === 'true';
-            const hookEl = card.querySelector('.editable-hook');
-            const analysisEl = card.querySelector('.editable-analysis');
-            const implicationEl = card.querySelector('.editable-implication');
-            const editableElements = [hookEl, analysisEl, implicationEl].filter(Boolean);
-
-            if (!isEditing) {
-                card.dataset.editing = 'true';
-                editableElements.forEach(el => {
-                    el.contentEditable = 'true';
-                    el.classList.add('ring-2', 'ring-nesta-yellow', 'rounded-md', 'p-2', 'bg-white');
-                });
-                if (buttonEl) {
-                    buttonEl.classList.add('text-nesta-blue');
-                    buttonEl.setAttribute('aria-label', 'Save edits');
-                }
-                return;
-            }
-
-            const hookValue = hookEl ? hookEl.innerText.trim() : cardData.hook || '';
-            const analysisValue = analysisEl ? analysisEl.innerText.trim() : cardData.analysis || '';
-            const implicationValue = implicationEl ? implicationEl.innerText.trim().replace(/^"+|"+$/g, '') : cardData.implication || '';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/update_signal`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        url: cardData.url,
-                        hook: hookValue,
-                        analysis: analysisValue,
-                        implication: implicationValue
-                    })
-                });
-                if (!response.ok) throw new Error();
-                cardData.hook = hookValue;
-                cardData.analysis = analysisValue;
-                cardData.implication = implicationValue;
-                AppState.cardDataById[cardId] = cardData;
-                showToast('Saved changes', 'success');
-            } catch (e) {
-                showToast('Failed to save', 'error');
-            }
-
-            updateCardMarkup(cardId);
-        }
-
-        function getLensBadges(lensesStr, styleClass) {
-            if (!lensesStr) return '';
-            const style = styleClass || "bg-gray-50 text-nesta-darkgrey border-gray-200"; 
-            const tags = lensesStr.split(',').map(t => t.trim());
-            let html = '<div class="flex flex-wrap gap-2 mb-4">';
-            tags.forEach(tag => {
-                let emoji = '';
-                for (const [key, icon] of Object.entries(LENS_EMOJIS)) {
-                    if (tag.toLowerCase().includes(key.toLowerCase())) emoji = icon;
-                }
-                if (emoji) {
-                    html += `<span class="px-2 py-1 border rounded text-[10px] font-bold ${style}" title="${tag}">${emoji} ${tag}</span>`;
-                }
-            });
-            html += '</div>';
-            return html;
-        }
-
-        // --- DATA MANAGEMENT ---
-        async function ensureDatabaseLoaded() {
-            if (AppState.currentSaved.length === 0) {
-                try {
-                    const res = await fetch(`${API_BASE_URL}/api/saved`);
-                    if (!res.ok) throw new Error();
-                    AppState.currentSaved = (await res.json()).reverse(); // Newest first
-                    return true;
-                } catch (e) {
-                    console.error("DB Load Error", e);
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        async function loadPreview() {
-            const grid = document.getElementById('preview-grid');
-            try {
-                const loaded = await ensureDatabaseLoaded();
-                if (!loaded) {
-                    grid.innerHTML = `
-                        <div class="col-span-3 text-center text-xs text-red-400 py-10 space-y-3">
-                            <div>Database Offline</div>
-                            <button type="button" class="btn-interactive px-4 py-2 text-xs font-bold bg-nesta-blue text-white rounded">Retry</button>
-                        </div>
-                    `;
-                    const retryButton = grid.querySelector('button');
-                    if (retryButton) {
-                        retryButton.addEventListener('click', () => loadPreview());
-                    }
-                    return;
-                }
-                const data = AppState.currentSaved;
-                if(!data || data.length === 0) { grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400">Database empty.</div>'; return; }
-                
-                const recent = data.slice(0, 3);
-                
-                grid.innerHTML = ''; 
-                recent.forEach((sig, i) => {
-                    const normalized = normalizeSignal(sig);
-                    createSignalCard(normalized, i, false, 'preview-grid');
-                });
-            } catch(e) { grid.innerHTML = '<div class="col-span-3 text-center text-xs text-red-400 py-10">Database Offline</div>'; }
-        }
-
-        function normalizeSignal(sig) {
-            return {
-                title: sig.Title || sig.title, 
-                score: sig.Score || sig.score, 
-                hook: sig.Hook || sig.hook, 
-                analysis: sig.Analysis || sig.analysis,
-                implication: sig.Implication || sig.implication,
-                final_url: sig.URL || sig.final_url || sig.url,
-                mission: sig.Mission || sig.mission, 
-                origin_country: sig.Origin_Country || sig.origin_country,
-                lenses: sig.Lenses || sig.lenses, 
-                score_novelty: sig.Score_Novelty || sig.score_novelty, 
-                score_evidence: sig.Score_Evidence || sig.score_evidence, 
-                score_impact: sig.Score_Impact || sig.Score_Evocativeness || sig.score_impact || sig.score_evocativeness,
-                score_evocativeness: sig.score_evocativeness,
-                shareable: sig.Shareable || sig.shareable, 
-                feedback: sig.Feedback || sig.User_Comment || sig.feedback,
-                _row: sig._row, 
-                source_date: sig.Source_Date || sig.source_date
-            };
-        }
-
-        function renderDatabase() {
-            const list = document.getElementById('saved-list');
-            if (!list || !AppState.currentSaved) return;
-            list.innerHTML = '';
-            if (AppState.currentSaved.length === 0) {
-                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-400">Database is empty.</div>';
-                return;
-            }
-
-            AppState.currentSaved.forEach((signal, index) => {
-                // PREFIX IDs with 'saved-' to prevent collision with main scan
-                const savedId = `saved-card-${index}`;
-                const normalized = normalizeSignal(signal);
-                const linkUrl = normalized.final_url || normalized.url;
-                const cardData = { ...normalized, id: savedId, url: linkUrl };
-
-                if (!AppState.cardDataById) {
-                    AppState.cardDataById = {};
-                }
-                AppState.cardDataById[savedId] = cardData;
-
-                // Render the card HTML using the shared renderCard function
-                // But override the ID in the data object passed to it
-                const cardHTML = renderCard(cardData);
-
-                const wrapper = document.createElement('div');
-                wrapper.className = "animate-enter";
-                wrapper.innerHTML = cardHTML.trim();
-                const cardEl = wrapper.firstChild;
-                cardEl.dataset.cardId = savedId;
-                cardEl.dataset.showActions = 'true';
-                cardEl.dataset.index = String(index);
-
-                // Re-attach listeners specifically for the Saved View
-                cardEl.appendChild(buildActionBar(cardData, savedId, cardEl.id));
-
-                list.appendChild(cardEl);
-            });
-        }
-
-        // --- UNIFIED FILTER LOGIC ---
-        async function switchFilter(type) {
-            AppState.activeFilter = type;
-            
-            // UI Toggle
-            document.querySelectorAll('.filter-view-btn').forEach(b => {
-                b.classList.remove('active', 'bg-nesta-navy', 'text-white', 'border-nesta-navy');
-                b.classList.add('text-gray-500', 'border-transparent');
-            });
-            const btn = document.getElementById(`filter-btn-${type}`);
-            if(btn) {
-                btn.classList.add('active', 'bg-nesta-navy', 'text-white', 'border-nesta-navy');
-                btn.classList.remove('text-gray-500', 'border-transparent');
-            }
-
-            // Data Logic
-            const listContainer = document.getElementById('result-container');
-            
-            if (type === 'scan') {
-                if (AppState.lastScanResults.length === 0) {
-                    AppState.currentSignals = [];
-                    listContainer.innerHTML = `<div class="col-span-full py-16 text-center border-2 border-dashed border-gray-200 rounded-xl"><p class="text-nesta-darkgrey font-bold">No active scan results.</p><p class="text-xs text-gray-400 mt-1">Enter a topic above to initiate a scan.</p></div>`;
-                    renderRadar(); // Clears radar
-                    updateDownloadButton();
-                    return;
-                }
-                AppState.currentSignals = AppState.lastScanResults;
-            } else {
-                await ensureDatabaseLoaded();
-                if (AppState.currentSaved.length === 0) {
-                    listContainer.innerHTML = `<div class="text-center py-10">Database offline or empty.</div>`;
-                    return;
-                }
-                
-                let filtered = [];
-                if (type === 'recent') {
-                    filtered = AppState.currentSaved.slice(0, 10);
-                } else if (type === 'funding') {
-                    const keywords = ['fund', 'invest', 'venture', 'capital', 'raise', 'grant', 'million', 'billion', 'round'];
-                    filtered = AppState.currentSaved.filter(s => {
-                        const txt = ((s.Title||'') + (s.Hook||'') + (s.User_Comment||'')).toLowerCase();
-                        return keywords.some(k => txt.includes(k));
-                    });
-                } else if (type === 'tech') {
-                    filtered = AppState.currentSaved.filter(s => {
-                        const lenses = (s.Lenses || '').toLowerCase();
-                        const hook = (s.Hook || '').toLowerCase();
-                        return lenses.includes('tech') || hook.includes('ai') || hook.includes('quantum') || hook.includes('novel');
-                    });
-                }
-                AppState.currentSignals = filtered.map(normalizeSignal);
-            }
-            
-            // Re-render both views
-            renderList(); 
-            renderRadar();
-        }
-
-        function renderList() {
-            const container = document.getElementById('result-container');
-            container.innerHTML = '';
-            AppState.currentSignals.forEach((sig, i) => createSignalCard(sig, i));
-            updateDownloadButton();
-        }
-
-        function filterFeed() {
-            const missionSelect = document.getElementById('missionFilter') || document.getElementById('mission-select');
-            if (!missionSelect) {
-                return;
-            }
-            const selectedValue = missionSelect.value || 'all';
-            const mission = selectedValue.toLowerCase().includes('all') ? 'all' : selectedValue;
-            const cards = document.querySelectorAll('.signal-card');
-
-            cards.forEach(card => {
-                const cardMission = card.dataset.mission || '';
-                if (mission === 'all') {
-                    card.classList.remove('hidden');
-                } else if (mission === 'adjacent') {
-                    card.classList.toggle('hidden', !cardMission.includes('Adjacent'));
-                } else {
-                    const normalizedSelectedMission = mission.replace(/^[^A-Za-z]+\\s*/, '').trim();
-                    card.classList.toggle('hidden', cardMission !== normalizedSelectedMission);
-                }
-            });
-        }
-
-        function createEditableTextarea(value, field, ariaLabel) {
-            const textarea = document.createElement('textarea');
-            textarea.value = value;
-            textarea.dataset.field = field;
-            textarea.setAttribute('aria-label', ariaLabel);
-            textarea.className = 'w-full border-2 border-nesta-black bg-white text-nesta-black text-sm p-3 font-body focus:outline-none focus:ring-4 focus:ring-nesta-yellow';
-            return textarea;
-        }
-
-        
-
-        function showToast(msg, type='success') {
-            const el = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
-            const dot = el.querySelector('div');
-            
-            // Allow 'normal' type for neutral/blue notifications that aren't errors
-            let colorClass, borderClass;
-            switch (type) {
-                case 'error':
-                    colorClass = 'bg-nesta-red';
-                    borderClass = 'border-nesta-red';
-                    break;
-                case 'success':
-                    colorClass = 'bg-nesta-green';
-                    borderClass = 'border-nesta-green';
-                    break;
-                default: // 'normal' and other types
-                    colorClass = 'bg-nesta-aqua';
-                    borderClass = 'border-nesta-aqua';
-            }
-            
-            dot.className = `w-2 h-2 rounded-full ${colorClass}`;
-            el.className = `fixed bottom-8 right-8 bg-nesta-navy text-white px-6 py-4 shadow-2xl transform transition-all duration-500 z-[120] font-bold text-sm flex items-center gap-4 rounded-lg border-l-4 ${borderClass}`;
-            el.classList.remove('translate-y-24', 'opacity-0');
-            setTimeout(() => el.classList.add('translate-y-24', 'opacity-0'), 3000);
-        }
-
-        function handleEnter(e) { if(e.key === 'Enter') generateSignal(false); }
-        function getCheckedSources() { return Array.from(document.querySelectorAll('#source-bias-container input:checked')).map(cb => cb.value); }
-        function getSelectedScanMode() {
-            const selected = document.querySelector('input[name="scan_mode"]:checked');
-            return selected ? selected.value : 'general';
-        }
-        function updateDownloadButton() {
-            const button = document.getElementById('download-signals-btn');
-            if (!button) return;
-            if (AppState.lastScanResults.length > 0) {
-                button.classList.remove('hidden');
-            } else {
-                button.classList.add('hidden');
-            }
-        }
-
-        function switchView(view) {
-            const list = document.getElementById('result-container');
-            const radar = document.getElementById('radar-container');
-            const network = document.getElementById('network-container');
-            const btnList = document.getElementById('btn-list');
-            const btnRadar = document.getElementById('btn-radar');
-            const btnNetwork = document.getElementById('btn-network');
-            
-            if(view === 'list') {
-                list.classList.remove('hidden');
-                radar.classList.add('hidden');
-                network.classList.add('hidden');
-                btnList.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
-                btnRadar.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                btnNetwork.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-            } else if (view === 'radar') {
-                list.classList.add('hidden');
-                radar.classList.remove('hidden');
-                network.classList.add('hidden');
-                btnRadar.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
-                btnList.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                btnNetwork.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                renderRadar();
-            } else {
-                list.classList.add('hidden');
-                radar.classList.add('hidden');
-                network.classList.remove('hidden');
-                btnNetwork.className = "px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md";
-                btnList.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                btnRadar.className = "px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md";
-                renderNetwork();
-            }
-        }
-
-        function renderNetwork() {
-            const container = document.getElementById('signalNetwork');
-            if (!container) return;
-            if (!AppState.currentSignals.length) {
-                container.innerHTML = '<div class="text-center text-gray-400 font-bold py-10">No signals to visualise.</div>';
-                return;
-            }
-
-            const nodes = new vis.DataSet(
-                AppState.currentSignals.map((signal, index) => ({
-                    id: index,
-                    label: signal.title || `Signal ${index + 1}`,
-                    title: signal.hook || '',
-                }))
-            );
-
-            const edges = [];
-            const sanitize = (text) =>
-                (text || '')
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s]/g, ' ')
-                    .split(/\s+/) 
-
-            for (let i = 0; i < AppState.currentSignals.length; i++) {
-                const signalA = AppState.currentSignals[i];
-                const wordsA = new Set(sanitize(signalA.title));
-                for (let j = i + 1; j < AppState.currentSignals.length; j++) {
-                    const signalB = AppState.currentSignals[j];
-                    const wordsB = sanitize(signalB.title);
-                    const sharedWord = wordsB.find((word) => wordsA.has(word));
-                    const shareMission = signalA.mission && signalB.mission && signalA.mission === signalB.mission;
-                    if (shareMission || sharedWord) {
-                        edges.push({ from: i, to: j });
-                    }
-                }
-            }
-
-            const data = { nodes, edges };
-            const options = {
-                nodes: {
-                    shape: 'dot',
-                    size: 14,
-                    color: {
-                        background: '#0F294A',
-                        border: '#0F294A',
-                        highlight: {
-                            background: '#F6A4B7',
-                            border: '#F6A4B7',
-                        },
-                    },
-                    font: { color: '#0F294A', size: 12 },
-                },
-                edges: {
-                    color: { color: '#D1D5DB' },
-                    width: 1,
-                    smooth: true,
-                },
-                interaction: {
-                    hover: true,
-                },
-                physics: {
-                    stabilization: true,
-                },
-            };
-
-            if (AppState.networkChart) {
-                AppState.networkChart.destroy();
-            }
-            AppState.networkChart = new vis.Network(container, data, options);
-        }
-
-        async function synthesizeTrend() {
-            if (!AppState.currentSignals.length) {
-                showToast('No signals to synthesise.', 'error');
-                return;
-            }
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/synthesize`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ signals: AppState.currentSignals }),
-                });
-                if (!res.ok) throw new Error();
-                const data = await res.json();
-                AppState.currentSynth = data;
-
-                const container = document.getElementById('result-container');
-                if (!container) return;
-                const existing = document.getElementById('synth-card');
-                if (existing) existing.remove();
-
-                const card = document.createElement('div');
-                card.id = 'synth-card';
-                card.className = 'bg-gradient-to-r from-nesta-purple to-nesta-blue text-white rounded-xl p-8 shadow-soft';
-                card.innerHTML = `
-                    <div class="text-xs uppercase tracking-widest text-white/70 mb-3">Meta-Analysis</div>
-                    <h3 class="text-3xl font-bold brand-font mb-3">${escapeHtml(data.trend_name || 'Emerging Trend')}</h3>
-                    <p class="text-sm leading-relaxed mb-4">${escapeHtml(data.analysis || '')}</p>
-                    <div class="text-sm font-semibold">Implication: <span class="font-normal">${escapeHtml(data.implication || '')}</span></div>
-                `;
-                container.prepend(card);
-            } catch (error) {
-                showToast('Synthesis failed. Please retry.', 'error');
-            }
-        }
-
-        function generateBriefing() {
-            if (!AppState.currentSignals.length) {
-                showToast('No signals to export.', 'error');
-                return;
-            }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            const now = new Date();
-            const dateLabel = now.toLocaleDateString('en-GB');
-            const filenameDate = now.toISOString().split('T')[0];
-
-            let y = 16;
-            doc.setFontSize(14);
-            doc.text('Nesta Signal Scout // Intelligence Briefing', 14, y);
-            y += 8;
-            doc.setFontSize(10);
-            doc.text(`Date: ${dateLabel}`, 14, y);
-            y += 10;
-
-            if (AppState.currentSynth) {
-                doc.setFontSize(12);
-                doc.text('Executive Summary', 14, y);
-                y += 6;
-                doc.setFontSize(10);
-                const summary = `${AppState.currentSynth.trend_name || ''} — ${AppState.currentSynth.analysis || ''} ${AppState.currentSynth.implication || ''}`.trim();
-                const summaryLines = doc.splitTextToSize(summary, 180);
-                doc.text(summaryLines, 14, y);
-                y += summaryLines.length * 5 + 4;
-            }
-
-            doc.setFontSize(12);
-            doc.text('Signals', 14, y);
-            y += 6;
-            doc.setFontSize(10);
-
-            AppState.currentSignals.slice(0, 6).forEach((signal) => {
-                const block = `${signal.title || 'Untitled'} (Score: ${signal.score || '-'})\n${signal.hook || ''}`;
-                const lines = doc.splitTextToSize(block, 180);
-                if (y + lines.length * 5 > 280) {
-                    doc.addPage();
-                    y = 16;
-                }
-                doc.text(lines, 14, y);
-                y += lines.length * 5 + 6;
-            });
-
-            doc.save(`Nesta_Briefing_${filenameDate}.pdf`);
-        }
-
-        function setScanningState(isScanning) {
-            const startBtn = document.getElementById('search-btn');
-            const broadBtn = document.getElementById('broad-btn');
-            const stopBtn = document.getElementById('stop-btn');
-
-            if (isScanning) {
-                startBtn.classList.add('hidden');
-                broadBtn.classList.add('hidden');
-                stopBtn.classList.remove('hidden');
-            } else {
-                stopBtn.classList.add('hidden');
-                toggleButtonState();
-            }
-        }
-
-        function toggleTerminal() {
-            const terminal = document.getElementById('live-terminal');
-            const indicator = document.getElementById('terminal-toggle-indicator');
-            if (!terminal || !indicator) return;
-            terminal.classList.toggle('hidden');
-            indicator.textContent = terminal.classList.contains('hidden') ? '[+]' : '[-]';
-        }
-
-        function stopScan() {
-            if (AppState.scanController) {
-                AppState.scanController.abort();
-                AppState.scanController = null;
-                showToast('Scan Cancelled', 'error');
-            }
-        }
-
-        async function generateSignal(isBroad) {
-            if (AppState.isProcessing) return;
-            const topic = document.getElementById('topic-input').value;
-            const container = document.getElementById('result-container');
-            const signalCount = parseInt(document.getElementById('signal-count').value) || 5;
-            const requestTimeoutMs = 900000;
-            
-            if (!topic && !isBroad) return showToast("Please enter a topic", "error");
-
-            AppState.isProcessing = true;
-            setScanningState(true); 
-            switchView('list');
-            // Force filter to 'scan' mode
-            switchFilter('scan'); 
-            updateDownloadButton();
-            startLiveTerminal();
-            
-            container.innerHTML = `
-                <div class="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-                    ${Array(3).fill(0).map(() => `
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-96 flex flex-col gap-4">
-                            <div class="flex justify-between">
-                                <div class="skeleton-box h-6 w-24 rounded-full"></div>
-                                <div class="skeleton-box h-8 w-8 rounded-full"></div>
-                            </div>
-                            <div class="skeleton-box h-8 w-3/4 mt-4"></div>
-                            <div class="skeleton-box h-4 w-full"></div>
-                            <div class="skeleton-box h-4 w-5/6"></div>
-                            <div class="skeleton-box h-32 w-full mt-auto rounded-lg"></div>
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <div class="col-span-full text-center py-4">
-                    <p id="loading-status-text" class="font-display text-nesta-navy animate-pulse">Initialising Scout Agent...</p>
-                </div>
-            `;
-            
-            startLoadingSimulation(signalCount);
-
-            const missionSelectValue = document.getElementById('mission-select').value;
-
-            const payload = {
-                message: isBroad 
-                    ? `Find ${signalCount} high-novelty novel signals related to ${missionSelectValue}. Context: ${topic}` 
-                    : `Find ${signalCount} signals about ${topic} for ${missionSelectValue}`,
-                time_filter: document.getElementById('time-filter').value,
-                source_types: getCheckedSources(),
-                tech_mode: document.getElementById('tech-mode').checked,
-                mission: missionSelectValue,
-                signal_count: signalCount,
-                scan_mode: getSelectedScanMode()
-            };
-
-            AppState.scanController = new AbortController();
-            const signal = AppState.scanController.signal;
-
-            let timeoutId;
-            try {
-                // We reuse the robust check here too, in case user went idle
-                const backendReady = await warmBackend();
-                if (!backendReady) {
-                    stopLoadingSimulation();
-                    container.innerHTML = `<div class="p-8 bg-white border-l-4 border-nesta-red shadow-sm text-center"><p class="font-bold text-nesta-red">Backend Offline</p><p class="text-sm text-gray-500">Could not reach the scanning service. Trying again in a moment...</p></div>`;
-                    showToast('Could not reach backend. Please retry.', 'error');
-                    return;
-                }
-
-                timeoutId = setTimeout(() => {
-                    if (AppState.scanController) {
-                        AppState.scanController.abort();
-                    }
-                }, requestTimeoutMs);
-
-                const res = await fetch(`${API_BASE_URL}/api/chat`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload),
-                    signal: signal 
-                });
-
-                if(!res.ok) throw new Error();
-
-                AppState.currentSignals = [];
-                AppState.lastScanResults = [];
-
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-                    
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-                        try {
-                            const msg = JSON.parse(line);
-                            if (msg.type === 'progress') {
-                                document.getElementById('loading-status-text').innerText = msg.message;
-                            } else if (msg.type === 'signal') {
-                                const norm = normalizeSignal(msg.data);
-                                AppState.currentSignals.push(norm);
-                                createSignalCard(norm, AppState.currentSignals.length - 1);
-                                autosaveSignal(norm);
-                                AppState.lastScanResults = AppState.currentSignals;
-                                updateDownloadButton();
-                            } else if (msg.type === 'error') {
-                                showToast(msg.message, 'error');
-                            }
-                        } catch (e) { console.error('Stream parse error', e); }
-                    }
-                }
-                stopLoadingSimulation();
-                const loader = document.querySelector('.radar-loader');
-                if (loader) loader.parentElement.remove();
-                        
-                if (AppState.currentSignals.length === 0) {
-                            container.innerHTML = `
-                                <div class="col-span-full py-12 flex flex-col items-center justify-center text-center space-y-4 animate-fade-in-up">
-                                    <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-nesta-red mb-2">
-                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-display font-bold text-nesta-navy text-lg">Scan Interrupted</h3>
-                                        <p class="text-sm text-nesta-darkgrey max-w-md mx-auto mt-2 leading-relaxed">
-                                            The Scout Agent connection was lost. This usually happens if the server restarts due to high traffic or memory limits.
-                                        </p>
-                                    </div>
-                                    <button onclick="generateSignal(false)" class="mt-4 px-6 py-2.5 bg-nesta-blue text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-soft hover:bg-nesta-navy hover:shadow-hover transition-all">
-                                        Try Again
-                                    </button>
-                                </div>
-                            `;
+const API_BASE_URL = window.location.origin;
+
+const state = {
+  activeTab: 'research',
+  databaseItems: [],
+  tutorialIndex: 0,
+  radarChart: null,
+  radarSignals: [],
+  lastResearch: null,
+  lastRadar: null,
+  radarPreviewLoaded: false,
+};
+
+const missionColors = {
+  'A Fairer Start': '#9B59B6',
+  'A Healthy Life': '#F6A4B7',
+  'A Sustainable Future': '#18A48C',
+  Default: '#0F294A',
+};
+
+const tabs = {
+  research: document.getElementById('view-research'),
+  radar: document.getElementById('view-radar'),
+  database: document.getElementById('view-database'),
+  policy: document.getElementById('view-policy'),
+};
+
+const tabButtons = {
+  research: document.getElementById('tab-research'),
+  radar: document.getElementById('tab-radar'),
+  database: document.getElementById('tab-database'),
+  policy: document.getElementById('tab-policy'),
+};
+
+const researchStatus = document.getElementById('research-status');
+const radarStatus = document.getElementById('radar-status');
+const researchFeed = document.getElementById('research-feed');
+const radarFeed = document.getElementById('radar-feed');
+const databaseGrid = document.getElementById('database-grid');
+const policyFeed = document.getElementById('policy-feed');
+const policyStatus = document.getElementById('policy-status');
+
+const researchButton = document.getElementById('research-submit');
+const radarButton = document.getElementById('radar-submit');
+const policyButton = document.getElementById('policy-submit');
+
+const databaseMission = document.getElementById('database-mission');
+const databaseType = document.getElementById('database-type');
+const policyMission = document.getElementById('policy-mission');
+const policyTopic = document.getElementById('policy-topic');
+
+const userGuide = document.getElementById('user-guide');
+const openGuideButton = document.getElementById('open-guide');
+const closeGuideButton = document.getElementById('close-guide');
+
+const welcomeModal = document.getElementById('welcome-modal');
+const welcomeStart = document.getElementById('welcome-start');
+const welcomeTutorial = document.getElementById('welcome-tutorial');
+const welcomeSkip = document.getElementById('welcome-skip');
+
+const tutorialSpotlight = document.getElementById('tutorial-spotlight');
+const tutorialTooltip = document.getElementById('tutorial-tooltip');
+const tutorialText = document.getElementById('tutorial-text');
+const tutorialSkip = document.getElementById('tutorial-skip');
+const tutorialNext = document.getElementById('tutorial-next');
+const perspectiveButton = document.getElementById('btn-perspective');
+const radarPerspectiveSlot = document.getElementById('radar-perspective-slot');
+const processStepper = document.getElementById('process-stepper');
+const stepElements = {
+  searching: document.getElementById('step-1'),
+  classifying: document.getElementById('step-2'),
+  synthesizing: document.getElementById('step-3'),
+};
+const radarChartWrapper = document.getElementById('radar-chart-wrapper');
+
+const tutorialSteps = [
+  {
+    id: 'tab-research',
+    text: 'Start with Targeted Research to answer a specific question using deep synthesis.',
+    action: () => setTab('research'),
+  },
+  {
+    id: 'tab-radar',
+    text: 'Use Mission Radar to scan for broad signals tied to a mission.',
+    action: () => setTab('radar'),
+  },
+  {
+    id: 'tab-database',
+    text: 'Visit the Database to curate saved signals and keep the best ones.',
+    action: () => setTab('database'),
+  },
+  {
+    id: 'open-guide',
+    text: 'Open the guide anytime for quick help.',
+    action: () => {},
+  },
+];
+
+function initRadarChart() {
+  const ctx = document.getElementById('radar-chart');
+  if (!ctx) return;
+  if (state.radarChart) {
+    state.radarChart.destroy();
+  }
+  const quadrantPlugin = {
+    id: 'quadrantPlugin',
+    beforeDraw(chart) {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      const midX = (chartArea.left + chartArea.right) / 2;
+      const midY = (chartArea.top + chartArea.bottom) / 2;
+      ctx.save();
+      ctx.strokeStyle = '#CBD5F5';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(midX, chartArea.top);
+      ctx.lineTo(midX, chartArea.bottom);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, midY);
+      ctx.lineTo(chartArea.right, midY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#64748B';
+      ctx.font = '12px Averta, sans-serif';
+      ctx.fillText('HOT', midX + 8, chartArea.top + 16);
+      ctx.fillText('EMERGING', chartArea.left + 8, chartArea.top + 16);
+      ctx.fillText('STABILISING', midX + 8, chartArea.bottom - 8);
+      ctx.fillText('DORMANT', chartArea.left + 8, chartArea.bottom - 8);
+      ctx.restore();
+    },
+  };
+  state.radarChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Signals',
+          data: [],
+          pointBackgroundColor: [],
+          backgroundColor: 'rgba(15, 41, 74, 0.6)',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { min: 0, max: 10, title: { display: true, text: 'Growth' } },
+        y: { min: 0, max: 10, title: { display: true, text: 'Magnitude' } },
+      },
+      plugins: {
+        legend: { display: false },
+      },
+    },
+    plugins: [quadrantPlugin],
+  });
 }
-                // Signals already streamed in; avoid clearing the container.
-            } catch (error) {
-                stopLoadingSimulation();
-                if (error.name === 'AbortError') {
-                    container.innerHTML = `<div class="p-10 text-center text-gray-400">Scan cancelled.</div>`;
-                } else {
-                    container.innerHTML = `<div class="p-8 bg-white border-l-4 border-nesta-red shadow-sm text-center"><p class="font-bold text-nesta-red">Connection Failed</p><p class="text-sm text-gray-500">Please check your internet or try again later.</p></div>`;
-                }
-            } finally {
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-                AppState.isProcessing = false;
-                AppState.scanController = null;
-                setScanningState(false);
-                stopLiveTerminal();
-            }
-        }
 
-        function createSignalCard(signal, index, showActions = true, containerId = 'result-container') {
-            const container = document.getElementById(containerId);
-            if (!container) return;
+function addBlipToRadar(blip) {
+  state.radarSignals.push(blip);
+  if (!state.radarChart) return;
+  const color = missionColors[blip.mission] || missionColors.Default;
+  state.radarChart.data.datasets[0].data.push({
+    x: blip.growth_metric ?? blip.score_novelty,
+    y: blip.magnitude_metric ?? blip.score_impact,
+  });
+  const dataset = state.radarChart.data.datasets[0];
+  if (!dataset.pointBackgroundColor) {
+    dataset.pointBackgroundColor = [];
+  }
+  dataset.pointBackgroundColor.push(color);
+  state.radarChart.update();
+}
 
-            const cardId = signal.id || `card-${index}`;
-            const linkUrl = signal.final_url || signal.url;
-            const cardData = { ...signal, id: cardId, url: linkUrl };
-            signal.id = cardId;
+function setTab(tab) {
+  state.activeTab = tab;
+  Object.keys(tabs).forEach((key) => {
+    tabs[key].classList.toggle('hidden', key !== tab);
+    tabButtons[key].classList.toggle('active', key === tab);
+  });
+  if (tab === 'database') {
+    loadDatabase();
+  }
+  if (tab === 'radar' && radarPerspectiveSlot && perspectiveButton) {
+    radarPerspectiveSlot.appendChild(perspectiveButton);
+  }
+  if (tab === 'research' && perspectiveButton) {
+    const researchSlot = document.querySelector('#view-research .flex.items-center.justify-end');
+    if (researchSlot) {
+      researchSlot.appendChild(perspectiveButton);
+    }
+  }
+  if (tab === 'radar' && !state.radarChart) {
+    initRadarChart();
+  }
+  if (tab === 'radar' && !state.radarPreviewLoaded) {
+    loadRadarPreview();
+  }
+  if (tab === 'policy') {
+    policyStatus.textContent = '';
+  }
+}
 
-            if (!AppState.cardDataById) {
-                AppState.cardDataById = {};
-            }
-            AppState.cardDataById[cardId] = cardData;
+tabButtons.research.addEventListener('click', () => setTab('research'));
+tabButtons.radar.addEventListener('click', () => setTab('radar'));
+tabButtons.database.addEventListener('click', () => setTab('database'));
+tabButtons.policy.addEventListener('click', () => setTab('policy'));
 
-            const cardHTML = renderCard(cardData);
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = cardHTML.trim();
-            const cardElement = tempDiv.firstChild;
-            cardElement.dataset.cardId = cardId;
-            cardElement.dataset.showActions = showActions ? 'true' : 'false';
-            cardElement.dataset.index = String(index);
+openGuideButton.addEventListener('click', () => {
+  userGuide.classList.remove('hidden');
+  userGuide.classList.add('flex');
+});
 
-            if (showActions) {
-                cardElement.appendChild(buildActionBar(cardData, cardId, cardElement.id));
-            }
-            
-            const existing = container.querySelector(`[data-card-id="${cardId}"]`);
-            if (existing) {
-                existing.replaceWith(cardElement);
-            } else {
-                container.appendChild(cardElement);
-            }
-        }
+closeGuideButton.addEventListener('click', () => {
+  userGuide.classList.add('hidden');
+  userGuide.classList.remove('flex');
+});
 
-        async function updateSignalStatus(url, status) {
-            if (!url) return;
-            try {
-                await fetch(`${API_BASE_URL}/api/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, user_status: status })
-                });
-            } catch (e) {
-                console.error('Status update failed', e);
-            }
-        }
+userGuide.addEventListener('click', (event) => {
+  if (event.target === userGuide) {
+    userGuide.classList.add('hidden');
+    userGuide.classList.remove('flex');
+  }
+});
 
-        async function autosaveSignal(signal) {
-            const url = signal?.final_url || signal?.url;
-            if (!url) return;
-            const basePayload = {
-                url,
-                title: signal?.title,
-                hook: signal?.hook ?? '',
-                analysis: signal?.analysis ?? '',
-                implication: signal?.implication ?? '',
-                score: signal?.score,
-                score_novelty: signal?.score_novelty,
-                score_evidence: signal?.score_evidence,
-                score_evocativeness: signal?.score_evocativeness,
-                mission: signal?.mission,
-                lenses: signal?.lenses,
-                source_date: signal?.source_date
-            };
-            const requiredFields = new Set(['url', 'hook', 'analysis', 'implication']);
-            const payload = Object.fromEntries(
-                Object.entries(basePayload).filter(([key, value]) => requiredFields.has(key) || (value != null && value !== ''))
-            );
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/update_signal`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-                if (!res.ok) {
-                    console.error('Autosave failed', await res.text());
-                }
-            } catch (e) {
-                console.error('Autosave failed', e);
-            }
-        }
+function setButtonLoading(button, isLoading) {
+  button.disabled = isLoading;
+  button.classList.toggle('opacity-70', isLoading);
+  const label = button.querySelector('.btn-label');
+  const spinner = button.querySelector('.btn-spinner');
+  if (button.dataset.spinner === 'false') {
+    return;
+  }
+  if (label && spinner) {
+    label.classList.toggle('hidden', isLoading);
+    spinner.classList.toggle('hidden', !isLoading);
+  }
+}
 
-        async function rejectSignal(url, cardId) {
-            await updateSignalStatus(url, 'Rejected');
-            const card = document.getElementById(cardId);
-            if (card) {
-                card.remove();
-            }
-            AppState.currentSignals = AppState.currentSignals.filter(signal => (signal.final_url || signal.url) !== url);
-            AppState.lastScanResults = AppState.lastScanResults.filter(signal => (signal.final_url || signal.url) !== url);
-            const normalizeUrl = (value) => {
-                if (!value) return '';
-                try {
-                    return decodeURIComponent(String(value)).trim().toLowerCase();
-                } catch (e) {
-                    return String(value).trim().toLowerCase();
-                }
-            };
-            const targetUrl = normalizeUrl(url);
-            AppState.currentSaved = AppState.currentSaved.filter(signal => normalizeUrl(signal.URL || signal.url) !== targetUrl); // Ensure case-insensitive comparison for consistency.
-            updateDownloadButton();
-            showToast('Signal rejected', 'normal');
-        }
+function resetProcessStepper() {
+  if (!processStepper) return;
+  processStepper.classList.remove('hidden');
+  Object.values(stepElements).forEach((step) => {
+    if (!step) return;
+    step.classList.add('opacity-50');
+    step.classList.remove('opacity-100');
+    const indicator = step.querySelector('.step-indicator');
+    if (indicator) {
+      indicator.classList.remove('active', 'complete');
+    }
+  });
+}
 
-        async function shortlistSignal(cardData) {
-            await copyFormattedCard(cardData);
-            await updateSignalStatus(cardData?.url, 'Shortlisted');
-        }
+function markStep(status, isComplete) {
+  const step = stepElements[status];
+  if (!step) return;
+  step.classList.remove('opacity-50');
+  step.classList.add('opacity-100');
+  const indicator = step.querySelector('.step-indicator');
+  if (!indicator) return;
+  indicator.classList.remove('active');
+  if (isComplete) {
+    indicator.classList.add('complete');
+  } else {
+    indicator.classList.add('active');
+  }
+}
 
-        async function keepSignal(url, buttonId) {
-            await updateSignalStatus(url, 'Saved');
-            const button = document.getElementById(buttonId);
-            if (button) {
-                button.textContent = '⭐ Starred';
-                button.classList.add('bg-nesta-sand');
-            }
-            showToast('Signal starred', 'success');
-        }
+function updateProcessStepper(status) {
+  if (!processStepper) return;
+  if (status === 'searching') {
+    markStep('searching', false);
+  }
+  if (status === 'classifying') {
+    markStep('searching', true);
+    markStep('classifying', false);
+  }
+  if (status === 'synthesizing') {
+    markStep('classifying', true);
+    markStep('synthesizing', false);
+  }
+  if (status === 'complete') {
+    markStep('synthesizing', true);
+  }
+}
 
-        async function checkLinkHealth(url, indicatorId) {
-            const indicator = document.getElementById(indicatorId);
-            if (!indicator) return;
-            indicator.className = 'w-2 h-2 rounded-full bg-nesta-sand';
-            indicator.title = 'Checking link...';
-            try {
-                await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-                indicator.className = 'w-2 h-2 rounded-full bg-nesta-green';
-                indicator.title = 'Server responded (link validity not checked)';
-            } catch (e) {
-                indicator.className = 'w-2 h-2 rounded-full bg-nesta-red';
-                indicator.title = 'Server unreachable (link may be broken)';
-            }
-        }
+function formatSources(sources) {
+  return sources
+    .map((source) => `<li class="text-sm text-nesta-blue"><a href="${source}" target="_blank" rel="noopener">${source}</a></li>`)
+    .join('');
+}
 
-        async function copyFormattedCard(signalData) {
-            const missionEmojis = {
-                'A Sustainable Future': '🌳',
-                'A Fairer Start': '📚',
-                'A Healthy Life': '❤️‍🩹',
-                'Creative Industries': '🎨',
-                'default': '🔮'
-            };
-            const emoji = missionEmojis[signalData?.mission] || missionEmojis['default'];
-            const title = signalData?.title || 'Untitled Signal';
-            const hook = signalData?.hook || 'No hook provided.';
-            const url = signalData?.url || '';
-            const analysis = signalData?.analysis;
-            const implication = signalData?.implication;
-            const scoreNovelty = signalData?.score_novelty ?? 'N/A';
-            const scoreEvidence = signalData?.score_evidence ?? 'N/A';
-            const scoreImpact = signalData?.score_impact ?? signalData?.score_evocativeness ?? 'N/A';
+async function updateSignal(url, status, card) {
+  if (!url) return;
+  await fetch(`${API_BASE_URL}/api/update_signal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, status }),
+  });
+  if (status === 'Saved') {
+    card.classList.add('border-green-300');
+  }
+  if (status === 'Rejected') {
+    card.classList.add('opacity-50');
+  }
+}
 
-            let text = `${emoji} ${signalData?.mission || 'Signal Scout'}\n`;
-            text += `*${title}*\n\n`;
-            text += `🤖 *Signal*\n`;
-            text += `${hook}\n\n`;
-            if (analysis) {
-                text += `🔍 *The Analysis*\n`;
-                text += `${analysis}\n\n`;
-            }
-            if (implication) {
-                text += `🚀 *Why it matters*\n`;
-                text += `${implication}\n\n`;
-            }
-            text += `*Score:* Novelty: ${scoreNovelty}/10 | Evidence: ${scoreEvidence}/10 | Impact: ${scoreImpact}/10\n`;
-            text += `${url}`;
-            try {
-                await navigator.clipboard.writeText(text);
-                const btn = document.getElementById(signalData?.id || '');
-                if (btn) {
-                    const originalIcon = btn.textContent;
-                    btn.textContent = '✅ Copied!';
-                    setTimeout(() => {
-                        btn.textContent = originalIcon;
-                    }, 2000);
-                }
-                showToast('Copied!', 'success');
-            } catch (e) {
-                console.error('Failed to copy!', e);
-                showToast('Clipboard unavailable', 'error');
-            }
-        }
+async function sendFeedback(signalId, relevant) {
+  if (!signalId) return;
+  await fetch(`${API_BASE_URL}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signal_id: signalId, relevant }),
+  });
+}
 
-        async function openSavedSignals() {
-            document.getElementById('saved-modal').classList.remove('hidden');
-            const list = document.getElementById('saved-list');
-            list.innerHTML = '<div class="col-span-full py-24 text-center flex flex-col items-center"><div class="radar-loader mb-4 border-2 border-gray-200 border-t-nesta-blue w-10 h-10"></div><p class="font-bold text-nesta-navy">Retrieving Intelligence...</p></div>';
-            
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/saved`);
-                const data = await res.json();
-                list.innerHTML = '';
-                // NEWEST FIRST for full database view as well
-                AppState.currentSaved = data.reverse(); 
-                renderDatabase();
-            } catch(e) { list.innerHTML = '<div class="col-span-full text-center text-nesta-red py-10 font-bold">Failed to load database.</div>'; }
-        }
+function renderSparkline(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const values = Array.from({ length: 8 }, () => Math.random() * 10 + 2);
+  const maxVal = Math.max(...values);
+  const minVal = Math.min(...values);
+  const w = canvas.width;
+  const h = canvas.height;
+  const points = values.map((val, idx) => ({
+    x: (idx / (values.length - 1)) * w,
+    y: h - ((val - minVal) / (maxVal - minVal || 1)) * h,
+  }));
+  const duration = 1000;
+  const pointDelay = 100;
+  const totalDuration = duration + pointDelay * (points.length - 1);
+  const startTime = performance.now();
 
-        function closeSavedSignals() { document.getElementById('saved-modal').classList.add('hidden'); }
+  function drawFrame(now) {
+    const elapsed = now - startTime;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#0F294A';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const segmentStart = i * pointDelay;
+      const segmentProgress = Math.min(Math.max((elapsed - segmentStart) / duration, 0), 1);
+      const nextX = points[i].x + (points[i + 1].x - points[i].x) * segmentProgress;
+      const nextY = points[i].y + (points[i + 1].y - points[i].y) * segmentProgress;
+      ctx.lineTo(nextX, nextY);
+      if (segmentProgress < 1) {
+        break;
+      }
+    }
+    ctx.stroke();
+    if (elapsed < totalDuration) {
+      requestAnimationFrame(drawFrame);
+    }
+  }
 
-        function openUserGuide() { document.getElementById('user-guide-modal').classList.remove('hidden'); }
-        function closeUserGuide() { document.getElementById('user-guide-modal').classList.add('hidden'); }
+  requestAnimationFrame(drawFrame);
+}
 
-        async function updateSavedSignal(url, title, domIndex) {
-            const shareVal = document.getElementById(`saved-shareable-${domIndex}`).value;
-            const commentVal = document.getElementById(`saved-comment-${domIndex}`)?.value || '';
-            const statusMap = { Yes: 'Shortlisted', Maybe: 'Saved', No: 'Rejected' };
-            const userStatus = statusMap[shareVal] || 'Saved';
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/update`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, title, shareable: shareVal, user_status: userStatus, user_comment: commentVal, feedback: commentVal })
-                });
-                if(res.ok) { showToast('Database updated'); AppState.currentSaved = []; loadPreview(); }
-                else throw new Error();
-            } catch(e) { showToast('Update failed', 'error'); }
-        }
+function createActionBar({ url, card }) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'mt-4 flex flex-wrap items-center gap-2';
 
-        function downloadCSV() {
-            if(!AppState.currentSaved || AppState.currentSaved.length === 0) return showToast('No data to export', 'error');
-            let csv = "Title,URL,Score,Mission,Hook,Date,Status,Notes\n";
-            AppState.currentSaved.forEach(r => { csv += `"${r.Title}","${r.URL}",${r.Score},"${r.Mission}","${(r.Hook||"").replace(/"/g, '""')}",${r.Source_Date},${r.Shareable},"${r.User_Comment||""}"\n`; });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `Signal_Export_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-        }
+  const keepButton = document.createElement('button');
+  keepButton.className = 'btn-secondary border-green-200 text-green-700 hover:border-green-400 hover:text-green-700';
+  keepButton.textContent = 'Keep';
 
-        // --- INTERACTIVE RADAR ---
-        function scrollToCard(index) {
-            switchView('list'); 
-            const card = document.querySelector(`[data-index="${index}"]`);
-            if (card) {
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                card.classList.add('card-highlight');
-                setTimeout(() => card.classList.remove('card-highlight'), 2000);
-            }
-        }
+  const discardButton = document.createElement('button');
+  discardButton.className = 'btn-secondary border-red-200 text-red-600 hover:border-red-400 hover:text-red-600';
+  discardButton.textContent = 'Discard';
 
-        function renderRadar() {
-            const canvas = document.getElementById('signalRadar');
-            if (AppState.radarChart) AppState.radarChart.destroy();
+  keepButton.addEventListener('click', async () => {
+    await updateSignal(url, 'Saved', card);
+    keepButton.textContent = 'Saved ✓';
+    keepButton.classList.add('bg-green-600', 'text-white', 'border-green-600');
+    discardButton.disabled = true;
+  });
 
-            // 1. Prepare Data
-            const dataPoints = AppState.currentSignals.map((s, i) => ({
-                x: s.score_novelty || Math.random() * 10,
-                y: s.score_evidence || Math.random() * 10,
-                r: (s.score / 6) + 5,
-                title: s.title,
-                mission: s.mission,
-                hook: s.hook,
-                index: i
-            }));
+  discardButton.addEventListener('click', async () => {
+    await updateSignal(url, 'Rejected', card);
+    discardButton.textContent = 'Discarded';
+    discardButton.classList.add('opacity-70');
+    keepButton.disabled = true;
+  });
 
-            // 2. Define Quadrant Background Plugin
-            const quadrantPlugin = {
-                id: 'quadrants',
-                beforeDraw(chart) {
-                    const { ctx, chartArea: { left, top, right, bottom }, scales: { x, y } } = chart;
-                    const midX = x.getPixelForValue(5);
-                    const midY = y.getPixelForValue(5);
+  wrapper.appendChild(keepButton);
+  wrapper.appendChild(discardButton);
+  return wrapper;
+}
 
-                    const drawZone = (x1, y1, x2, y2, color, label) => {
-                        ctx.fillStyle = color;
-                        ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
-                        ctx.fillStyle = 'rgba(15, 41, 74, 0.1)';
-                        ctx.font = 'bold 12px "Zosia Display"';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        const labelX = x1 + (x2 - x1) / 2;
-                        const labelY = y1 + (y2 - y1) / 2;
-                        ctx.fillText(label, labelX, labelY);
-                    };
+function renderResearchCard(card, isPerspective = false) {
+  const wrapper = document.createElement('article');
+  wrapper.className = 'rounded-2xl bg-white p-6 shadow-soft fade-in-up';
+  const perspectiveBadge = isPerspective
+    ? '<span class="badge-perspective">Perspective Shift</span>'
+    : '';
+  wrapper.innerHTML = `
+    <h3 class="text-xl font-semibold text-nesta-navy brand-font">${card.title}</h3>
+    ${perspectiveBadge}
+    <p class="mt-3 text-sm text-slate-600">${card.summary}</p>
+    <div class="mt-4 space-y-3 text-sm text-slate-700">
+      <div>
+        <h4 class="font-semibold text-nesta-navy">Analysis</h4>
+        <p>${card.analysis}</p>
+      </div>
+      <div>
+        <h4 class="font-semibold text-nesta-navy">Implications</h4>
+        <p>${card.implications}</p>
+      </div>
+      <div>
+        <h4 class="font-semibold text-nesta-navy">Evidence Base</h4>
+        <ul class="list-disc pl-5">${formatSources(card.sources)}</ul>
+      </div>
+    </div>
+    <div class="mt-4 flex items-center justify-between text-xs text-slate-500">
+      <span>Typology: Research</span>
+      <canvas class="sparkline" width="120" height="32"></canvas>
+    </div>
+    <div class="mt-2 flex items-center gap-2 text-xs">
+      <button class="btn-secondary" data-feedback="up">👍 Relevant</button>
+      <button class="btn-secondary" data-feedback="down">👎 Not Relevant</button>
+    </div>
+  `;
 
-                    drawZone(left, top, midX, midY, 'rgba(240, 240, 240, 0.3)', 'ESTABLISHED TRENDS');
-                    drawZone(midX, top, right, midY, 'rgba(151, 217, 227, 0.1)', 'GOLDEN SIGNALS (Act Now)');
-                    drawZone(left, midY, midX, bottom, 'rgba(235, 0, 59, 0.03)', 'EARLY NOISE');
-                    drawZone(midX, midY, right, bottom, 'rgba(253, 182, 51, 0.1)', 'WILDCARDS (Watch)');
+  const actionBar = createActionBar({ url: card.sources?.[0], card: wrapper });
+  wrapper.appendChild(actionBar);
+  renderSparkline(wrapper.querySelector('.sparkline'));
+  const feedbackButtons = wrapper.querySelectorAll('[data-feedback]');
+  feedbackButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sendFeedback(card.sources?.[0] || card.title, btn.dataset.feedback === 'up');
+    });
+  });
+  researchFeed.prepend(wrapper);
+}
 
-                    ctx.strokeStyle = '#0F294A';
-                    ctx.lineWidth = 1;
-                    ctx.setLineDash([5, 5]);
-                    ctx.beginPath();
-                    ctx.moveTo(midX, top); ctx.lineTo(midX, bottom);
-                    ctx.moveTo(left, midY); ctx.lineTo(right, midY);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-            };
+function renderBlip(blip, isPerspective = false, isArchive = false) {
+  const wrapper = document.createElement('article');
+  wrapper.className = `rounded-xl border ${isArchive ? 'border-dashed border-slate-300' : 'border-slate-100'} bg-slate-50 p-4 fade-in-up`;
+  const perspectiveBadge = isPerspective
+    ? '<span class="badge-perspective">Perspective Shift</span>'
+    : '';
+  const archiveBadge = isArchive
+    ? '<span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">Archive</span>'
+    : '';
+  wrapper.innerHTML = `
+    <h4 class="font-semibold text-nesta-navy">${blip.title}</h4>
+    ${perspectiveBadge}
+    ${archiveBadge}
+    <p class="mt-2 text-sm text-slate-600">${blip.hook}</p>
+    <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
+      <span>Novelty: ${blip.score_novelty}/10</span>
+      <span>Impact: ${blip.score_impact}/10</span>
+    </div>
+    <div class="mt-2 text-xs text-slate-500">
+      <span>Typology: ${blip.typology || 'EMERGING'}</span>
+      <span class="ml-3">Growth: ${blip.growth_metric ?? blip.score_novelty}</span>
+      <span class="ml-3">Magnitude: ${blip.magnitude_metric ?? blip.score_impact}</span>
+    </div>
+    <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+      <canvas class="sparkline" width="120" height="32"></canvas>
+      <div class="flex items-center gap-2">
+        <button class="btn-secondary" data-feedback="up">👍 Relevant</button>
+        <button class="btn-secondary" data-feedback="down">👎 Not Relevant</button>
+      </div>
+    </div>
+    <a class="mt-2 inline-flex text-xs font-semibold text-nesta-blue" href="${blip.url}" target="_blank" rel="noopener">Source →</a>
+  `;
 
-            // 3. Render Chart
-            AppState.radarChart = new Chart(canvas, {
-                type: 'bubble',
-                data: {
-                    datasets: [{
-                        label: 'Signals',
-                        data: dataPoints,
-                        backgroundColor: dataPoints.map(p => getMissionColor(p.mission)),
-                        borderColor: '#fff',
-                        borderWidth: 2,
-                        hoverBackgroundColor: '#0F294A',
-                        hoverBorderColor: '#0F294A',
-                        hoverRadius: 10
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: { padding: 20 },
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            min: 0, max: 10,
-                            title: { display: true, text: 'NOVELTY (How new is it?)', color: '#0F294A', font: { weight: 'bold' } },
-                            grid: { display: false }
-                        },
-                        y: {
-                            type: 'linear',
-                            min: 0, max: 10,
-                            title: { display: true, text: 'EVIDENCE (How real is it?)', color: '#0F294A', font: { weight: 'bold' } },
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 41, 74, 0.95)',
-                            titleFont: { family: 'Zosia Display', size: 14 },
-                            bodyFont: { family: 'Averta', size: 12 },
-                            padding: 12,
-                            cornerRadius: 4,
-                            callbacks: {
-                                label: (ctx) => {
-                                    const p = ctx.raw;
-                                    return [p.title, `Novelty: ${p.x.toFixed(1)} | Evidence: ${p.y.toFixed(1)}`];
-                                }
-                            }
-                        },
-                        legend: { display: false }
-                    },
-                    onClick: (evt, activeElements) => {
-                        if (activeElements.length > 0) {
-                            const idx = activeElements[0].index;
-                            const point = dataPoints[idx];
-                            scrollToCard(point.index);
-                        }
-                    }
-                },
-                plugins: [quadrantPlugin]
-            });
-        }
+  const actionBar = createActionBar({ url: blip.url, card: wrapper });
+  wrapper.appendChild(actionBar);
+  renderSparkline(wrapper.querySelector('.sparkline'));
+  const feedbackButtons = wrapper.querySelectorAll('[data-feedback]');
+  feedbackButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sendFeedback(blip.url || blip.title, btn.dataset.feedback === 'up');
+    });
+  });
+  radarFeed.prepend(wrapper);
+}
 
-        Object.assign(window, {
-            openUserGuide,
-            closeUserGuide,
-            openSavedSignals,
-            closeSavedSignals,
-            downloadCSV,
-            generateBriefing,
-            handleEnter,
-            toggleButtonState,
-            generateFrictionQuery,
-            initDashboard,
-            switchView,
-            filterFeed,
-            generateSignal,
-            stopScan,
-            downloadSignalsAsCSV,
-            toggleTerminal,
-            synthesizeTrend,
-            switchFilter,
-            toggleEdit,
-            triggerEnrichment,
-            createSignalCard,
-            renderDatabase,
-        });
-        console.log("System Status: Global functions attached successfully.");
+async function readNdjson(response, onMessage) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      onMessage(JSON.parse(line));
+    }
+  }
+}
+
+async function runResearch({ frictionMode = false, perspective = false } = {}) {
+  const query = document.getElementById('research-input').value.trim();
+  if (!query) return;
+  const timeHorizon = document.getElementById('research-time').value;
+  state.lastResearch = { query, timeHorizon };
+
+  researchStatus.textContent = '';
+  resetProcessStepper();
+  setButtonLoading(researchButton, true);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/mode/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, time_horizon: timeHorizon, friction_mode: frictionMode }),
+    });
+
+    await readNdjson(response, (data) => {
+      if (data.status === 'error') {
+        researchStatus.textContent = data.msg;
+        researchStatus.classList.add('text-red-600');
+        return;
+      }
+      researchStatus.classList.remove('text-red-600');
+      if (data.status) {
+        updateProcessStepper(data.status);
+      }
+      if (data.card) {
+        renderResearchCard(data.card, perspective);
+      }
+    });
+  } catch (error) {
+    researchStatus.textContent = 'Request failed. Please try again.';
+    researchStatus.classList.add('text-red-600');
+  } finally {
+    setButtonLoading(researchButton, false);
+    perspectiveButton.classList.remove('hidden');
+  }
+}
+
+async function runRadar({ frictionMode = false, perspective = false } = {}) {
+  const mission = document.getElementById('radar-mission').value;
+  const topic = document.getElementById('radar-topic').value.trim();
+  state.lastRadar = { mission, topic };
+
+  radarStatus.textContent = 'Starting radar scan...';
+  radarStatus.classList.remove('text-red-600');
+  radarFeed.innerHTML = '';
+  state.radarSignals = [];
+  initRadarChart();
+  if (radarChartWrapper) {
+    radarChartWrapper.classList.add('radar-scan-container');
+  }
+  setButtonLoading(radarButton, true);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/mode/radar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mission, topic: topic || null, friction_mode: frictionMode }),
+    });
+
+    await readNdjson(response, (data) => {
+      if (data.status === 'error') {
+        radarStatus.textContent = data.msg;
+        radarStatus.classList.add('text-red-600');
+        return;
+      }
+      radarStatus.classList.remove('text-red-600');
+      if (data.msg) {
+        radarStatus.textContent = data.msg;
+      }
+      if (data.blip) {
+        renderBlip(data.blip, perspective);
+        addBlipToRadar(data.blip);
+      }
+      if (data.status === 'complete' && radarChartWrapper) {
+        radarChartWrapper.classList.remove('radar-scan-container');
+      }
+    });
+  } catch (error) {
+    radarStatus.textContent = 'Request failed. Please try again.';
+    radarStatus.classList.add('text-red-600');
+  } finally {
+    if (radarChartWrapper) {
+      radarChartWrapper.classList.remove('radar-scan-container');
+    }
+    setButtonLoading(radarButton, false);
+    perspectiveButton.classList.remove('hidden');
+  }
+}
+
+async function loadRadarPreview() {
+  if (!state.radarChart) {
+    initRadarChart();
+  }
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/saved`);
+    const data = await response.json();
+    const signals = (data.signals || [])
+      .filter((item) => (item.Type || item.type || '').toLowerCase() !== 'research')
+      .slice(-20);
+    signals.forEach((item) => {
+      const blip = {
+        title: item.Title || item.title || 'Signal',
+        hook: item.Hook || item.hook || 'No summary available.',
+        score_novelty: parseInt(item.Score_Novelty || item.score_novelty || 5, 10),
+        score_impact: parseInt(item.Score_Impact || item.score_impact || 5, 10),
+        url: item.URL || item.url || '',
+        mission: item.Mission || item.mission || 'All Missions',
+        typology: item.Typology || item.typology,
+        growth_metric: parseFloat(item.Growth_Metric || item.growth_metric || 5),
+        magnitude_metric: parseFloat(item.Magnitude_Metric || item.magnitude_metric || 5),
+      };
+      renderBlip(blip, false, true);
+      addBlipToRadar(blip);
+    });
+    state.radarPreviewLoaded = true;
+  } catch (error) {
+    state.radarPreviewLoaded = true;
+  }
+}
+
+function buildDatabaseCard(item) {
+  const wrapper = document.createElement('article');
+  wrapper.className = 'rounded-2xl bg-white p-5 shadow-soft fade-in-up flex flex-col gap-3';
+  const meta = item.type === 'research' ? 'Research Card' : 'Signal';
+  const title = item.title || 'Untitled';
+  const description = item.summary || item.hook || item.analysis || 'No description available.';
+  const mission = item.mission || '—';
+  const link = item.url || item.link || '';
+
+  wrapper.innerHTML = `
+    <div>
+      <p class="text-xs uppercase tracking-widest text-slate-400">${meta}</p>
+      <h4 class="text-lg font-semibold text-nesta-navy brand-font">${title}</h4>
+    </div>
+    <p class="text-sm text-slate-600">${description}</p>
+    <div class="text-xs text-slate-500">
+      <span>Typology: ${item.typology || 'EMERGING'}</span>
+      <span class="ml-3">Growth: ${item.growth_metric ?? item.score_novelty ?? 5}</span>
+      <span class="ml-3">Magnitude: ${item.magnitude_metric ?? item.score_impact ?? 5}</span>
+    </div>
+    <canvas class="sparkline" width="120" height="32"></canvas>
+    <div class="flex items-center justify-between text-xs text-slate-500">
+      <span>Mission: ${mission}</span>
+      ${link ? `<a class="font-semibold text-nesta-blue" href="${link}" target="_blank" rel="noopener">Source →</a>` : ''}
+    </div>
+    <div class="flex items-center gap-2 text-xs">
+      <button class="btn-secondary" data-feedback="up">👍 Relevant</button>
+      <button class="btn-secondary" data-feedback="down">👎 Not Relevant</button>
+    </div>
+  `;
+
+  const actionBar = createActionBar({ url: link, card: wrapper });
+  wrapper.appendChild(actionBar);
+  renderSparkline(wrapper.querySelector('.sparkline'));
+  const feedbackButtons = wrapper.querySelectorAll('[data-feedback]');
+  feedbackButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sendFeedback(link || title, btn.dataset.feedback === 'up');
+    });
+  });
+  return wrapper;
+}
+
+function renderDatabase(items) {
+  databaseGrid.innerHTML = '';
+  if (!items.length) {
+    databaseGrid.innerHTML = '<div class="text-sm text-slate-500">No saved items found.</div>';
+    return;
+  }
+  items.forEach((item) => {
+    databaseGrid.appendChild(buildDatabaseCard(item));
+  });
+}
+
+function applyDatabaseFilters(items) {
+  const missionFilter = databaseMission.value;
+  const typeFilter = databaseType.value;
+
+  return items.filter((item) => {
+    const matchesMission = missionFilter === 'all' || item.mission === missionFilter;
+    const matchesType = typeFilter === 'all' || item.type === typeFilter;
+    return matchesMission && matchesType;
+  });
+}
+
+function renderDatabaseSkeletons(count = 6) {
+  const template = `
+    <div class="animate-pulse bg-white p-6 rounded-2xl border border-gray-100">
+      <div class="flex justify-between mb-4">
+        <div class="h-4 bg-gray-200 rounded w-1/4"></div>
+        <div class="h-4 bg-gray-200 rounded w-8"></div>
+      </div>
+      <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+      <div class="space-y-2">
+        <div class="h-3 bg-gray-100 rounded"></div>
+        <div class="h-3 bg-gray-100 rounded"></div>
+        <div class="h-3 bg-gray-100 rounded w-5/6"></div>
+      </div>
+      <div class="mt-6 h-32 bg-gray-50 rounded border border-gray-100"></div>
+    </div>
+  `;
+  databaseGrid.innerHTML = Array.from({ length: count }, () => template).join('');
+}
+
+async function loadDatabase() {
+  renderDatabaseSkeletons();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/saved`);
+    const data = await response.json();
+    const signals = (data.signals || []).map((item) => ({
+      type: 'signal',
+      title: item.Title || item.title,
+      hook: item.Hook || item.hook,
+      mission: item.Mission || item.mission,
+      url: item.URL || item.url,
+      typology: item.Typology || item.typology,
+      growth_metric: item.Growth_Metric || item.growth_metric,
+      magnitude_metric: item.Magnitude_Metric || item.magnitude_metric,
+    }));
+    state.databaseItems = signals;
+    const filtered = applyDatabaseFilters(state.databaseItems);
+    renderDatabase(filtered);
+  } catch (error) {
+    databaseGrid.innerHTML = '<div class="text-sm text-red-600">Failed to load database.</div>';
+  }
+}
+
+async function runPolicy() {
+  const mission = policyMission.value;
+  const topic = policyTopic.value.trim();
+  policyStatus.textContent = 'Searching policy sources...';
+  setButtonLoading(policyButton, true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/mode/policy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mission, topic }),
+    });
+    const data = await response.json();
+    if (data.status === 'error') {
+      policyStatus.textContent = data.msg;
+      return;
+    }
+    policyStatus.textContent = 'Policy scan complete.';
+    policyFeed.innerHTML = `<pre class=\"whitespace-pre-wrap text-sm text-slate-600\">${JSON.stringify(
+      data.data,
+      null,
+      2
+    )}</pre>`;
+  } catch (error) {
+    policyStatus.textContent = 'Policy request failed.';
+  } finally {
+    setButtonLoading(policyButton, false);
+  }
+}
+
+function setWelcomeSeen() {
+  localStorage.setItem('scout_welcome_seen', 'true');
+  welcomeModal.classList.add('hidden');
+}
+
+function startTutorial() {
+  setWelcomeSeen();
+  state.tutorialIndex = 0;
+  tutorialSpotlight.classList.remove('hidden');
+  tutorialTooltip.classList.remove('hidden');
+  showTutorialStep();
+}
+
+function endTutorial() {
+  tutorialSpotlight.classList.add('hidden');
+  tutorialTooltip.classList.add('hidden');
+}
+
+function showTutorialStep() {
+  const step = tutorialSteps[state.tutorialIndex];
+  if (!step) {
+    endTutorial();
+    return;
+  }
+  step.action();
+  const target = document.getElementById(step.id);
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  tutorialSpotlight.style.top = `${rect.top - 8}px`;
+  tutorialSpotlight.style.left = `${rect.left - 8}px`;
+  tutorialSpotlight.style.width = `${rect.width + 16}px`;
+  tutorialSpotlight.style.height = `${rect.height + 16}px`;
+
+  tutorialText.textContent = step.text;
+  tutorialTooltip.style.top = `${rect.bottom + 16}px`;
+  tutorialTooltip.style.left = `${Math.min(rect.left, window.innerWidth - 340)}px`;
+}
+
+welcomeStart.addEventListener('click', setWelcomeSeen);
+welcomeSkip.addEventListener('click', setWelcomeSeen);
+welcomeTutorial.addEventListener('click', startTutorial);
+
+if (localStorage.getItem('scout_welcome_seen') === 'true') {
+  welcomeModal.classList.add('hidden');
+}
+
+tutorialNext.addEventListener('click', () => {
+  state.tutorialIndex += 1;
+  showTutorialStep();
+});
+
+tutorialSkip.addEventListener('click', endTutorial);
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    endTutorial();
+  }
+});
+
+databaseMission.addEventListener('change', loadDatabase);
+databaseType.addEventListener('change', loadDatabase);
+
+researchButton.addEventListener('click', runResearch);
+radarButton.addEventListener('click', runRadar);
+policyButton.addEventListener('click', runPolicy);
+
+if (perspectiveButton) {
+  perspectiveButton.addEventListener('click', () => {
+    if (state.activeTab === 'research' && state.lastResearch) {
+      runResearch({ frictionMode: true, perspective: true });
+    }
+    if (state.activeTab === 'radar' && state.lastRadar) {
+      runRadar({ frictionMode: true, perspective: true });
+    }
+  });
+}
