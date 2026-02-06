@@ -1,213 +1,260 @@
-/* Font faces */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @font-face {
-  font-family: 'Zosia Display';
-  src: url('../fonts/Zosia-Display.woff2') format('woff2');
-  font-weight: bold;
+  font-family: "Zosia Display";
+  src: url("../fonts/Zosia-Display.woff2") format("woff2");
+  font-weight: 700;
   font-style: normal;
 }
 
 @font-face {
-  font-family: 'Averta';
-  src: url('../fonts/Averta-Regular.otf') format('opentype');
-  font-weight: normal;
+  font-family: "Averta";
+  src: url("../fonts/Averta-Regular.otf") format("opentype");
+  font-weight: 400;
   font-style: normal;
 }
 
 @font-face {
-  font-family: 'Averta';
-  src: url('../fonts/Averta-Semibold.otf') format('opentype');
-  font-weight: bold;
+  font-family: "Averta";
+  src: url("../fonts/Averta-Semibold.otf") format("opentype");
+  font-weight: 600;
   font-style: normal;
 }
 
-/* --- Modern Custom Scrollbar (Matches Nesta UI) --- */
-
-/* Target the specific class we added to the cards */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px; /* Slim but usable */
-  height: 6px; /* For horizontal scrolling if needed */
+:root {
+  --nesta-navy: #0f294a;
+  --nesta-blue: #0000ff;
+  --nesta-teal: #18a48c;
+  --nesta-pink: #f6a4b7;
+  --nesta-purple: #9b59b6;
+  --nesta-accent: #f00;
 }
 
-/* The Background Track - Keep it subtle/invisible */
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent; 
-  border-radius: 10px;
-  margin: 4px 0; /* Keeps scrollbar away from top/bottom edges */
+body {
+  font-family: "Averta", "Inter", sans-serif;
+  background: #f8fafc;
+  color: #0f294a;
 }
 
-/* The Moving Thumb - Uses Nesta Navy with transparency */
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(15, 41, 74, 0.15); /* #0F294A at 15% opacity */
-  border-radius: 10px; /* Fully rounded pill shape */
-  border: 1px solid transparent; /* padding effect */
-  background-clip: content-box;
-  transition: background-color 0.3s ease;
+.text-nesta-navy {
+  color: #0f294a;
 }
 
-/* Hover State - Darker to indicate interaction */
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 41, 74, 0.4); /* #0F294A at 40% opacity */
-  cursor: pointer;
+.bg-nesta-navy {
+  background-color: #0f294a;
 }
 
-/* Firefox Support (Standard Property) */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 41, 74, 0.2) transparent;
+.text-nesta-teal {
+  color: #18a48c;
 }
 
-/* --- Modern Range Slider --- */
-.nesta-slider {
-  -webkit-appearance: none; /* Remove default styling */
-  width: 100%;
-  height: 6px; /* Slim track */
-  background: #E5E7EB; /* Light Grey Track */
-  border-radius: 99px;
-  outline: none;
+.bg-nesta-teal {
+  background-color: #18a48c;
 }
 
-/* The Slider Handle (Thumb) */
-.nesta-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
+.text-nesta-blue {
+  color: #0000ff;
+}
+
+.bg-nesta-blue {
+  background-color: #0000ff;
+}
+
+.text-nesta-pink {
+  color: #f6a4b7;
+}
+
+.brand-font {
+  font-family: "Zosia Display", "Averta", sans-serif;
+}
+
+.body-font {
+  font-family: "Averta", "Inter", sans-serif;
+}
+
+.tab-button {
+  @apply rounded-full px-4 py-2 text-sm font-semibold text-white/70 transition;
+}
+
+.tab-button.active {
+  @apply bg-white text-nesta-navy shadow;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-xl bg-nesta-blue px-6 py-4 text-sm font-semibold text-white shadow hover:opacity-90 transition;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-nesta-navy hover:border-nesta-blue hover:text-nesta-blue transition;
+}
+
+.border-nesta-pink {
+  border-color: var(--nesta-pink);
+}
+
+.text-nesta-pink {
+  color: var(--nesta-pink);
+}
+
+.badge-perspective {
+  display: inline-flex;
+  border-radius: 9999px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(246, 164, 183, 0.15);
+  color: var(--nesta-pink);
+}
+
+.btn-spinner {
+  @apply h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scale-in {
+  animation: scale-in 0.35s ease-out;
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.shadow-soft {
+  box-shadow: 0 14px 40px -28px rgba(15, 41, 74, 0.4);
+}
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 41, 74, 0.45);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+}
+
+.welcome-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  padding: 32px;
+  width: min(520px, 90vw);
+  box-shadow: 0 20px 40px -20px rgba(15, 41, 74, 0.4);
+  position: relative;
+}
+
+.welcome-skip {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.tutorial-spotlight {
+  position: fixed;
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(15, 41, 74, 0.6);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 60;
+  transition: all 0.3s ease;
+}
+
+.tutorial-tooltip {
+  position: fixed;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 16px 40px -20px rgba(15, 41, 74, 0.4);
+  width: min(320px, 80vw);
+  z-index: 61;
+}
+
+.step-indicator {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  border: 2px solid var(--nesta-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nesta-teal);
+  font-size: 0.75rem;
+}
+
+.step-indicator.active {
+  animation: pulse-step 1.2s ease-in-out infinite;
+}
+
+.step-indicator.complete::after {
+  content: "✓";
+}
+
+@keyframes pulse-step {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(24, 164, 140, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(24, 164, 140, 0);
+  }
+}
+
+/* Radar Sweep */
+.radar-scan-container {
+  position: relative;
+  overflow: hidden;
   border-radius: 50%;
-  background: #0F294A; /* Nesta Navy */
-  cursor: pointer;
-  border: 2px solid white; /* White border for pop */
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  transition: transform 0.1s ease;
 }
 
-/* Hover Effect */
-.nesta-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2); /* Grow slightly on hover */
-  background: #2e53fa; /* Lighter Blue on interaction */
+.radar-scan-container::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 60%,
+    rgba(24, 164, 140, 0.2) 80%,
+    rgba(24, 164, 140, 0.5) 100%
+  );
+  animation: radar-spin 3s linear infinite;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-/* --- Nesta-Branded Skeleton Animation --- */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+@keyframes radar-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
-
-.skeleton-box {
-  /* FIX: Changed from generic grey to "Cool Grey" (Blue-ish tint) */
-  /* Base: #F3F4F6 (Light Cool Grey) | Highlight: #E5E7EB (Mid Cool Grey) */
-  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-body { font-family: 'Averta', sans-serif; background-color: #F9FAFB; color: #0F294A; }
-        h1, h2, h3, .brand-font { font-family: 'Zosia Display', sans-serif; }
-
-        /* UTILITIES */
-        .glass-panel { background: rgba(255, 255, 255, 0.98); border: 1px solid rgba(15, 41, 74, 0.05); }
-        .card-hover { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 30px -8px rgba(0, 0, 255, 0.12); }
-        
-        /* HIGHLIGHT FOR RADAR CLICK */
-        .card-highlight {
-            border-color: #0000FF !important;
-            box-shadow: 0 0 0 4px rgba(0, 0, 255, 0.2) !important;
-            transform: scale(1.02);
-        }
-        
-        /* CUSTOM RANGE SLIDER */
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
-            background: #0000FF; cursor: pointer; margin-top: -7px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: transform 0.1s;
-        }
-        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; background: #97D9E3; border-radius: 2px;
-        }
-
-        /* RADAR LOADER */
-        .radar-loader {
-            border-radius: 50%;
-            animation: spin 1.2s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
-        /* --- BUTTON ANIMATIONS & INTERACTIVITY --- */
-        
-        /* Filter Chips (Purple) */
-        .bias-chip label {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            user-select: none;
-        }
-        .bias-chip label:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgba(15, 41, 74, 0.1);
-            border-color: #9A1BBE;
-        }
-        .bias-chip label:active { transform: scale(0.95); }
-        .bias-chip input:checked + label {
-            background-color: #9A1BBE; 
-            color: #FFFFFF; 
-            border-color: #9A1BBE; 
-            box-shadow: 0 4px 12px rgba(154, 27, 190, 0.3);
-            animation: pulse-purple 0.4s ease-out;
-        }
-
-        /* Hard Tech Toggle (Orange) */
-        .tech-toggle-label { transition: all 0.2s ease; }
-        .tech-toggle-group:hover .tech-toggle-label { color: #FF6E47; }
-        .tech-toggle-group:active { transform: scale(0.98); }
-
-        /* CTA Buttons */
-        .btn-interactive { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-interactive:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .btn-interactive:active { transform: translateY(0); transform: scale(0.97); }
-
-        /* Radar Filters */
-        .filter-view-btn { transition: all 0.2s ease; }
-        .filter-view-btn.active { background-color: #0F294A; color: white; border-color: #0F294A; }
-
-        /* Fix Dropdown Arrows */
-        select.appearance-none {
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            background-image: none;
-            background-color: transparent;
-        }
-        select::-ms-expand { display: none; }
-
-        .tooltip {
-            position: relative;
-        }
-        .tooltip::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            left: 50%;
-            bottom: calc(100% + 8px);
-            transform: translateX(-50%);
-            background: #333;
-            color: #fff;
-            font-family: 'Averta', sans-serif;
-            font-size: 11px;
-            line-height: 1.4;
-            padding: 6px 10px;
-            border-radius: 6px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-            z-index: 50;
-        }
-        .tooltip:hover::after {
-            opacity: 1;
-        }
-
-        @keyframes pulse-purple {
-            0% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(154, 27, 190, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(154, 27, 190, 0); }
-        }
-        
-        html { scroll-behavior: smooth; }
