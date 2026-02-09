@@ -1,4 +1,4 @@
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = 'https://nesta-signal-backend.onrender.com';
 
 const state = {
   activeTab: 'radar',
