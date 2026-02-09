@@ -43,34 +43,60 @@ function renderSignalCard(signal, container) {
   // Get Theme
   const theme = missionThemes[signal.mission] || missionThemes.General;
 
-  div.innerHTML = `
-        <div class="flex justify-between items-start">
-            <span class="${theme.bg} ${theme.text} text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">
-                ${signal.mission}
-            </span>
-            
-            <span class="text-nesta-navy border border-slate-200 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm">
-                ${signal.typology}
-            </span>
-        </div>
-        
-        <h3 class="font-display text-xl font-bold leading-tight text-nesta-navy group-hover:text-nesta-blue transition-colors mt-2 cursor-pointer" onclick="window.open('${signal.url}', '_blank')">
-            ${signal.title}
-        </h3>
-        
-        <p class="text-sm text-nesta-dark-grey leading-relaxed line-clamp-3">
-            ${signal.summary}
-        </p>
+  const topDiv = document.createElement('div');
+  topDiv.className = 'flex justify-between items-start';
 
-        <div class="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-nesta-navy opacity-60">
-            <span title="Funding Activity">Act: ${signal.score_activity}</span>
-            <span title="News Attention">Att: ${signal.score_attention}</span>
-        </div>
-    `;
+  const missionSpan = document.createElement('span');
+  missionSpan.className = `${theme.bg} ${theme.text} text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm`;
+  missionSpan.textContent = signal.mission;
+  topDiv.appendChild(missionSpan);
+
+  const typologySpan = document.createElement('span');
+  typologySpan.className =
+    'text-nesta-navy border border-slate-200 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm';
+  typologySpan.textContent = signal.typology;
+  topDiv.appendChild(typologySpan);
+
+  const titleLink = document.createElement('a');
+  titleLink.className = 'block';
+  titleLink.target = '_blank';
+  titleLink.rel = 'noopener noreferrer';
+
+  try {
+    const parsedUrl = new URL(signal.url, window.location.origin);
+    titleLink.href = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' ? parsedUrl.href : '#';
+  } catch (error) {
+    titleLink.href = '#';
+  }
+
+  const titleHeader = document.createElement('h3');
+  titleHeader.className =
+    'font-display text-xl font-bold leading-tight text-nesta-navy group-hover:text-nesta-blue transition-colors mt-2 cursor-pointer';
+  titleHeader.textContent = signal.title;
+  titleLink.appendChild(titleHeader);
+
+  const summaryP = document.createElement('p');
+  summaryP.className = 'text-sm text-nesta-dark-grey leading-relaxed line-clamp-3';
+  summaryP.textContent = signal.summary;
+
+  const footerDiv = document.createElement('div');
+  footerDiv.className =
+    'mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-nesta-navy opacity-60';
+
+  const activitySpan = document.createElement('span');
+  activitySpan.title = 'Funding Activity';
+  activitySpan.textContent = `Act: ${signal.score_activity}`;
+  footerDiv.appendChild(activitySpan);
+
+  const attentionSpan = document.createElement('span');
+  attentionSpan.title = 'News Attention';
+  attentionSpan.textContent = `Att: ${signal.score_attention}`;
+  footerDiv.appendChild(attentionSpan);
 
   // Add the coloured border
   div.classList.add('border-l-4', theme.border);
 
+  div.append(topDiv, titleLink, summaryP, footerDiv);
   container.prepend(div);
 }
 
