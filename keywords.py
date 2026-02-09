@@ -48,6 +48,31 @@ CROSS_CUTTING_KEYWORDS = MISSION_KEYWORDS.get("Cross-Cutting", [])
 TRUST_BOOST_TLDS = [".gov", ".edu", ".ac.uk", ".int", ".mil", ".org"]
 BLOCKLIST_DOMAINS = ["facebook.com", "instagram.com", "twitter.com", "pinterest.com"]
 
+# Terms that indicate early-stage novelty
+SIGNAL_KEYWORDS = [
+    "experimental",
+    "prototype",
+    "proof of concept",
+    "unconventional",
+    "novel approach",
+    "emerging paradigm",
+    "stealth mode",
+    "pre-seed",
+    "grassroots",
+]
+
+# Niche/Novelty Sources (Allow-list for Discovery Mode)
+NICHE_DOMAINS = [
+    "substack.com",
+    "medium.com",
+    "hackernoon.com",
+    "arxiv.org",
+    "biorxiv.org",
+    "producthunt.com",
+    "github.com",
+    "wired.co.uk/topic/startups",
+]
+
 
 def generate_broad_scan_queries(seed_terms, num_signals=5):
     global _client
