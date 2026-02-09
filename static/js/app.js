@@ -1,4 +1,21 @@
-const API_BASE_URL = window.location.origin;
+// Dynamic API Configuration
+let API_BASE_URL = window.location.origin; // Default: Assume backend is on the same server (e.g. Render)
+
+const hostname = window.location.hostname;
+
+// 1. Local Development (Laptop)
+if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  API_BASE_URL = 'http://localhost:8000'; // Standard FastAPI local port
+}
+// 2. GitHub Pages (Frontend Only)
+else if (hostname.endsWith('.github.io') || hostname === 'github.io') {
+  API_BASE_URL = 'https://nesta-signal-backend.onrender.com'; // Explicitly point to prod Backend
+}
+// 3. Render Production (Co-located)
+// Logic: If we are already on 'nesta-signal-backend.onrender.com',
+// window.location.origin is correct and avoids CORS issues entirely.
+
+console.log(`Signal Scout Configured: Running on ${hostname}, using API at ${API_BASE_URL}`);
 
 const state = {
   activeTab: 'radar',

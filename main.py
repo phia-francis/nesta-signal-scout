@@ -6,6 +6,7 @@ import random
 from typing import Any, AsyncGenerator, Dict
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -21,6 +22,24 @@ from services import (
 )
 
 app = FastAPI()
+
+# ---------------------------------------------------------
+# SECURITY CONFIGURATION: Explicit Allowed Origins
+# ---------------------------------------------------------
+origins = [
+    "http://localhost:8000",  # Local Development
+    "http://127.0.0.1:8000",  # Local Development (IP)
+    "https://phia-francis.github.io",  # Your GitHub Pages Frontend
+    "https://nesta-signal-backend.onrender.com",  # Your Production Backend
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # STRICT LIST (No more "*")
+    allow_credentials=True,  # Allowed because origins are explicit
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 search_svc = SearchService()
@@ -29,6 +48,11 @@ analytics_svc = HorizonAnalyticsService()
 gtr_svc = GatewayResearchService()
 cb_svc = CrunchbaseService()
 topic_svc = TopicModellingService()
+
+
+@app.get("/")
+def read_root() -> Dict[str, str]:
+    return {"status": "System Operational", "message": "Signal Scout Backend is Running"}
 
 
 @app.exception_handler(ServiceError)
