@@ -90,7 +90,8 @@ async def radar_scan(req: RadarRequest) -> StreamingResponse:
                 try:
                     await sheet_svc.save_signal(signal, existing_urls)
                 except Exception as exc:
-                    print(f"CRITICAL DB ERROR: Could not save '{signal['title']}': {exc}")
+                    logging.critical("Could not save signal '%s' to sheet: %s", signal.get('title'), exc)
+
 
                 yield ndjson_line({"status": "blip", "blip": signal})
 
@@ -121,7 +122,9 @@ async def radar_scan(req: RadarRequest) -> StreamingResponse:
         except ServiceError as exc:
             yield ndjson_line({"status": "error", "msg": str(exc)})
         except Exception:
+            logging.exception("Unexpected error in radar_scan generator")
             yield ndjson_line({"status": "error", "msg": "Unexpected System Error"})
+
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")
 
@@ -159,7 +162,8 @@ async def research_scan(req: ResearchRequest) -> StreamingResponse:
                 try:
                     await sheet_svc.save_signal(signal, existing_urls)
                 except Exception as exc:
-                    print(f"FAILED TO SAVE: {exc}")
+                    logging.error("Failed to save research signal: %s", exc)
+
 
                 yield ndjson_line({"status": "blip", "blip": signal})
 

@@ -41,7 +41,8 @@ class SheetService:
             )
             self.client = gspread.authorize(creds)
         except Exception as exc:
-            print(f"Sheet Auth Error: {exc}")
+            logging.error("Failed to authorize Google Sheets client: %s", exc)
+
 
     def get_sheet(self):
         if not self.client:
@@ -60,8 +61,10 @@ class SheetService:
         try:
             records = await asyncio.to_thread(sheet.get_all_records)
             return {record.get("URL", "") for record in records if record.get("URL")}
-        except Exception:
+        except Exception as exc:
+            logging.error("Failed to get existing URLs from sheet: %s", exc)
             return set()
+
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def save_signal(self, signal: Dict, existing_urls: set[str] | None = None):
