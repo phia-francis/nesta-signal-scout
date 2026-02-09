@@ -8,7 +8,7 @@ if (hostname === 'localhost' || hostname === '127.0.0.1') {
   API_BASE_URL = 'http://localhost:8000'; // Standard FastAPI local port
 }
 // 2. GitHub Pages (Frontend Only)
-else if (hostname.includes('github.io')) {
+else if (hostname.endsWith('.github.io') || hostname === 'github.io') {
   API_BASE_URL = 'https://nesta-signal-backend.onrender.com'; // Explicitly point to prod Backend
 }
 // 3. Render Production (Co-located)
