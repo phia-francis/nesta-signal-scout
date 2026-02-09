@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 from typing import Any, AsyncGenerator, Dict
 
@@ -32,7 +33,11 @@ topic_svc = TopicModellingService()
 
 @app.exception_handler(ServiceError)
 async def service_error_handler(request, exc):
-    return JSONResponse(status_code=503, content={"status": "error", "msg": str(exc)})
+    logging.error("Service error: %s", exc)
+    return JSONResponse(
+        status_code=503,
+        content={"status": "error", "msg": "Service unavailable. Please try again later."},
+    )
 
 
 def ndjson_line(payload: Dict[str, Any]) -> str:
@@ -120,7 +125,8 @@ async def radar_scan(req: RadarRequest) -> StreamingResponse:
 
             yield ndjson_line({"status": "complete"})
         except ServiceError as exc:
-            yield ndjson_line({"status": "error", "msg": str(exc)})
+            logging.error("Service error in radar_scan generator: %s", exc)
+            yield ndjson_line({"status": "error", "msg": "Service unavailable. Please try again later."})
         except Exception:
             logging.exception("Unexpected error in radar_scan generator")
             yield ndjson_line({"status": "error", "msg": "Unexpected System Error"})
@@ -169,7 +175,8 @@ async def research_scan(req: ResearchRequest) -> StreamingResponse:
 
             yield ndjson_line({"status": "complete"})
         except ServiceError as exc:
-            yield ndjson_line({"status": "error", "msg": str(exc)})
+            logging.error("Service error in research_scan generator: %s", exc)
+            yield ndjson_line({"status": "error", "msg": "Service unavailable. Please try again later."})
         except Exception:
             yield ndjson_line({"status": "error", "msg": "Unexpected System Error"})
 
@@ -188,7 +195,11 @@ async def get_saved() -> Dict[str, Any]:
     try:
         return {"signals": await sheet_svc.get_all()}
     except ServiceError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logging.error("Service error in get_saved: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Service unavailable. Please try again later.",
+        ) from exc
 
 
 @app.post("/api/update_signal")

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
+from datetime import datetime
 from typing import Dict, List
 
 import gspread
@@ -27,6 +29,8 @@ class SheetService:
     """
     Handles Google Sheets. Raises ServiceError on failure.
     """
+
+    STATUS_COLUMN_INDEX = 11
 
     def __init__(self):
         self.client = None
@@ -73,9 +77,6 @@ class SheetService:
             return
 
         sheet = self.get_sheet()
-
-        from datetime import datetime
-
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         row = [
             timestamp,
@@ -97,9 +98,15 @@ class SheetService:
         try:
             cell = await asyncio.to_thread(sheet.find, url)
             if cell:
-                await asyncio.to_thread(sheet.update_cell, cell.row, 5, status)
+                await asyncio.to_thread(
+                    sheet.update_cell,
+                    cell.row,
+                    self.STATUS_COLUMN_INDEX,
+                    status,
+                )
         except Exception as exc:
-            raise ServiceError(f"Failed to update status: {exc}") from exc
+            logging.error("Failed to update status for %s: %s", url, exc)
+            raise ServiceError("Failed to update status.") from exc
 
     async def get_all(self):
         sheet = self.get_sheet()
@@ -259,12 +266,19 @@ class HorizonAnalyticsService:
     Methodology: Nesta Innovation Sweet Spots.
     """
 
+    RESEARCH_FUNDING_DIVISOR = 1_000_000
+    INVESTMENT_FUNDING_DIVISOR = 2_000_000
+    MAINSTREAM_WEIGHT = 0.9
+    NICHE_WEIGHT = 1.4
+
     def calculate_activity_score(self, research_funds: float, investment_funds: float) -> float:
-        score = (research_funds / 1_000_000) + (investment_funds / 2_000_000)
+        score = (research_funds / self.RESEARCH_FUNDING_DIVISOR) + (
+            investment_funds / self.INVESTMENT_FUNDING_DIVISOR
+        )
         return min(10.0, score)
 
     def calculate_attention_score(self, mainstream_count: int, niche_count: int) -> float:
-        score = (mainstream_count * 0.9) + (niche_count * 1.4)
+        score = (mainstream_count * self.MAINSTREAM_WEIGHT) + (niche_count * self.NICHE_WEIGHT)
         return min(10.0, score)
 
     def classify_sweet_spot(self, activity: float, attention: float) -> str:
