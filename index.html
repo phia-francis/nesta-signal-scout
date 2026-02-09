@@ -3,237 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Signal Scout</title>
+  <title>Nesta Signal Scout</title>
   <script src="static/js/tailwind.js"></script>
   <script src="static/js/tailwind-theme.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha256-0q+JdOlScWOHcunpUk21uab1jW7C1deBQARHtKMcaB4=" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="static/css/styles.css">
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900 body-font flex flex-col">
-  <header class="sticky top-0 z-40 bg-nesta-navy text-white shadow-lg">
-    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
-      <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-md bg-white text-lg font-bold text-nesta-navy brand-font">N</div>
-        <div>
-          <h1 class="text-2xl font-semibold brand-font">Signal Scout</h1>
-          <p class="text-xs text-gray-400 uppercase tracking-widest">Mission Discovery</p>
-        </div>
-      </div>
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-2 rounded-full bg-white/10 p-1">
-          <button id="tab-research" class="tab-button active">Targeted Research</button>
-          <button id="tab-radar" class="tab-button">Mission Radar</button>
-          <button id="tab-database" class="tab-button">Database</button>
-          <button id="tab-policy" class="tab-button">Policy Explorer</button>
-        </div>
-        <button id="open-guide" class="btn-secondary text-white border-white/30 hover:text-white" aria-label="Open user guide">?</button>
-      </div>
+<body class="h-screen flex overflow-hidden bg-nesta-off-white">
+  <aside class="w-20 lg:w-72 bg-nesta-blue flex-none flex flex-col text-white transition-all duration-300 z-50">
+    <div class="h-24 flex items-center justify-center lg:justify-start lg:px-8">
+      <span class="font-display text-4xl font-bold tracking-tighter">nesta</span>
     </div>
-  </header>
 
-  <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10 overflow-hidden">
-    <section id="view-research" class="flex flex-col gap-8 h-full">
-      <div class="rounded-2xl bg-white p-6 shadow-soft">
-        <h2 class="text-xl font-semibold text-nesta-navy brand-font">Targeted Research</h2>
-        <p class="text-sm text-slate-600">Ask a focused question and receive a detailed research card.</p>
-        <div class="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
+    <nav class="flex-1 py-8 space-y-2">
+      <button onclick="setTab('radar')" id="nav-radar" class="nav-button nav-button--active">
+        <span class="text-2xl">📡</span>
+        <span class="font-display text-xl hidden lg:block tracking-wide">Mission Radar</span>
+      </button>
+      <button onclick="setTab('database')" id="nav-db" class="nav-button">
+        <span class="text-2xl">🗄️</span>
+        <span class="font-display text-xl hidden lg:block tracking-wide">Database</span>
+      </button>
+    </nav>
+  </aside>
+
+  <main class="flex-1 flex flex-col relative overflow-hidden">
+    <header class="h-20 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 flex-none z-40 sticky top-0">
+      <div>
+        <h1 id="page-title" class="text-3xl font-display text-nesta-blue leading-none">Mission Radar</h1>
+      </div>
+      <button onclick="refreshDatabase()" class="btn-nesta bg-nesta-green text-white font-bold px-6 py-2 flex items-center gap-2">
+        Refresh Data
+      </button>
+    </header>
+
+    <div id="view-container" class="flex-1 overflow-y-auto p-8 scroll-smooth">
+      <section id="view-radar" class="max-w-7xl mx-auto space-y-6">
+        <div class="flex items-center justify-between">
           <div>
-            <textarea
-              id="research-input"
-              rows="1"
-              placeholder="What are the emerging regulations for AI in UK education?"
-              class="w-full rounded-xl border border-slate-200 px-5 py-4 text-lg focus:border-nesta-blue focus:outline-none"
-              oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
-            ></textarea>
-            <div class="mt-3 flex items-center gap-2 text-sm text-slate-500">
-              <label for="research-time">Horizon:</label>
-              <select id="research-time" class="rounded-lg border border-slate-200 px-3 py-2">
-                <option value="m1">Past month</option>
-                <option value="m6">Past 6 months</option>
-                <option value="y1">Past year</option>
-                <option value="all">All time</option>
-              </select>
-            </div>
+            <h2 class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
+            <p class="text-sm text-slate-600">Activity vs. Attention from GtR, Crunchbase, and search signals.</p>
           </div>
-          <button id="research-submit" class="btn-primary" data-spinner="false">
-            <span class="btn-label">Run Research</span>
-            <span class="btn-spinner hidden"></span>
+          <button id="radar-rescan" class="btn-nesta bg-nesta-blue text-white font-bold px-5 py-2">
+            Run Radar
           </button>
         </div>
-        <div id="research-status" class="mt-4 text-sm text-slate-500"></div>
-        <div id="process-stepper" class="hidden space-y-3 font-mono text-xs text-nesta-navy mt-4">
-          <div class="flex items-center gap-3 opacity-50" id="step-1">
-            <div class="step-indicator"></div>
-            <span>Scanning Knowledge Graph (OpenAlex, Crunchbase)...</span>
-          </div>
-          <div class="flex items-center gap-3 opacity-50" id="step-2">
-            <div class="step-indicator"></div>
-            <span>Classifying Signal Typology...</span>
-          </div>
-          <div class="flex items-center gap-3 opacity-50" id="step-3">
-            <div class="step-indicator"></div>
-            <span>Synthesizing Strategic Implications...</span>
-          </div>
-        </div>
-      </div>
+        <div id="radar-status" class="text-sm text-slate-500"></div>
+        <div id="radar-feed" class="masonry-grid"></div>
+      </section>
 
-      <div class="flex items-center justify-end">
-        <button id="btn-perspective" class="btn-secondary hidden border-nesta-pink text-nesta-pink">
-          🔄 Strategic Lens
-        </button>
-      </div>
-      <div id="research-feed" class="space-y-6 flex-1 overflow-y-auto"></div>
-    </section>
-
-    <section id="view-radar" class="hidden flex flex-col gap-8 h-full min-h-0">
-      <div class="rounded-2xl bg-white p-6 shadow-soft">
-        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <section id="view-database" class="max-w-7xl mx-auto space-y-6 hidden">
+        <div class="flex flex-wrap gap-4 items-center justify-between">
           <div>
-            <h2 class="text-xl font-semibold text-nesta-navy brand-font">Mission Radar</h2>
-            <p class="text-sm text-slate-600">Scan for weak signals across a mission and optional topic.</p>
+            <h2 class="text-xl font-display text-nesta-navy">Signal Database</h2>
+            <p class="text-sm text-slate-600">Curated signals ready for analysis.</p>
           </div>
-        </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-[auto_1fr_auto]">
-          <select id="radar-mission" class="rounded-lg border border-slate-200 px-3 py-2">
-            <option value="All Missions">All Missions</option>
-            <option value="A Fairer Start">A Fairer Start</option>
-            <option value="A Healthy Life">A Healthy Life</option>
-            <option value="A Sustainable Future">A Sustainable Future</option>
-          </select>
-          <textarea
-            id="radar-topic"
-            rows="1"
-            placeholder="Optional topic"
-            class="rounded-lg border border-slate-200 px-3 py-2"
-            oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
-          ></textarea>
-          <button id="radar-submit" class="btn-primary" data-spinner="false">
-            <span class="btn-label">Run Radar</span>
-            <span class="btn-spinner hidden"></span>
-          </button>
-        </div>
-        <div id="radar-status" class="mt-4 text-sm text-slate-500"></div>
-      </div>
-
-      <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
-        <div class="rounded-2xl bg-white p-6 shadow-soft lg:col-span-2 flex flex-col h-full min-h-0">
-          <h3 class="text-lg font-semibold text-nesta-navy brand-font">Signal Radar</h3>
-          <p class="text-xs text-slate-500">Growth (Emerging → Hot) vs. Magnitude (Dormant → Stabilising)</p>
-          <div id="radar-chart-wrapper" class="mt-6 relative h-full w-full">
-            <canvas id="radar-chart" class="h-full w-full"></canvas>
-          </div>
-        </div>
-        <div class="rounded-2xl bg-white p-6 shadow-soft flex flex-col h-full overflow-hidden">
-          <h3 class="text-lg font-semibold text-nesta-navy brand-font">Blip Feed</h3>
-          <div class="flex items-center justify-end">
-            <div id="radar-perspective-slot"></div>
-          </div>
-          <div id="radar-feed" class="mt-4 space-y-4 overflow-y-auto pr-2 flex-1"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="view-policy" class="hidden flex flex-col gap-8 h-full">
-      <div class="rounded-2xl bg-white p-6 shadow-soft">
-        <h2 class="text-xl font-semibold text-nesta-navy brand-font">Policy Explorer</h2>
-        <p class="text-sm text-slate-600">Track government activity and legislative signals.</p>
-        <div class="mt-4 grid gap-3 md:grid-cols-[auto_1fr_auto]">
-          <select id="policy-mission" class="rounded-lg border border-slate-200 px-3 py-2">
-            <option value="All Missions">All Missions</option>
-            <option value="A Fairer Start">A Fairer Start</option>
-            <option value="A Healthy Life">A Healthy Life</option>
-            <option value="A Sustainable Future">A Sustainable Future</option>
-          </select>
-          <textarea
-            id="policy-topic"
-            rows="1"
-            placeholder="Policy topic (optional)"
-            class="rounded-lg border border-slate-200 px-3 py-2"
-            oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
-          ></textarea>
-          <button id="policy-submit" class="btn-primary">
-            <span class="btn-label">Run Policy</span>
-            <span class="btn-spinner hidden"></span>
-          </button>
-        </div>
-        <div id="policy-status" class="mt-4 text-sm text-slate-500"></div>
-      </div>
-      <div id="policy-feed" class="space-y-6 flex-1 overflow-y-auto"></div>
-    </section>
-
-    <section id="view-database" class="hidden flex flex-col gap-6 h-full">
-      <div class="rounded-2xl bg-white p-6 shadow-soft">
-        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 class="text-xl font-semibold text-nesta-navy brand-font">Database</h2>
-            <p class="text-sm text-slate-600">Browse and curate saved signals.</p>
-          </div>
-          <div class="grid gap-3 md:grid-cols-[auto_auto]">
-            <select id="database-mission" class="rounded-lg border border-slate-200 px-3 py-2">
+          <div class="flex flex-wrap gap-3">
+            <select id="database-mission" class="rounded-md border border-slate-200 px-3 py-2">
               <option value="all">All Missions</option>
               <option value="A Fairer Start">A Fairer Start</option>
               <option value="A Healthy Life">A Healthy Life</option>
               <option value="A Sustainable Future">A Sustainable Future</option>
             </select>
-            <select id="database-type" class="rounded-lg border border-slate-200 px-3 py-2">
+            <select id="database-type" class="rounded-md border border-slate-200 px-3 py-2">
               <option value="all">All Types</option>
               <option value="signal">Signal</option>
               <option value="research">Research</option>
             </select>
           </div>
         </div>
-      </div>
-
-      <div id="database-grid" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 flex-1 overflow-y-auto"></div>
-    </section>
+        <div id="database-grid" class="masonry-grid"></div>
+      </section>
+    </div>
   </main>
-
-  <div id="welcome-modal" class="welcome-overlay">
-    <div class="welcome-card scale-in">
-      <button id="welcome-skip" class="welcome-skip" type="button">Skip</button>
-      <h2 class="text-2xl font-semibold text-nesta-navy brand-font">Welcome to Signal Scout</h2>
-      <p class="mt-2 text-sm text-slate-600">Explore targeted research, discover mission radar signals, and curate your database.</p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <button id="welcome-start" class="btn-primary">Get Started</button>
-        <button id="welcome-tutorial" class="btn-secondary">Show Me Around</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="tutorial-spotlight" class="tutorial-spotlight hidden"></div>
-  <div id="tutorial-tooltip" class="tutorial-tooltip hidden">
-    <p id="tutorial-text" class="text-sm text-slate-700"></p>
-    <div class="mt-4 flex justify-end gap-2">
-      <button id="tutorial-skip" class="btn-secondary" type="button">Skip</button>
-      <button id="tutorial-next" class="btn-primary" type="button">Next</button>
-    </div>
-  </div>
-
-  <div id="user-guide" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-6">
-    <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-soft">
-      <div class="flex items-start justify-between">
-        <div>
-          <h2 class="text-xl font-semibold text-nesta-navy brand-font">User Guide</h2>
-          <p class="text-sm text-slate-600">How to navigate the Mission Discovery workflow.</p>
-        </div>
-        <button id="close-guide" class="btn-secondary" type="button">Close</button>
-      </div>
-      <div class="mt-6 space-y-4 text-sm text-slate-600">
-        <div>
-          <h3 class="font-semibold text-nesta-navy">Targeted Research</h3>
-          <p>Ask a focused question. The assistant gathers evidence and produces a detailed research briefing.</p>
-        </div>
-        <div>
-          <h3 class="font-semibold text-nesta-navy">Mission Radar</h3>
-          <p>Scan for weak signals tied to a mission or topic. Blips autosave to the database for review.</p>
-        </div>
-        <div>
-          <h3 class="font-semibold text-nesta-navy">Database</h3>
-          <p>Review saved items and curate them with Keep/Discard actions.</p>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script src="static/js/app.js"></script>
 </body>
