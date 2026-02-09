@@ -92,13 +92,19 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
 
     year_first_match = re.search(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b", cleaned)
     if year_first_match:
-        year, month, day = map(int, year_first_match.groups())
-        return datetime(year, month, day)
+        try:
+            year, month, day = map(int, year_first_match.groups())
+            return datetime(year, month, day)
+        except ValueError:
+            pass
 
     day_first_match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b", cleaned)
     if day_first_match:
-        day, month, year = map(int, day_first_match.groups())
-        return datetime(year, month, day)
+        try:
+            day, month, year = map(int, day_first_match.groups())
+            return datetime(year, month, day)
+        except ValueError:
+            pass
 
     formats = [
         "%B %d, %Y",

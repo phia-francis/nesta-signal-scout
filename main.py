@@ -10,7 +10,7 @@ from typing import Any, AsyncGenerator, Dict, List
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config import Settings
 from keywords import CROSS_CUTTING_KEYWORDS, MISSION_KEYWORDS
@@ -33,7 +33,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 search_svc = SearchService()
 sheet_svc = SheetService()
 analytics_svc = HorizonAnalyticsService()
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def ndjson_line(payload: Dict[str, Any]) -> str:
@@ -84,7 +84,7 @@ def _build_prompt(request: ChatRequest, signal_count: int) -> str:
     )
 
 
-async def chat_endpoint(request: ChatRequest, stream: bool = True) -> Dict[str, Any]:
+async def chat_endpoint(request: ChatRequest, stream: bool = False) -> Dict[str, Any]:
     signal_count = request.signal_count if request.signal_count > 0 else 5
     prompt = _build_prompt(request, signal_count)
     messages = [
@@ -119,10 +119,12 @@ async def chat_endpoint(request: ChatRequest, stream: bool = True) -> Dict[str, 
     items: list[dict] = []
     iterations = 0
     while len(items) < signal_count and iterations < 5:
-        response = client.chat.completions.create(
-            model=settings.CHAT_MODEL,
-            messages=messages,
-            tools=tools,
+        response = await _maybe_await(
+            client.chat.completions.create(
+                model=settings.CHAT_MODEL,
+                messages=messages,
+                tools=tools,
+            )
         )
         tool_calls = response.choices[0].message.tool_calls or []
         if not tool_calls:
@@ -207,12 +209,14 @@ async def research_scan(req: ResearchRequest) -> StreamingResponse:
             "and Evidence Base from the following sources:\n"
             + "\n".join(item.get("link", "") for item in results[:5])
         )
-        response = client.chat.completions.create(
-            model=settings.CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a Principal Foresight Strategist at Nesta."},
-                {"role": "user", "content": prompt},
-            ],
+        response = await _maybe_await(
+            client.chat.completions.create(
+                model=settings.CHAT_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a Principal Foresight Strategist at Nesta."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
         )
         summary = response.choices[0].message.content or ""
         card = {
@@ -256,4 +260,4 @@ async def feedback(req: FeedbackRequest) -> Dict[str, str]:
 
 @app.post("/api/chat")
 async def chat_endpoint_route(req: ChatRequest) -> Dict[str, Any]:
-    return await chat_endpoint(req, stream=False)
+    return await chat_endpoint(req)

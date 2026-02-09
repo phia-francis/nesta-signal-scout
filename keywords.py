@@ -1,6 +1,9 @@
 from openai import OpenAI
 
 
+_client = None
+
+
 def _k(s):
     return [l.strip() for l in s.strip().splitlines() if l.strip()]
 
@@ -47,13 +50,15 @@ BLOCKLIST_DOMAINS = ["facebook.com", "instagram.com", "twitter.com", "pinterest.
 
 
 def generate_broad_scan_queries(seed_terms, num_signals=5):
-    client = OpenAI()
+    global _client
+    if _client is None:
+        _client = OpenAI()
     prompt = (
         "Generate concise search queries for weak signal scanning. "
         f"Seed terms: {', '.join(seed_terms) if seed_terms else 'innovation'}. "
         f"Return exactly {num_signals} queries, one per line."
     )
-    response = client.chat.completions.create(
+    response = _client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You generate search queries for horizon scanning."},
