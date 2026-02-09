@@ -11,6 +11,95 @@ const radarStatus = document.getElementById('radar-status');
 const databaseGrid = document.getElementById('database-grid');
 const pageTitle = document.getElementById('page-title');
 
+// 1. Mission Theme Configuration (Contrast Safe)
+const missionThemes = {
+  'A Healthy Life': {
+    bg: 'bg-nesta-pink',
+    text: 'text-nesta-navy', // AUTO-ALIGN: Pink is light, so text must be dark
+    border: 'border-nesta-pink',
+  },
+  'A Sustainable Future': {
+    bg: 'bg-nesta-green',
+    text: 'text-white', // AUTO-ALIGN: Green is dark enough for white text
+    border: 'border-nesta-green',
+  },
+  'A Fairer Start': {
+    bg: 'bg-nesta-yellow',
+    text: 'text-nesta-navy', // AUTO-ALIGN: Yellow is light, so text must be dark
+    border: 'border-nesta-yellow',
+  },
+  General: {
+    bg: 'bg-nesta-blue',
+    text: 'text-white', // AUTO-ALIGN: Blue is dark, so text is white
+    border: 'border-nesta-blue',
+  },
+};
+
+// 2. Render Function
+function renderSignalCard(signal, container) {
+  const div = document.createElement('div');
+  div.className = 'signal-card bg-white p-6 flex flex-col gap-3 relative overflow-hidden group';
+
+  // Get Theme
+  const theme = missionThemes[signal.mission] || missionThemes.General;
+
+  const topDiv = document.createElement('div');
+  topDiv.className = 'flex justify-between items-start';
+
+  const missionSpan = document.createElement('span');
+  missionSpan.className = `${theme.bg} ${theme.text} text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm`;
+  missionSpan.textContent = signal.mission;
+  topDiv.appendChild(missionSpan);
+
+  const typologySpan = document.createElement('span');
+  typologySpan.className =
+    'text-nesta-navy border border-slate-200 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm';
+  typologySpan.textContent = signal.typology;
+  topDiv.appendChild(typologySpan);
+
+  const titleLink = document.createElement('a');
+  titleLink.className = 'block';
+  titleLink.target = '_blank';
+  titleLink.rel = 'noopener noreferrer';
+
+  try {
+    const parsedUrl = new URL(signal.url, window.location.origin);
+    titleLink.href = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' ? parsedUrl.href : '#';
+  } catch (error) {
+    titleLink.href = '#';
+  }
+
+  const titleHeader = document.createElement('h3');
+  titleHeader.className =
+    'font-display text-xl font-bold leading-tight text-nesta-navy group-hover:text-nesta-blue transition-colors mt-2 cursor-pointer';
+  titleHeader.textContent = signal.title;
+  titleLink.appendChild(titleHeader);
+
+  const summaryP = document.createElement('p');
+  summaryP.className = 'text-sm text-nesta-dark-grey leading-relaxed line-clamp-3';
+  summaryP.textContent = signal.summary;
+
+  const footerDiv = document.createElement('div');
+  footerDiv.className =
+    'mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-nesta-navy opacity-60';
+
+  const activitySpan = document.createElement('span');
+  activitySpan.title = 'Funding Activity';
+  activitySpan.textContent = `Act: ${signal.score_activity}`;
+  footerDiv.appendChild(activitySpan);
+
+  const attentionSpan = document.createElement('span');
+  attentionSpan.title = 'News Attention';
+  attentionSpan.textContent = `Att: ${signal.score_attention}`;
+  footerDiv.appendChild(attentionSpan);
+
+  // Add the coloured border
+  div.classList.add('border-l-4', theme.border);
+
+  div.append(topDiv, titleLink, summaryP, footerDiv);
+  container.prepend(div);
+}
+
 function setActiveNav(tab) {
   const navRadar = document.getElementById('nav-radar');
   const navDb = document.getElementById('nav-db');
@@ -98,18 +187,7 @@ async function refreshDatabase() {
 }
 
 function renderRadarBlip(blip) {
-  const card = document.createElement('article');
-  card.className = 'bg-white p-6 rounded-2xl signal-card';
-  card.innerHTML = `
-    <h3 class="text-lg font-display text-nesta-navy">${blip.title}</h3>
-    <p class="text-sm text-slate-600 mt-2">${blip.summary}</p>
-    <div class="mt-4 text-xs text-slate-500 space-y-1">
-      <div>Typology: ${blip.typology}</div>
-      <div>Activity: ${blip.score_activity}</div>
-      <div>Attention: ${blip.score_attention}</div>
-    </div>
-  `;
-  radarFeed.prepend(card);
+  renderSignalCard(blip, radarFeed);
 }
 
 async function runRadar() {
