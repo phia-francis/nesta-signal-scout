@@ -1,60 +1,53 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 
-class ChatRequest(BaseModel):
-    message: str
-    time_filter: str = "Past Month"
-    source_types: List[str] = Field(default_factory=list)
-    tech_mode: bool = False
-    mission: str = "All Missions"
-    signal_count: Optional[int] = None
-    scan_mode: str = "general"
-
-
-class Signal(BaseModel):
+class SignalCard(BaseModel):
     title: str
-    url: Optional[str] = None
-    hook: str
-    analysis: str
-    implication: str
-    score: int
+    summary: str
+    url: str
+    typology: str = Field(..., description="HOT, EMERGING, STABILISING, or DORMANT")
+    novelty_score: float = 0.0
+    growth_metric: float = 0.0
+    magnitude_metric: float = 0.0
+    sparkline: List[int] = Field(default_factory=list)
     mission: str
-    origin_country: Optional[str] = None
-    score_novelty: int
-    score_evidence: int
-    score_impact: int
-    published_date: Optional[str] = None
 
 
-class GenerateQueriesRequest(BaseModel):
-    keywords: List[str] = Field(default_factory=list)
-    count: int = 5
+class RadarRequest(BaseModel):
+    mission: str
+    topic: Optional[str] = None
+    friction_mode: bool = False
+
+
+class ResearchRequest(BaseModel):
+    query: str
+    time_horizon: str = "y1"
+    friction_mode: bool = False
+
+
+class PolicyRequest(BaseModel):
+    mission: str
+    topic: str
 
 
 class UpdateSignalRequest(BaseModel):
     url: str
-    hook: Optional[str] = None
-    analysis: Optional[str] = None
-    implication: Optional[str] = None
-    title: Optional[str] = None
-    score: Optional[int] = None
-    score_novelty: Optional[int] = None
-    score_evidence: Optional[int] = None
-    score_impact: Optional[int] = None
-    score_evocativeness: Optional[int] = None
-    mission: Optional[str] = None
-    lenses: Optional[str] = None
-    source_date: Optional[str] = None
-    origin_country: Optional[str] = None
+    status: str
 
 
-class SynthesisRequest(BaseModel):
-    signals: List[Dict[str, Any]]
+class FeedbackRequest(BaseModel):
+    signal_id: str
+    relevant: bool
 
 
-class EnrichRequest(BaseModel):
-    url: str
+class ChatRequest(BaseModel):
+    message: str
+    signal_count: int = 5
+    time_filter: str = "Past Month"
+    source_types: List[str] = Field(default_factory=list)
+    scan_mode: str = "general"
+    mission: str = "All Missions"

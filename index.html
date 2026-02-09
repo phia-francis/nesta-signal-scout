@@ -1,413 +1,240 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nesta Signal Scout Pro</title>
-    
-    <script>
-        const originalWarn = console.warn;
-        // Suppress warnings that clearly originate from the Tailwind CDN script
-        const tailwindCdnPattern = /(^|\/|\s)(https?:\/\/)?cdn\.tailwindcss\.com(\/|[\s?]|$)/;
-        console.warn = (...args) => {
-            if (args[0] && typeof args[0] === 'string' && tailwindCdnPattern.test(args[0])) return;
-            originalWarn.apply(console, args);
-        };
-    </script>
-
-    <script src="static/js/tailwind.js"></script>
-    <script src="static/js/tailwind-theme.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha256-0q+JdOlScWOHcunpUk21uab1jW7C1deBQARHtKMcaB4=" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/standalone/umd/vis-network.min.js" integrity="sha512-9YVQZyV2hlSqEXZDwSEVia7u4T+qBkLE7KYG24LalL3J1zoQJXAiWpobprig/vGhV1VCfPIxF4EvHDYCSrSpmw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js" integrity="sha512-+EeCylkt9WHJk5tGJxYdecHOcXFRME7qnbsfeMsdQL6NUPYm2+uGFmyleEqsmVoap/f3dN/sc3BX9t9kHXkHHg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <link rel="stylesheet" href="static/css/styles.css">
-
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signal Scout</title>
+  <script src="static/js/tailwind.js"></script>
+  <script src="static/js/tailwind-theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha256-0q+JdOlScWOHcunpUk21uab1jW7C1deBQARHtKMcaB4=" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="static/css/styles.css">
 </head>
-<body class="min-h-screen flex flex-col antialiased bg-gray-50" onload="initDashboard()">
-
-    <header class="bg-nesta-navy/90 backdrop-blur-md text-white sticky top-0 z-50 shadow-lg transition-all duration-300">
-        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-white text-nesta-navy flex items-center justify-center text-xl font-bold rounded-sm brand-font shadow-md">N</div>
-                <div class="flex flex-col">
-                    <h1 class="text-2xl leading-none tracking-tight">Signal Scout <span class="text-nesta-aqua">Pro</span></h1>
-                </div>
-            </div>
-            <div class="flex gap-4">
-                <button onclick="openUserGuide()" class="btn-interactive px-4 py-2 text-sm font-bold text-nesta-navy bg-white border border-white/20 hover:bg-nesta-aqua hover:text-nesta-navy rounded-sm shadow-lg">
-                    User Guide
-                </button>
-                <button onclick="downloadCSV()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
-                    <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Export
-                </button>
-                <button onclick="generateBriefing()" class="btn-interactive px-4 py-2 text-sm font-bold text-white hover:text-nesta-aqua flex items-center gap-2 group border border-transparent hover:border-white/10 rounded">
-                    📄 Briefing PDF
-                </button>
-                <button onclick="openSavedSignals()" class="btn-interactive px-6 py-2 bg-white text-nesta-navy text-sm font-bold rounded-sm hover:bg-nesta-aqua hover:text-nesta-navy shadow-lg">
-                    Full Database
-                </button>
-            </div>
+<body class="min-h-screen bg-slate-50 text-slate-900 body-font flex flex-col">
+  <header class="sticky top-0 z-40 bg-nesta-navy text-white shadow-lg">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-md bg-white text-lg font-bold text-nesta-navy brand-font">N</div>
+        <div>
+          <h1 class="text-2xl font-semibold brand-font">Signal Scout</h1>
+          <p class="text-xs text-gray-400 uppercase tracking-widest">Mission Discovery</p>
         </div>
-        <div class="h-1.5 w-full bg-gradient-to-r from-nesta-blue via-nesta-purple to-nesta-orange"></div>
-    </header>
-
-    <main class="flex-grow max-w-7xl mx-auto w-full px-6 py-10 space-y-10">
-        
-        <div class="bg-white rounded-xl shadow-soft p-10 space-y-10 relative overflow-hidden border border-gray-100">
-            
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                <div class="md:col-span-4 space-y-3">
-                    <label for="mission-select" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Nesta Mission</label>
-                    <div class="relative group transition-all duration-300 ease-out hover:-translate-y-1 bg-white rounded-2xl">
-                        <select id="mission-select" name="mission" class="w-full appearance-none bg-transparent border-2 border-gray-100 text-nesta-navy font-bold text-lg py-4 px-6 rounded-2xl focus:outline-none focus:border-nesta-blue focus:ring-4 focus:ring-nesta-blue/5 cursor-pointer hover:border-nesta-blue/30 transition-all duration-300 shadow-soft hover:shadow-hover z-10 relative">
-                            <option class="text-nesta-navy" value="All Missions">All Missions</option>
-                            <option class="text-nesta-navy" value="A Fairer Start">A Fairer Start 📚</option>
-                            <option class="text-nesta-navy" value="A Healthy Life">A Healthy Life ❤️‍🩹</option>
-                            <option class="text-nesta-navy" value="A Sustainable Future">A Sustainable Future 🌳</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 flex items-center px-6 pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors duration-300 z-0">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-8 space-y-3">
-                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest pl-1">Scan Mode</span>
-                    <div class="flex flex-wrap gap-3">
-                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Broad search. Best for custom queries (e.g. 'site:mckinsey.com').">
-                            <input type="radio" name="scan_mode" value="general" class="text-nesta-blue focus:ring-nesta-blue" checked>
-                            🌍 General
-                        </label>
-                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Mainstream tech journalism and industry reports.">
-                            <input type="radio" name="scan_mode" value="news" class="text-nesta-blue focus:ring-nesta-blue">
-                            📰 News
-                        </label>
-                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Policy trackers, government reports, and official releases.">
-                            <input type="radio" name="scan_mode" value="policy" class="text-nesta-blue focus:ring-nesta-blue">
-                            🏛️ Policy
-                        </label>
-                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Grant programmes, funding calls, and research awards.">
-                            <input type="radio" name="scan_mode" value="grants" class="text-nesta-blue focus:ring-nesta-blue">
-                            💰 Grants
-                        </label>
-                        <label class="tooltip flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-xs font-bold text-nesta-navy bg-white shadow-sm cursor-pointer hover:border-nesta-blue/40 transition" data-tooltip="Grassroots insights, forums, and community narratives.">
-                            <input type="radio" name="scan_mode" value="community" class="text-nesta-blue focus:ring-nesta-blue">
-                            🗣️ Community
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div class="lg:col-span-4 space-y-4">
-                    <div class="space-y-2">
-                        <label for="topic-input" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Focus Topic (Optional)</label>
-                        <div class="relative group transition-all duration-300 ease-out hover:-translate-y-1">
-                            <input type="text" id="topic-input" name="topic"
-                                class="w-full text-lg font-display text-nesta-navy placeholder-gray-300 border-2 border-gray-100 rounded-2xl py-5 px-6 shadow-soft focus:outline-none focus:border-nesta-blue focus:ring-4 focus:ring-nesta-blue/5 transition-all duration-300 bg-white hover:shadow-hover hover:border-nesta-blue/30 focus:scale-[1.01]"
-                                placeholder="e.g. 'Generative AI' — or leave empty for Broad Scan"
-                                onkeypress="handleEnter(event)"
-                                oninput="toggleButtonState()">
-                            <button type="button" onclick="generateFrictionQuery()" title="Generate Friction Query"
-                                class="absolute right-16 top-1/2 -translate-y-1/2 text-nesta-navy/70 hover:text-nesta-blue text-xl transition-transform duration-200 ease-out hover:scale-110">
-                                🎲
-                            </button>
-                            <div class="absolute right-6 top-1/2 -translate-y-1/2 text-nesta-blue transition-all duration-500 ease-out group-focus-within:scale-110 group-focus-within:rotate-12 group-focus-within:text-nesta-aqua">
-                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-baseline px-1">
-                            <label for="signal-count" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Quantity</label>
-                            <span id="count-display" class="text-xs font-bold text-nesta-navy bg-nesta-aqua/20 px-3 py-1 rounded-full">3 Signals</span>
-                        </div>
-                        <input type="range" id="signal-count" name="count" min="1" max="5" value="3" 
-                               oninput="document.getElementById('count-display').innerText = this.value + ' Signals'"
-                               class="nesta-slider cursor-pointer">
-                    </div>
-                </div>
-
-                <div class="lg:col-span-8 space-y-3">
-                    <label class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">SOURCE FILTERS (Multi-Select)</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="source-bias-container">
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-policy" name="source_bias" value="Policy" class="peer sr-only">
-                            <label for="bias-policy" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Government portals, parliamentary sources, and policy documents.">🏛️ Gov & Policy Sites</label>
-                        </div>
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-grants" name="source_bias" value="Grants" class="peer sr-only">
-                            <label for="bias-grants" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Grant programmes, funding calls, and research awards.">💰 Funding Bodies</label>
-                        </div>
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-academia" name="source_bias" value="Academia" class="peer sr-only">
-                            <label for="bias-academia" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Scientific papers, journals, and university research.">🧪 Academia</label>
-                        </div>
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-emerging" name="source_bias" value="Emerging Tech" class="peer sr-only">
-                            <label for="bias-emerging" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Broad landscape of innovation, including software, AI, and apps.">🚀 Emerging Tech</label>
-                        </div>
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-data" name="source_bias" value="Open Data" class="peer sr-only">
-                            <label for="bias-data" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Open datasets, dashboards, and public data portals.">📊 Open Data</label>
-                        </div>
-                        <div class="bias-chip relative">
-                            <input type="checkbox" id="bias-niche" name="source_bias" value="Niche Forums" class="peer sr-only">
-                            <label for="bias-niche" class="tooltip px-4 py-3 border border-nesta-sand rounded-lg text-xs font-bold text-nesta-darkgrey cursor-pointer block" data-tooltip="Specialist forums and expert community spaces.">🗣️ Niche Forums</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-2 border-t border-gray-100">
-                <div class="flex flex-wrap gap-4">
-                    <div class="tooltip flex items-center gap-3 bg-gray-50 px-5 py-3 border border-nesta-sand rounded-lg cursor-pointer hover:border-nesta-orange/50 transition shadow-sm tech-toggle-group" data-tooltip="Tangible engineering and scientific breakthroughs.">
-                        <input type="checkbox" id="tech-mode" name="tech_mode" class="w-5 h-5 text-nesta-orange border-gray-300 rounded focus:ring-nesta-orange bg-white checked:bg-nesta-orange checked:border-transparent cursor-pointer">
-                        <label for="tech-mode" class="text-sm font-bold text-nesta-navy cursor-pointer select-none tech-toggle-label">Deep Tech</label>
-                    </div>
-
-                    <div class="flex bg-gray-100 p-1 rounded-lg">
-                        <button onclick="switchView('list')" id="btn-list" class="px-5 py-2 text-xs font-bold transition shadow-sm bg-nesta-navy text-white rounded-md hover:scale-105 active:scale-95">List</button>
-                        <button onclick="switchView('radar')" id="btn-radar" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Radar</button>
-                        <button onclick="switchView('network')" id="btn-network" class="px-5 py-2 text-xs font-bold transition text-nesta-darkgrey hover:text-nesta-navy rounded-md hover:scale-105 active:scale-95">Network</button>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap gap-4 items-center">
-                    <div class="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 flex items-center gap-3">
-                        <label for="time-filter" class="text-xs font-bold text-nesta-darkgrey uppercase tracking-widest">Time Horizon</label>
-                        <div class="relative group">
-                            <select id="time-filter" name="time_filter" class="appearance-none bg-transparent border-none focus:ring-0 cursor-pointer text-nesta-navy font-bold text-sm pr-6">
-                                <option value="w1" class="bg-white text-nesta-navy">Past 7 Days</option>
-                                <option value="m1" selected class="bg-white text-nesta-navy">Past Month</option>
-                                <option value="m3" class="bg-white text-nesta-navy">Past 3 Months</option>
-                                <option value="m6" class="bg-white text-nesta-navy">Past 6 Months</option>
-                                <option value="y1" class="bg-white text-nesta-navy">Past Year</option>
-                            </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pointer-events-none text-nesta-navy group-hover:text-nesta-blue transition-colors">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="h-8 w-px bg-gray-200 mx-2 hidden lg:block"></div>
-
-                    <button onclick="generateSignal(true)" id="broad-btn" class="btn-interactive px-6 py-3 text-sm font-bold text-nesta-darkgrey hover:text-nesta-blue hover:bg-gray-50 rounded border border-transparent hover:border-nesta-blue/20">Broad Scan</button>
-                    
-                    <button id="search-btn" onclick="generateSignal(false)" class="hidden btn-interactive px-8 py-3 bg-nesta-blue text-white text-sm font-bold rounded shadow-lg hover:bg-blue-700 hover:shadow-xl flex items-center gap-3">
-                        <span>Initiate Scan</span>
-                    </button>
-                    
-                    <button id="stop-btn" onclick="stopScan()" class="hidden btn-interactive px-8 py-3 bg-nesta-red text-white text-sm font-bold rounded shadow-lg hover:bg-red-700 flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        Stop
-                    </button>
-
-                    <button id="download-signals-btn" onclick="downloadSignalsAsCSV()" class="hidden btn-interactive px-6 py-3 text-sm font-bold bg-nesta-black text-white hover:bg-opacity-90 transition-all rounded-full">
-                        Download CSV
-                    </button>
-                </div>
-            </div>
-
-            <div class="mt-6 border border-nesta-black rounded-lg overflow-hidden">
-                <div id="terminal-header" onclick="toggleTerminal()" class="bg-nesta-black text-white p-2 flex justify-between items-center cursor-pointer text-xs font-bold uppercase tracking-widest">
-                    <span class="text-nesta-green">&gt;_ SYSTEM LOGS</span>
-                    <span id="terminal-toggle-indicator">[+]</span>
-                </div>
-                <div id="live-terminal" class="hidden bg-nesta-sand text-nesta-black text-xs font-body p-4 h-32 overflow-y-auto border-t border-nesta-black"></div>
-            </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2 rounded-full bg-white/10 p-1">
+          <button id="tab-research" class="tab-button active">Targeted Research</button>
+          <button id="tab-radar" class="tab-button">Mission Radar</button>
+          <button id="tab-database" class="tab-button">Database</button>
+          <button id="tab-policy" class="tab-button">Policy Explorer</button>
         </div>
-
-        <div id="view-controls" class="flex justify-between items-center px-2">
-            <div>
-                <button onclick="synthesizeTrend()" class="btn-interactive px-5 py-2 text-xs font-bold bg-nesta-purple text-white rounded-full shadow-sm hover:bg-nesta-blue transition">
-                    ✨ Synthesise
-                </button>
-            </div>
-            <div class="flex gap-2 bg-white p-1.5 rounded-full shadow-sm border border-gray-100">
-                <button onclick="switchFilter('scan')" id="filter-btn-scan" class="filter-view-btn active px-4 py-1.5 rounded-full text-xs font-bold border border-nesta-navy text-nesta-navy hover:bg-gray-100">Current Scan</button>
-                <div class="h-6 w-px bg-gray-200 mx-1"></div>
-                <button onclick="switchFilter('recent')" id="filter-btn-recent" class="filter-view-btn px-4 py-1.5 rounded-full text-xs font-bold border border-transparent text-gray-500 hover:bg-gray-50 hover:text-nesta-navy">Recent DB</button>
-                <button onclick="switchFilter('funding')" id="filter-btn-funding" class="filter-view-btn px-4 py-1.5 rounded-full text-xs font-bold border border-transparent text-gray-500 hover:bg-gray-50 hover:text-nesta-navy">Funding</button>
-                <button onclick="switchFilter('tech')" id="filter-btn-tech" class="filter-view-btn px-4 py-1.5 rounded-full text-xs font-bold border border-transparent text-gray-500 hover:bg-gray-50 hover:text-nesta-navy">Emerging Tech</button>
-            </div>
-        </div>
-
-        <div id="result-container" class="grid grid-cols-1 gap-8"></div>
-        
-        <div id="radar-container" class="hidden bg-white p-10 shadow-soft border border-gray-100 min-h-[600px] flex flex-col items-center justify-center rounded-xl relative">
-            <div class="w-full h-[500px] relative"><canvas id="signalRadar"></canvas></div>
-        </div>
-
-        <div id="network-container" class="hidden bg-white p-6 shadow-soft border border-gray-100 h-[600px] rounded-xl relative">
-            <div id="signalNetwork" class="w-full h-full"></div>
-        </div>
-
-        <section id="preview-section" class="pt-12 border-t border-gray-200">
-            <div class="flex justify-between items-end mb-8">
-                <div>
-                </div>
-                <button onclick="openSavedSignals()" class="text-sm font-bold text-nesta-blue hover:text-nesta-navy transition flex items-center gap-1 group">
-                    View All <span class="group-hover:translate-x-1 transition-transform">→</span>
-                </button>
-            </div>
-            
-            <div id="preview-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8 opacity-100">
-                <div class="h-64 bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4 animate-pulse">
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <footer class="bg-nesta-navy text-white mt-auto">
-        <div class="h-1 w-full bg-gradient-to-r from-nesta-blue via-nesta-purple to-nesta-orange"></div>
-        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-6 h-6 bg-white text-nesta-navy flex items-center justify-center text-sm font-bold rounded-sm brand-font">N</div>
-                <div class="flex flex-col">
-                    <span class="text-sm font-display leading-none">Nesta Discovery Hub</span>
-                </div>
-            </div>
-            <div class="text-[10px] font-body opacity-50 tracking-wide">
-                &copy; 2025 NESTA. ALL RIGHTS RESERVED.
-            </div>
-        </div>
-    </footer>
-
-    <div id="saved-modal" class="fixed inset-0 bg-nesta-navy/90 backdrop-blur-md z-[100] hidden flex items-center justify-center p-6">
-        <div class="bg-white w-full max-w-7xl h-[85vh] shadow-2xl flex flex-col overflow-hidden rounded-2xl animate-fade-in-up">
-            <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                <div>
-                    <h2 class="text-3xl brand-font text-nesta-navy">Signal Database</h2>
-                </div>
-                <button onclick="closeSavedSignals()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
-            </div>
-            <div id="saved-list" class="flex-1 overflow-y-auto p-10 bg-gray-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
-        </div>
+        <button id="open-guide" class="btn-secondary text-white border-white/30 hover:text-white" aria-label="Open user guide">?</button>
+      </div>
     </div>
+  </header>
 
-    <div id="user-guide-modal" class="fixed inset-0 bg-nesta-navy/90 backdrop-blur-md z-[110] hidden flex items-center justify-center p-6">
-        <div class="bg-white w-full max-w-4xl h-[85vh] shadow-2xl flex flex-col overflow-hidden rounded-2xl animate-fade-in-up font-body">
-            <div class="px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                <div>
-                    <h2 class="text-3xl brand-font text-nesta-navy">Signal Scout: User Guide</h2>
-                </div>
-                <button onclick="closeUserGuide()" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition rounded-full text-nesta-navy font-bold text-xl">✕</button>
+  <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10 overflow-hidden">
+    <section id="view-research" class="flex flex-col gap-8 h-full">
+      <div class="rounded-2xl bg-white p-6 shadow-soft">
+        <h2 class="text-xl font-semibold text-nesta-navy brand-font">Targeted Research</h2>
+        <p class="text-sm text-slate-600">Ask a focused question and receive a detailed research card.</p>
+        <div class="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
+          <div>
+            <textarea
+              id="research-input"
+              rows="1"
+              placeholder="What are the emerging regulations for AI in UK education?"
+              class="w-full rounded-xl border border-slate-200 px-5 py-4 text-lg focus:border-nesta-blue focus:outline-none"
+              oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
+            ></textarea>
+            <div class="mt-3 flex items-center gap-2 text-sm text-slate-500">
+              <label for="research-time">Horizon:</label>
+              <select id="research-time" class="rounded-lg border border-slate-200 px-3 py-2">
+                <option value="m1">Past month</option>
+                <option value="m6">Past 6 months</option>
+                <option value="y1">Past year</option>
+                <option value="all">All time</option>
+              </select>
             </div>
-            <div class="flex-1 overflow-y-auto p-10 space-y-12 text-nesta-navy font-body">
-                
-                <div class="text-center space-y-4 border-b border-gray-100 pb-10">
-                    <div class="w-16 h-16 bg-nesta-blue text-white rounded-2xl flex items-center justify-center text-3xl font-bold mx-auto shadow-lg mb-4 brand-font">N</div>
-                    <h3 class="text-4xl brand-font text-nesta-navy">Welcome to Signal Scout</h3>
-                    <p class="text-lg max-w-2xl mx-auto text-gray-500">Your autonomous AI agent for discovering weak signals, emerging trends, and hidden innovations.</p>
-                </div>
-
-                <section>
-                    <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 border-b border-gray-100 pb-2">How It Works</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-                            <div class="text-4xl mb-4">🔍</div>
-                            <h5 class="font-bold text-nesta-navy text-lg mb-2">1. Scan</h5>
-                            <p class="text-sm text-gray-600 leading-relaxed">The agent generates "High Entropy" queries (e.g. <em>"biotech + unregulated"</em>) to bypass mainstream news and find hidden gems.</p>
-                        </div>
-                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-                            <div class="text-4xl mb-4">🧠</div>
-                            <h5 class="font-bold text-nesta-navy text-lg mb-2">2. Analyse</h5>
-                            <p class="text-sm text-gray-600 leading-relaxed">It reads articles in real-time, verifying facts and scoring them on Novelty, Evidence, and Impact.</p>
-                        </div>
-                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-                            <div class="text-4xl mb-4">💎</div>
-                            <h5 class="font-bold text-nesta-navy text-lg mb-2">3. Synthesise</h5>
-                            <p class="text-sm text-gray-600 leading-relaxed">It produces a concise "Signal Card" with a strategic hook, ready for your research database.</p>
-                        </div>
-                    </div>
-                </section>
-
-                <section>
-                    <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 border-b border-gray-100 pb-2">Interface Guide</h4>
-                    <div class="space-y-8">
-                        
-                        <div class="flex flex-col sm:flex-row items-start gap-6">
-                            <div class="shrink-0 w-16 flex justify-center pt-2">
-                                <span class="text-2xl shadow-sm border border-gray-200 rounded-lg p-2 bg-white">🎲</span>
-                            </div>
-                            <div>
-                                <h5 class="font-bold text-nesta-navy text-lg">The "Inspire Me" Button</h5>
-                                <p class="text-sm text-gray-600 mt-1 max-w-xl">Stuck for ideas? Click the dice to instantly generate a <strong>"Friction Query"</strong>. This creates random collisions (e.g. <em>"heat pumps + lawsuit"</em>) that often lead to the most surprising discoveries.</p>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col sm:flex-row items-start gap-6">
-                            <div class="shrink-0 w-16 flex justify-center pt-2">
-                                <div class="scale-75 origin-top">
-                                    <div class="flex items-center gap-2 bg-gray-50 px-3 py-2 border border-nesta-sand rounded-lg shadow-sm w-max">
-                                        <input type="checkbox" checked class="text-nesta-orange rounded focus:ring-0 cursor-default" onclick="return false;">
-                                        <span class="text-xs font-bold text-nesta-navy">Deep Tech</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <h5 class="font-bold text-nesta-navy text-lg">Deep Tech Mode</h5>
-                                <p class="text-sm text-gray-600 mt-1 max-w-xl">Restricts results to <strong>"Atoms"</strong> (Hardware, Biotech, Energy, Materials). Use this when you want to filter out software apps and focus on tangible engineering breakthroughs.</p>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col sm:flex-row items-start gap-6">
-                            <div class="shrink-0 w-16 flex justify-center gap-1 pt-2">
-                                <span class="w-2 h-2 rounded-full bg-nesta-red"></span>
-                                <span class="w-2 h-2 rounded-full bg-nesta-blue"></span>
-                                <span class="w-2 h-2 rounded-full bg-nesta-green"></span>
-                            </div>
-                            <div>
-                                <h5 class="font-bold text-nesta-navy text-lg">Signal Actions</h5>
-                                <ul class="text-sm text-gray-600 mt-2 space-y-1 list-disc pl-4">
-                                    <li><strong>Reject:</strong> Discards the signal (helps train the filter).</li>
-                                    <li><strong>Copy:</strong> Copies a formatted summary to your clipboard for Slack/Teams.</li>
-                                    <li><strong>Star:</strong> Saves the signal to the "Shortlist" in the permanent database.</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                    </div>
-                </section>
-
-                <section class="bg-nesta-navy text-white p-10 rounded-2xl shadow-soft">
-                    <h4 class="text-xs font-bold uppercase tracking-widest text-nesta-aqua mb-8 border-b border-white/10 pb-4">The Scoring Framework</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-white/10">
-                        <div class="pt-4 md:pt-0">
-                            <div class="text-5xl font-bold brand-font text-nesta-yellow mb-3">0-10</div>
-                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Novelty</div>
-                            <p class="text-sm opacity-70 px-4">"Distance from Mainstream"<br><br>High score = Obscure academic paper or niche forum.<br>Low score = BBC News or TechCrunch.</p>
-                        </div>
-                        <div class="pt-8 md:pt-0 md:pl-8">
-                            <div class="text-5xl font-bold brand-font text-nesta-pink mb-3">0-10</div>
-                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Evidence</div>
-                            <p class="text-sm opacity-70 px-4">"Reality Factor"<br><br>High score = A launched pilot, a passed law, or published data.<br>Low score = A "concept" or "vision".</p>
-                        </div>
-                        <div class="pt-8 md:pt-0 md:pl-8">
-                            <div class="text-5xl font-bold brand-font text-nesta-aqua mb-3">0-10</div>
-                            <div class="font-bold text-sm uppercase tracking-widest mb-3">Impact</div>
-                            <p class="text-sm opacity-70 px-4">"The What!? Factor"<br><br>High score = Fundamentally changes a system or behaviour.<br>Low score = Incremental improvement.</p>
-                        </div>
-                    </div>
-                </section>
-
-            </div>
+          </div>
+          <button id="research-submit" class="btn-primary" data-spinner="false">
+            <span class="btn-label">Run Research</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
         </div>
-    </div>
+        <div id="research-status" class="mt-4 text-sm text-slate-500"></div>
+        <div id="process-stepper" class="hidden space-y-3 font-mono text-xs text-nesta-navy mt-4">
+          <div class="flex items-center gap-3 opacity-50" id="step-1">
+            <div class="step-indicator"></div>
+            <span>Scanning Knowledge Graph (OpenAlex, Crunchbase)...</span>
+          </div>
+          <div class="flex items-center gap-3 opacity-50" id="step-2">
+            <div class="step-indicator"></div>
+            <span>Classifying Signal Typology...</span>
+          </div>
+          <div class="flex items-center gap-3 opacity-50" id="step-3">
+            <div class="step-indicator"></div>
+            <span>Synthesizing Strategic Implications...</span>
+          </div>
+        </div>
+      </div>
 
-    <div id="toast" class="fixed bottom-8 right-8 bg-nesta-navy text-white px-6 py-4 shadow-2xl transform translate-y-24 opacity-0 transition-all duration-500 z-[120] font-bold text-sm flex items-center gap-4 rounded-lg border-l-4 border-nesta-aqua">
-        <div class="w-2 h-2 rounded-full bg-nesta-aqua shrink-0"></div><span id="toast-msg">Action Successful</span>
-    </div>
+      <div class="flex items-center justify-end">
+        <button id="btn-perspective" class="btn-secondary hidden border-nesta-pink text-nesta-pink">
+          🔄 Strategic Lens
+        </button>
+      </div>
+      <div id="research-feed" class="space-y-6 flex-1 overflow-y-auto"></div>
+    </section>
 
-    <script src="static/js/friction-config.js"></script>
-    <script type="module" src="./static/js/app.js"></script>
+    <section id="view-radar" class="hidden flex flex-col gap-8 h-full min-h-0">
+      <div class="rounded-2xl bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 class="text-xl font-semibold text-nesta-navy brand-font">Mission Radar</h2>
+            <p class="text-sm text-slate-600">Scan for weak signals across a mission and optional topic.</p>
+          </div>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-[auto_1fr_auto]">
+          <select id="radar-mission" class="rounded-lg border border-slate-200 px-3 py-2">
+            <option value="All Missions">All Missions</option>
+            <option value="A Fairer Start">A Fairer Start</option>
+            <option value="A Healthy Life">A Healthy Life</option>
+            <option value="A Sustainable Future">A Sustainable Future</option>
+          </select>
+          <textarea
+            id="radar-topic"
+            rows="1"
+            placeholder="Optional topic"
+            class="rounded-lg border border-slate-200 px-3 py-2"
+            oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
+          ></textarea>
+          <button id="radar-submit" class="btn-primary" data-spinner="false">
+            <span class="btn-label">Run Radar</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
+        </div>
+        <div id="radar-status" class="mt-4 text-sm text-slate-500"></div>
+      </div>
+
+      <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
+        <div class="rounded-2xl bg-white p-6 shadow-soft lg:col-span-2 flex flex-col h-full min-h-0">
+          <h3 class="text-lg font-semibold text-nesta-navy brand-font">Signal Radar</h3>
+          <p class="text-xs text-slate-500">Growth (Emerging → Hot) vs. Magnitude (Dormant → Stabilising)</p>
+          <div id="radar-chart-wrapper" class="mt-6 relative h-full w-full">
+            <canvas id="radar-chart" class="h-full w-full"></canvas>
+          </div>
+        </div>
+        <div class="rounded-2xl bg-white p-6 shadow-soft flex flex-col h-full overflow-hidden">
+          <h3 class="text-lg font-semibold text-nesta-navy brand-font">Blip Feed</h3>
+          <div class="flex items-center justify-end">
+            <div id="radar-perspective-slot"></div>
+          </div>
+          <div id="radar-feed" class="mt-4 space-y-4 overflow-y-auto pr-2 flex-1"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-policy" class="hidden flex flex-col gap-8 h-full">
+      <div class="rounded-2xl bg-white p-6 shadow-soft">
+        <h2 class="text-xl font-semibold text-nesta-navy brand-font">Policy Explorer</h2>
+        <p class="text-sm text-slate-600">Track government activity and legislative signals.</p>
+        <div class="mt-4 grid gap-3 md:grid-cols-[auto_1fr_auto]">
+          <select id="policy-mission" class="rounded-lg border border-slate-200 px-3 py-2">
+            <option value="All Missions">All Missions</option>
+            <option value="A Fairer Start">A Fairer Start</option>
+            <option value="A Healthy Life">A Healthy Life</option>
+            <option value="A Sustainable Future">A Sustainable Future</option>
+          </select>
+          <textarea
+            id="policy-topic"
+            rows="1"
+            placeholder="Policy topic (optional)"
+            class="rounded-lg border border-slate-200 px-3 py-2"
+            oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"
+          ></textarea>
+          <button id="policy-submit" class="btn-primary">
+            <span class="btn-label">Run Policy</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
+        </div>
+        <div id="policy-status" class="mt-4 text-sm text-slate-500"></div>
+      </div>
+      <div id="policy-feed" class="space-y-6 flex-1 overflow-y-auto"></div>
+    </section>
+
+    <section id="view-database" class="hidden flex flex-col gap-6 h-full">
+      <div class="rounded-2xl bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-xl font-semibold text-nesta-navy brand-font">Database</h2>
+            <p class="text-sm text-slate-600">Browse and curate saved signals.</p>
+          </div>
+          <div class="grid gap-3 md:grid-cols-[auto_auto]">
+            <select id="database-mission" class="rounded-lg border border-slate-200 px-3 py-2">
+              <option value="all">All Missions</option>
+              <option value="A Fairer Start">A Fairer Start</option>
+              <option value="A Healthy Life">A Healthy Life</option>
+              <option value="A Sustainable Future">A Sustainable Future</option>
+            </select>
+            <select id="database-type" class="rounded-lg border border-slate-200 px-3 py-2">
+              <option value="all">All Types</option>
+              <option value="signal">Signal</option>
+              <option value="research">Research</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="database-grid" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 flex-1 overflow-y-auto"></div>
+    </section>
+  </main>
+
+  <div id="welcome-modal" class="welcome-overlay">
+    <div class="welcome-card scale-in">
+      <button id="welcome-skip" class="welcome-skip" type="button">Skip</button>
+      <h2 class="text-2xl font-semibold text-nesta-navy brand-font">Welcome to Signal Scout</h2>
+      <p class="mt-2 text-sm text-slate-600">Explore targeted research, discover mission radar signals, and curate your database.</p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button id="welcome-start" class="btn-primary">Get Started</button>
+        <button id="welcome-tutorial" class="btn-secondary">Show Me Around</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorial-spotlight" class="tutorial-spotlight hidden"></div>
+  <div id="tutorial-tooltip" class="tutorial-tooltip hidden">
+    <p id="tutorial-text" class="text-sm text-slate-700"></p>
+    <div class="mt-4 flex justify-end gap-2">
+      <button id="tutorial-skip" class="btn-secondary" type="button">Skip</button>
+      <button id="tutorial-next" class="btn-primary" type="button">Next</button>
+    </div>
+  </div>
+
+  <div id="user-guide" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-6">
+    <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-soft">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-nesta-navy brand-font">User Guide</h2>
+          <p class="text-sm text-slate-600">How to navigate the Mission Discovery workflow.</p>
+        </div>
+        <button id="close-guide" class="btn-secondary" type="button">Close</button>
+      </div>
+      <div class="mt-6 space-y-4 text-sm text-slate-600">
+        <div>
+          <h3 class="font-semibold text-nesta-navy">Targeted Research</h3>
+          <p>Ask a focused question. The assistant gathers evidence and produces a detailed research briefing.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-nesta-navy">Mission Radar</h3>
+          <p>Scan for weak signals tied to a mission or topic. Blips autosave to the database for review.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold text-nesta-navy">Database</h3>
+          <p>Review saved items and curate them with Keep/Discard actions.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="static/js/app.js"></script>
 </body>
 </html>
