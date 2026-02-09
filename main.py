@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import logging
 import random
-from typing import Any, AsyncGenerator, Dict
+from typing import Any, AsyncGenerator, Dict, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
 
+import keywords as kw
 from models import PolicyRequest, RadarRequest, ResearchRequest, UpdateSignalRequest
 from services import (
     CrunchbaseService,
@@ -30,6 +33,7 @@ origins = [
     "http://localhost:8000",  # Local Development
     "http://127.0.0.1:8000",  # Local Development (IP)
     "https://phia-francis.github.io",  # Your GitHub Pages Frontend
+    "https://phia-francis.github.io/",  # Your GitHub Pages Frontend (Trailing slash)
     "https://nesta-signal-backend.onrender.com",  # Your Production Backend
 ]
 
@@ -69,29 +73,143 @@ def ndjson_line(payload: Dict[str, Any]) -> str:
 
 
 @app.post("/api/mode/radar")
-async def radar_scan(req: RadarRequest) -> StreamingResponse:
-    async def generator() -> AsyncGenerator[str, None]:
+async def radar_scan(req: RadarRequest):
+    async def generator():
         try:
-            topic = req.topic or req.mission
-            yield ndjson_line(
-                {"status": "searching", "msg": f"Scanning GtR & Crunchbase for {topic}..."}
+            topic = req.topic or "innovation"
+            mission = req.mission or "All Missions"
+
+            # STEP 1: SHEET SYNC
+            yield json.dumps({"status": "info", "msg": "Authenticating with Google Sheets..."}) + "\n"
+            existing_urls = await sheet_svc.get_existing_urls()
+            yield (
+                json.dumps(
+                    {
+                        "status": "success",
+                        "msg": f"Database Connected. {len(existing_urls)} existing records loaded.",
+                    }
+                )
+                + "\n"
             )
 
-            existing_urls = await sheet_svc.get_existing_urls()
-            gtr_data = await gtr_svc.fetch_projects(topic)
-            cb_data = await cb_svc.fetch_deals(topic)
+            # STEP 2: UKRI API
+            yield (
+                json.dumps(
+                    {"status": "info", "msg": f"GET https://gtr.ukri.org/gtr/api/projects?q={topic}..."}
+                )
+                + "\n"
+            )
+            gtr_projects = await gtr_svc.fetch_projects(topic)
+            yield (
+                json.dumps(
+                    {
+                        "status": "success",
+                        "msg": f"Received {len(gtr_projects)} objects from UKRI GtR.",
+                    }
+                )
+                + "\n"
+            )
 
-            abstracts = [p.get("abstract", "") for p in gtr_data if p.get("abstract")]
+            # STEP 3: CRUNCHBASE API
+            yield (
+                json.dumps(
+                    {"status": "info", "msg": f"GET https://api.crunchbase.com/v4/entities?query={topic}..."}
+                )
+                + "\n"
+            )
+            cb_data = await cb_svc.fetch_deals(topic)
+            yield (
+                json.dumps(
+                    {
+                        "status": "success",
+                        "msg": f"Received {len(cb_data)} objects from Crunchbase.",
+                    }
+                )
+                + "\n"
+            )
+
+            # 1. LOAD KNOWLEDGE
+            priorities = kw.MISSION_PRIORITIES.get(req.mission, [])
+            expansions = kw.TOPIC_EXPANSIONS.get(req.mission, [])
+            signal_terms = kw.SIGNAL_TYPES.get(req.mode, kw.SIGNAL_TYPES["radar"])
+
+            # 2. INTELLIGENT QUERY CONSTRUCTION
+            search_term = ""
+            if req.mode == "research":
+                yield json.dumps(
+                    {"status": "info", "msg": "🔬 RESEARCH MODE: Global Academic Scan..."}
+                ) + "\n"
+                base_query = req.query if req.query else f"{req.mission} {req.topic}"
+                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+                search_term = f"{base_query} ({joined_signals}) filetype:pdf -site:.com"
+            elif req.mode == "policy":
+                yield json.dumps(
+                    {"status": "info", "msg": "⚖️ POLICY MODE: International Policy & Strategy..."}
+                ) + "\n"
+                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+                search_term = (
+                    f"{req.mission} {req.topic} ({joined_signals}) (site:.gov OR site:.int OR site:.org)"
+                )
+            else:
+                yield json.dumps(
+                    {
+                        "status": "info",
+                        "msg": "📡 RADAR MODE: Full Spectrum Scan (Industry + Policy + Academic)...",
+                    }
+                ) + "\n"
+                joined_blacklist = " ".join([f"-{word}" for word in kw.BLACKLIST])
+                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+                topic_value = (req.topic or "").strip()
+                is_generic = topic_value.lower() in [
+                    "obesity",
+                    "health",
+                    "energy",
+                    "education",
+                    "climate",
+                    "food",
+                ]
+                if is_generic:
+                    pillars = " OR ".join([f'"{pillar}"' for pillar in priorities[:3]])
+                    search_term = (
+                        f"{req.mission} ({topic_value} AND ({pillars})) ({joined_signals}) {joined_blacklist}"
+                    )
+                else:
+                    search_term = f"{req.mission} {topic_value} ({joined_signals}) {joined_blacklist}"
+
+            # STEP 4: GOOGLE SEARCH API
+            yield json.dumps(
+                {"status": "info", "msg": f"🔍 Executing Search: {search_term[:80]}..."}
+            ) + "\n"
+            web_results = await search_svc.search(search_term)
+            yield (
+                json.dumps(
+                    {
+                        "status": "success",
+                        "msg": f"Received {len(web_results)} objects from Google Search.",
+                    }
+                )
+                + "\n"
+            )
+
+            # STEP 5: PROCESSING LOOP
+            yield (
+                json.dumps(
+                    {
+                        "status": "info",
+                        "msg": "Processing signals & calculating Sweet Spot scores...",
+                    }
+                )
+                + "\n"
+            )
+
+            abstracts = [p.get("abstract", "") for p in gtr_projects if p.get("abstract")]
             refined_keywords = topic_svc.perform_lda(abstracts)
             top2vec_seeds = topic_svc.recommend_top2vec_seeds(abstracts)
 
-            yield ndjson_line({"status": "classifying", "msg": "Mapping Activity vs. Attention..."})
-
-            total_research = sum(p.get("fund_val", 0) for p in gtr_data)
+            total_research = sum(p.get("fund_val", 0) for p in gtr_projects)
             total_investment = sum(d.get("amount", 0) for d in cb_data)
             activity_score = analytics_svc.calculate_activity_score(total_research, total_investment)
 
-            web_results = await search_svc.search(f"{topic} innovation", num=6)
             niche_results = await search_svc.search_niche(topic)
             mainstream_count = len(web_results)
             niche_count = len([item for item in niche_results if item.get("is_niche")])
@@ -99,38 +217,25 @@ async def radar_scan(req: RadarRequest) -> StreamingResponse:
 
             typology = analytics_svc.classify_sweet_spot(activity_score, attention_score)
 
-            for project in gtr_data:
-                url_ref = project.get("grantReference") or project.get("title", "")
-                signal = {
-                    "mode": "Radar",
-                    "title": project.get("title", f"GtR: {topic}"),
-                    "summary": project.get("abstract", ""),
-                    "url": f"https://gtr.ukri.org/projects?ref={url_ref}",
-                    "mission": req.mission,
-                    "score_activity": round(activity_score, 1),
-                    "score_attention": round(attention_score, 1),
-                    "typology": typology,
-                    "sparkline": analytics_svc.generate_sparkline(activity_score, attention_score),
-                    "refined_keywords": refined_keywords,
-                    "topic_seeds": top2vec_seeds,
-                    "source": "UKRI GtR",
-                }
-
-                try:
-                    await sheet_svc.save_signal(signal, existing_urls)
-                except Exception as exc:
-                    logging.critical("Could not save signal '%s' to sheet: %s", signal.get('title'), exc)
-
-
-                yield ndjson_line({"status": "blip", "blip": signal})
-
             for item in web_results[:6]:
+                if item.get("link") in existing_urls:
+                    yield (
+                        json.dumps(
+                            {
+                                "status": "warning",
+                                "msg": f"Skipping Duplicate: {item['title'][:20]}...",
+                            }
+                        )
+                        + "\n"
+                    )
+                    continue
+
                 signal = {
                     "mode": "Radar",
-                    "title": item.get("title", f"Trend: {topic}"),
+                    "title": item.get("title", "Untitled Signal"),
                     "summary": item.get("snippet", ""),
-                    "url": item.get("link", "#"),
-                    "mission": req.mission,
+                    "url": item.get("link", ""),
+                    "mission": mission,
                     "score_activity": round(activity_score, 1),
                     "score_attention": round(attention_score, 1),
                     "typology": typology,
@@ -142,21 +247,68 @@ async def radar_scan(req: RadarRequest) -> StreamingResponse:
 
                 try:
                     await sheet_svc.save_signal(signal, existing_urls)
+                    yield json.dumps({"status": "blip", "blip": signal}) + "\n"
+                    yield (
+                        json.dumps(
+                            {
+                                "status": "info",
+                                "msg": f"→ Wrote row to Sheet: {signal['title'][:20]}...",
+                            }
+                        )
+                        + "\n"
+                    )
                 except Exception as exc:
-                    print(f"CRITICAL DB ERROR: Could not save '{signal['title']}': {exc}")
+                    yield json.dumps({"status": "error", "msg": f"Write Failed: {str(exc)}"}) + "\n"
 
-                yield ndjson_line({"status": "blip", "blip": signal})
+            yield json.dumps({"status": "complete", "msg": "Scan Routine Finished."}) + "\n"
 
-            yield ndjson_line({"status": "complete"})
-        except ServiceError as exc:
-            logging.error("Service error in radar_scan generator: %s", exc)
-            yield ndjson_line({"status": "error", "msg": "Service unavailable. Please try again later."})
-        except Exception:
-            logging.exception("Unexpected error in radar_scan generator")
-            yield ndjson_line({"status": "error", "msg": "Unexpected System Error"})
-
+        except Exception as exc:
+            yield json.dumps({"status": "error", "msg": f"CRITICAL FAILURE: {str(exc)}"}) + "\n"
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")
+
+
+@app.post("/api/intelligence/cluster")
+async def cluster_signals(signals: List[dict]):
+    """
+    Takes a raw list of signals and groups them into 'Narratives'
+    using TF-IDF Vectorization and K-Means Clustering.
+    """
+    if len(signals) < 3:
+        return {"clusters": []}
+
+    texts = [f"{signal['title']} {signal['summary']}" for signal in signals]
+    vectorizer = TfidfVectorizer(stop_words="english", max_features=1000)
+    matrix = vectorizer.fit_transform(texts)
+
+    k = max(2, len(signals) // 5)
+    kmeans = MiniBatchKMeans(n_clusters=k, random_state=42).fit(matrix)
+
+    clusters: Dict[str, Dict[str, Any]] = {}
+    for index, label in enumerate(kmeans.labels_):
+        lbl = str(label)
+        if lbl not in clusters:
+            clusters[lbl] = {"id": lbl, "signals": [], "keywords": []}
+        clusters[lbl]["signals"].append(signals[index])
+
+    order_centroids = kmeans.cluster_centers_.argsort()[:, ::-1]
+    terms = vectorizer.get_feature_names_out()
+
+    results = []
+    for i, cluster_id in enumerate(clusters):
+        top_terms = [terms[ind] for ind in order_centroids[i, :3]]
+        cluster_title = f"Narrative: {', '.join(top_terms).title()}"
+
+        results.append(
+            {
+                "title": cluster_title,
+                "count": len(clusters[cluster_id]["signals"]),
+                "signals": clusters[cluster_id]["signals"],
+                "keywords": top_terms,
+            }
+        )
+
+    return results
 
 
 @app.post("/api/mode/research")
