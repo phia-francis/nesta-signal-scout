@@ -7,6 +7,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+REQUEST_TIMEOUT = 10.0
+HEADERS = {"Accept": "application/vnd.rcuk.gtr.json-v7"}
+PAGE_SIZE = 10
+
 
 class GatewayResearchService:
     """Gateway to Research client for UKRI project signals."""
@@ -20,11 +24,11 @@ class GatewayResearchService:
             return []
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 response = await client.get(
                     f"{self.BASE_URL}/projects",
-                    params={"term": query, "page": 1, "size": 10},
-                    headers={"Accept": "application/vnd.rcuk.gtr.json-v7"},
+                    params={"term": query, "page": 1, "size": PAGE_SIZE},
+                    headers=HEADERS,
                 )
         except httpx.HTTPError as exc:
             logger.error("GtR request failed for query '%s': %s", query, exc)
