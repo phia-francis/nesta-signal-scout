@@ -1,3 +1,5 @@
+import { startTour } from './modules/guide.js';
+
 // DYNAMIC API CONFIGURATION
 let API_BASE_URL = window.location.origin;
 
@@ -29,6 +31,8 @@ const radarFeed = document.getElementById('radar-feed');
 const radarStatus = document.getElementById('radar-status');
 const databaseGrid = document.getElementById('database-grid');
 const pageTitle = document.getElementById('page-title');
+const viewHeading = document.getElementById('view-heading');
+const viewDescription = document.getElementById('view-description');
 
 // WAKE UP PROTOCOL
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
+  document.getElementById('help-tour-btn')?.addEventListener('click', startTour);
   document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('btn-view-grid')?.addEventListener('click', () => switchView('grid'));
   document.getElementById('btn-view-network')?.addEventListener('click', () => switchView('network'));
@@ -382,12 +387,18 @@ function switchAppMode(mode) {
   const stdInput = document.getElementById('input-standard');
   const resInput = document.getElementById('input-research');
   const scanBtn = document.getElementById('scan-btn');
-  const interfaceBox = document.getElementById('search-interface');
+  const interfaceBox = document.getElementById('search-panel');
 
   if (mode === 'database') {
     radarView.classList.add('hidden');
     databaseView.classList.remove('hidden');
     pageTitle.textContent = 'Database';
+    if (viewHeading) {
+      viewHeading.textContent = 'Innovation Sweet Spots';
+    }
+    if (viewDescription) {
+      viewDescription.textContent = 'Activity vs. Attention from GtR, Crunchbase, and search signals.';
+    }
     refreshDatabase();
     showToast('Switched to Database View', 'info');
     return;
@@ -395,7 +406,21 @@ function switchAppMode(mode) {
 
   radarView.classList.remove('hidden');
   databaseView.classList.add('hidden');
-  pageTitle.textContent = 'Mission Radar';
+  pageTitle.textContent = 'Mission Discovery';
+
+  if (viewHeading) {
+    const headings = {
+      radar: 'Emerging Signals',
+      research: 'Evidence Base',
+      policy: 'Policy Shifts',
+    };
+    viewHeading.textContent = headings[mode] || 'Innovation Sweet Spots';
+  }
+
+  if (viewDescription) {
+    viewDescription.textContent = 'Activity vs. Attention from GtR, Crunchbase, and search signals.';
+  }
+
   const btnText = scanBtn?.querySelector('span');
 
   if (!stdInput || !resInput || !scanBtn || !interfaceBox || !btnText) {
