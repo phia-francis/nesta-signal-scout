@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api", tags=["radar"])
 
 ATTENTION_SCORE_CAP = 10.0
 CITATION_DIVISOR = 100
+CITATION_FUNDING_EQUIVALENCY = 25000
 
 
 def ndjson_line(payload: dict[str, Any]) -> str:
@@ -71,9 +72,11 @@ async def radar_scan(
             refined_keywords = topic_service.perform_lda(abstracts)
             topic_seeds = topic_service.recommend_top2vec_seeds(abstracts)
 
+            citation_count = sum(work.get("score", 0) for work in openalex_works)
+            adjusted_activity_input = citation_count * CITATION_FUNDING_EQUIVALENCY
             activity_score = analytics_service.calculate_activity_score(
                 sum(project.get("fund_val", 0) for project in gtr_projects),
-                sum(work.get("score", 0) for work in openalex_works),
+                adjusted_activity_input,
             )
             max_citations = max((work.get("score", 0) for work in openalex_works), default=0)
             attention_score = (
