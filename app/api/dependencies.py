@@ -5,7 +5,7 @@ from functools import lru_cache
 from app.core.config import Settings
 from app.domain.taxonomy import TaxonomyService
 from app.services.analytics_svc import HorizonAnalyticsService
-from app.services.crunchbase_svc import CrunchbaseService
+from app.services.openalex_svc import OpenAlexService
 from app.services.gtr_svc import GatewayResearchService
 from app.services.cluster_svc import ClusterService
 from app.services.ml_svc import TopicModellingService
@@ -39,8 +39,8 @@ def get_gateway_service() -> GatewayResearchService:
 
 
 @lru_cache(maxsize=1)
-def get_crunchbase_service() -> CrunchbaseService:
-    return CrunchbaseService(get_settings())
+def get_openalex_service() -> OpenAlexService:
+    return OpenAlexService(get_settings())
 
 
 @lru_cache(maxsize=1)
