@@ -42,10 +42,14 @@ class OpenAlexService:
             "sort": "relevance_score:desc",
         }
 
-        async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS) as client:
-            response = await client.get(self.BASE_URL, params=params, headers=headers)
-            if response.status_code != 200:
-                raise ServiceError(f"OpenAlex API Error: {response.status_code}")
+        try:
+            async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS) as client:
+                response = await client.get(self.BASE_URL, params=params, headers=headers)
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ServiceError(f"OpenAlex API Error: {exc.response.status_code}") from exc
+        except httpx.RequestError as exc:
+            raise ServiceError(f"OpenAlex request failed: {exc}") from exc
 
         works = response.json().get("results", [])
         if not works:

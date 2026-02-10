@@ -28,6 +28,9 @@ from app.services.sheet_svc import SheetService
 
 router = APIRouter(prefix="/api", tags=["radar"])
 
+ATTENTION_SCORE_CAP = 10.0
+CITATION_DIVISOR = 100
+
 
 def ndjson_line(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
@@ -64,7 +67,6 @@ async def radar_scan(
             mode_message, _ = _build_search_query(request, taxonomy)
             yield ndjson_line({"status": "info", "msg": mode_message})
 
-
             abstracts = [project.get("abstract", "") for project in gtr_projects if project.get("abstract")]
             refined_keywords = topic_service.perform_lda(abstracts)
             topic_seeds = topic_service.recommend_top2vec_seeds(abstracts)
@@ -74,7 +76,11 @@ async def radar_scan(
                 sum(work.get("score", 0) for work in openalex_works),
             )
             max_citations = max((work.get("score", 0) for work in openalex_works), default=0)
-            attention_score = min(10.0, max_citations / 100) if max_citations else 0.0
+            attention_score = (
+                min(ATTENTION_SCORE_CAP, max_citations / CITATION_DIVISOR)
+                if max_citations
+                else 0.0
+            )
             typology = analytics_service.classify_sweet_spot(activity_score, attention_score)
             sparkline = analytics_service.generate_sparkline(activity_score, attention_score)
 
@@ -101,7 +107,14 @@ async def radar_scan(
             for work in openalex_works[:SCAN_RESULT_LIMIT]:
                 if work.get("url") in existing_urls:
                     continue
-                work_attention = min(10.0, (work.get("score", 0) / 100))
+                work_attention = min(
+                    ATTENTION_SCORE_CAP,
+                    work.get("score", 0) / CITATION_DIVISOR,
+                )
+                work_typology = analytics_service.classify_sweet_spot(
+                    activity_score,
+                    work_attention,
+                )
                 signal = {
                     "mode": "Radar",
                     "title": work.get("title", "Untitled Signal"),
@@ -110,7 +123,7 @@ async def radar_scan(
                     "mission": mission,
                     "score_activity": round(activity_score, 1),
                     "score_attention": round(work_attention, 1),
-                    "typology": "Global Research",
+                    "typology": work_typology,
                     "sparkline": sparkline,
                     "refined_keywords": refined_keywords,
                     "topic_seeds": topic_seeds,
