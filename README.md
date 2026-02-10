@@ -1,144 +1,158 @@
-# 📡 Nesta Signal Scout
+# Signal Scout
 
-**The Automated Horizon Scanning Agent for the Discovery Hub.**
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
+[![Build](https://img.shields.io/badge/build-pytest%20passing-brightgreen.svg)](tests)
 
-Signal Scout is an AI-powered research assistant designed to identify obscure signals, high-potential indicators of change, across the web. It operates as a relentless research engine, using the "Friction Method" to bypass mainstream hype and find evidence-based innovation signals aligned with Nesta’s missions.
-
----
-
-## 🚀 Key Features
-
-* **AI Research Agent:** Powered by OpenAI `gpt-4.1 mini`, acting as a Lead Foresight Researcher.
-* **The "Friction Method":** Generates high-entropy search queries (e.g., *Topic + "unregulated"*, *Topic + "homebrew"*) to find non-obvious results.
-* **Live Web Access:** Performs real-time Google Searches; it does not hallucinate signals from memory.
-* **Strict Verification:** The "Kill Committee" protocol rejects generic opinion pieces and ensures every signal has a direct source URL.
-* **Nesta Brand Aligned:** Fully styled UI using the official Nesta colour palette and custom typography (*Zosia Display* & *Averta*).
-* **Mission Intelligence:** Automatically tags signals with Nesta Missions (e.g., *A Fairer Start*, *A Sustainable Future*) and applies the correct brand theming.
-* **Interactive Visualisations:** Radar charts and network graphs to map "Golden Signals" vs. "Early Noise."
-* **Google Sheets Database:** Auto-saves findings to a shared Google Sheet with deduplication and safe-merge logic to prevent data loss.
+**Signal Scout is an AI-powered intelligence agent that helps Nesta discover weak signals, emerging research, and policy shifts across priority missions.**
 
 ---
 
-## 🛠️ Tech Stack
+## Overview
 
-* **Frontend:** HTML5, Vanilla JavaScript (ES6+)
-    * **Styling:** Tailwind CSS (Hosted locally for security compliance)
-    * **Visualisation:** Chart.js (UMD), Vis-Network (UMD)
-    * **Hosting:** GitHub Pages
-* **Backend:** Python 3.9+
-    * **Framework:** **FastAPI** (Async, High-performance)
-    * **Server:** Uvicorn
-    * **Hosting:** Render.com
-* **AI & Data:**
-    * **OpenAI API:** Assistants API (Beta v2)
-    * **Google Custom Search JSON API:** For live web results.
-    * **Google Sheets API:** `gspread` & `oauth2client` for persistence.
+Signal Scout (formerly *Nesta Horizon Scanning Agent*) combines a FastAPI backend with a modular JavaScript frontend to run live horizon scans, persist insights, and support rapid analyst triage.
+
+The platform is designed for maintainability and handover readiness, with a refactored Domain-Driven Design (DDD) architecture and clear separation of concerns.
 
 ---
 
-## ⚙️ Architecture
+## Architecture: “Brain” and “Face”
 
-The system consists of two distinct parts:
+### The Brain (FastAPI + Python)
+The backend handles:
+- API routing and orchestration
+- External data retrieval (Google Search, GtR, Crunchbase)
+- Taxonomy-driven query construction
+- Scoring, clustering, and persistence workflows
 
-1.  **The "Brain" (Backend):**
-    * Orchestrates the OpenAI Assistant.
-    * Executes Google Searches when the AI requests them (Tool Calling).
-    * Parses AI responses into structured JSON.
-    * Manages the connection to the Google Sheet database.
-    * *Hosted on Render.*
+### The Face (GitHub Pages + Modular JavaScript)
+The frontend handles:
+- Real-time scan visualisation
+- Interactive cards and toasts
+- Narrative clustering and signal mapping
+- Keyboard-driven triage workflows
 
-2.  **The "Face" (Frontend):**
-    * A static, single-page application.
-    * Sends user topics to the Backend via API.
-    * Renders structured signals into Nesta-branded cards.
-    * **Security Focused:** Implements Subresource Integrity (SRI) hashes and local script hosting to meet strict security standards.
-    * *Hosted on GitHub Pages.*
-
----
-
-## 🔌 Setup & Deployment
-
-### 1. Prerequisites (API Keys)
-
-You need the following secrets to run the backend:
-
-* `OPENAI_API_KEY`: A standard OpenAI API key.
-* `ASSISTANT_ID`: The ID of your pre-configured OpenAI Assistant.
-* `Google Search_KEY`: API Key for Google Custom Search.
-* `Google Search_CX`: The Search Engine ID (Context) for Google.
-* `GOOGLE_CREDENTIALS`: The **full JSON content** of your Google Service Account key (for Sheets access).
-
-### 2. Backend Deployment (Render)
-
-1.  Create a new **Web Service** on [Render](https://render.com/).
-2.  Connect this GitHub repository.
-3.  **Build Command:** `pip install -r requirements.txt`
-4.  **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5.  **Environment Variables:** Add all the keys listed in Prerequisites.
-    * *Note:* For `GOOGLE_CREDENTIALS`, paste the entire JSON object string.
-
-### 3. Frontend Deployment (GitHub Pages)
-
-1.  **Local Resources:** Ensure `static/js/tailwind.js` exists in your repository. This is required to satisfy security policies (CodeQL) and maintain styling without a build step.
-2.  **Fonts:** Ensure the following font files are in your root directory:
-    * `Zosia-Display.woff2`
-    * `Averta-Regular.otf`
-    * `Averta-Semibold.otf`
-3.  **Configuration:** Open `static/js/app.js` and verify the `API_BASE_URL` logic handles both localhost and production:
-    ```javascript
-    const API_BASE_URL = (window.location.hostname === 'localhost') 
-        ? '[http://127.0.0.1:8000](http://127.0.0.1:8000)' 
-        : '[https://nesta-signal-scout.onrender.com](https://nesta-signal-scout.onrender.com)';
-    ```
-4.  Go to **GitHub Repo Settings** -> **Pages**.
-5.  Select `main` branch as the source and click **Save**.
+This split keeps the service layer robust while allowing fast interface iteration.
 
 ---
 
-## 🔒 Security & Compliance
+## Key Features
 
-This project enforces strict Content Security Policy (CSP) best practices:
+### 1) Multi-Mode Scanning
+- **Radar Mode**: broad weak-signal discovery
+- **Research Mode**: targeted academic and evidence-led discovery
+- **Policy Mode**: policy and regulation scanning
 
-* **Subresource Integrity (SRI):** All external CDNs (Chart.js, jsPDF, Vis-Network) must use `integrity` hashes to verify that the scripts have not been tampered with.
-* **Local Resources:** Dynamic scripts that do not support stable hashes (specifically Tailwind Play CDN) are downloaded and hosted locally in `/static/js/` to avoid "Untrusted Source" warnings.
-* **Rate Limiting:** The UI enforces a strict maximum of **5 signals** per scan request. This prevents users from triggering memory exhaustion (OOM) events on the backend server.
+### 2) The Friction Method
+Signal Scout supports friction-enabled search expansion, applying entropy-style terms (for example *unregulated*, *black market*, and *workaround*) to surface less visible signals.
 
----
+### 3) Live Intelligence
+The application streams NDJSON updates during scans for responsive user feedback while data is fetched, scored, and stored.
 
-## 🧠 The AI Protocol (How it Thinks)
+### 4) Visual Analytics
+- **Auto-Cluster Engine**: TF-IDF + MiniBatch K-Means narrative grouping
+- **Network Graph**: Vis.js graphing for signal relationships
+- **Sparklines**: compact activity/attention trend visuals on signal cards
 
-The agent follows a strict **System Prompt** designed to eliminate "hallucinations" and "corporate fluff".
+### 5) Triage Mode (“War Room”)
+A rapid review workflow with keyboard shortcuts for high-throughput analyst triage.
 
-**The Friction Method:**
-Instead of searching for *"Future of AI"*, the agent is instructed to search for:
-* *AI AND "lawsuit"*
-* *AI AND "unregulated"*
-* *AI AND "black market"*
-
-**Scoring Rubric:**
-Every signal is scored (0-10) based on three dimensions:
-1.  **Novelty:** Distance from the mainstream (BBC = Low, arXiv/Reddit = High).
-2.  **Evidence:** Reality factor (Concept = Low, Pilot/Law = High).
-3.  **Impact:** Potential scale of systemic change.
+### 6) Taxonomy Integration
+Expert-curated mission and topic taxonomy powers mission-aware query expansion and consistent scan quality.
 
 ---
 
-## 📂 Project Structure
+## Installation and Setup
 
-```text
-.
-├── main.py                  # The FastAPI Backend (The Brain)
-├── keywords.py              # Mission & Cross-cutting keyword lists
-├── index.html               # The Frontend UI (The Face)
-├── static/
-│   ├── css/
-│   │   └── styles.css       # Custom animations & overrides
-│   └── js/
-│       ├── app.js           # Core frontend logic
-│       ├── tailwind.js      # Local Tailwind engine (Security)
-│       └── friction-config.js # Search modifier configuration
-├── requirements.txt         # Python dependencies
-├── render.yaml              # Render Infrastructure-as-Code config
-├── Zosia-Display.woff2      # Custom Nesta Font
-├── Averta-Regular.otf       # Custom Nesta Font
-└── Averta-Semibold.otf      # Custom Nesta Font
+### Prerequisites
+- Python **3.10+**
+- Node.js (optional, useful for frontend development tooling)
+- Google Cloud service account credentials (for Sheets integration)
+
+### Installation
+
+```bash
+git clone https://github.com/phia-francis/nesta-signal-scout.git
+cd nesta-signal-scout
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Configuration
+Create a `.env` file in the repository root and provide the required environment variables.
+
+#### Core variables
+- `OPENAI_API_KEY`
+- `GOOGLE_SEARCH_API_KEY`
+- `GOOGLE_SEARCH_CX`
+- `GOOGLE_CREDENTIALS` (JSON service account payload as a string)
+- `SHEET_ID`
+
+#### Optional/extended variables
+- `CRUNCHBASE_API_KEY`
+- `GTR_API_KEY`
+- `CHAT_MODEL`
+
+> Note: some legacy aliases are supported in settings, but the canonical variable names above are recommended.
+
+### Run the application
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Then open `http://127.0.0.1:8000`.
+
+---
+
+## Usage Guide
+
+### Running a scan
+1. Choose a mode (Radar, Research, or Policy).
+2. Select mission/topic inputs.
+3. Run scan and monitor live streaming updates.
+
+### Using Triage Mode
+- Open **War Room / Triage** from the UI.
+- Use shortcuts for rapid decisions:
+  - **A** → Archive
+  - **S** → Star
+  - **ESC** → Exit triage
+
+### Using Network Graph
+- Switch from grid view to map view.
+- Inspect clusters and linked signals to identify narrative convergence.
+
+---
+
+## Project Structure
+
+```plaintext
+app/
+├── api/           # Routes and endpoints
+├── core/          # Configuration, logging, security, prompts
+├── domain/        # Models and taxonomy
+└── services/      # Business logic (search, sheets, ML, analytics)
+
+static/
+├── js/
+│   └── modules/   # ES6 frontend modules
+└── css/           # Stylesheets
+```
+
+---
+
+## Contributing
+
+Contributions are welcome.
+
+Please read:
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+---
+
+## Licence
+
+This project is licensed under the MIT Licence. See [LICENSE](LICENSE).
