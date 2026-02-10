@@ -1,126 +1,172 @@
-# Contributing to Nesta Signal Scout
+# Contributing to Signal Scout
 
-Thank you for your interest in contributing to **Nesta Signal Scout**! We welcome contributions that help us improve our horizon scanning capabilities, whether it's refining the AI agent's logic, enhancing the UI, or fixing bugs.
+First of all, thank you for your interest in contributing to **Signal Scout**. We genuinely appreciate your time, expertise, and care.
 
-This document outlines the standards and steps for contributing to this project.
+Whether you are fixing a typo, improving documentation, adding tests, or shipping a new feature, your contribution helps make this project more useful and more sustainable for everyone.
 
-## 📋 Prerequisites
+---
 
-Before you begin, ensure you have the following keys and accounts. You will need these to run the backend locally:
+## Project Overview
 
-1.  **OpenAI API Key**: Access to `gpt-4.1-mini` (or standard `gpt-4o-mini`).
-2.  **Google Custom Search JSON API**: An API Key and Search Engine ID (CX).
-3.  **Google Cloud Service Account**: A JSON key file for accessing Google Sheets.
-4.  **Python 3.9+**: Installed on your machine.
+Signal Scout is an open-source intelligence platform with:
 
-## 🚀 Setting Up Your Development Environment
+- A **Python/FastAPI backend**
+- A **Vanilla JavaScript frontend**
+- A modular, Domain-Driven Design structure (`app/`, `static/js/modules/`)
 
-### 1. Fork and Clone
+We value:
 
-Fork the repository to your GitHub account and clone it locally:
+- Inclusivity and respectful collaboration
+- Clear, maintainable code
+- Rigorous testing and safe changes
+
+---
+
+## Getting Started
+
+### 1) Fork and clone
+
+1. Fork this repository to your GitHub account.
+2. Clone your fork locally:
 
 ```bash
-git clone [https://github.com/YOUR-USERNAME/nesta-signal-scout.git](https://github.com/YOUR-USERNAME/nesta-signal-scout.git)
+git clone https://github.com/<your-username>/nesta-signal-scout.git
 cd nesta-signal-scout
-  ```
-### 2. Backend Setup ("The Brain")
-
-  - Create a Virtual Environment:
-  ```bash
-  python -m venv venv
-  source venv/bin/activate  # On Windows: venv\Scripts\activate
-  ```
-
-  - Install Dependencies:
-  ```bash
-  pip install -r requirements.txt
-  ```
-
-  - Configure Environment Variables: Create a .env file in the root directory. Do not commit this file.
-  ```Ini, TOML
-  OPENAI_API_KEY=your_key_here
-
-  # Google Search
-  Google_Search_API_KEY=your_google_key
-  Google_Search_CX=your_cx_id
-  
-  # Google Sheets
-  SHEET_ID=your_test_sheet_id
-  SHEET_URL=[https://docs.google.com/](https://docs.google.com/)...
-  GOOGLE_CREDENTIALS={"type": "service_account", ...} # Full JSON string
-  ```
-  > Tip: For local development, use a separate "Test" Google Sheet ID to avoid corrupting the production database.
-
-  Run the Server:
-  ```bash
-  uvicorn main:app --reload
-  ```
-  The backend will start at http://127.0.0.1:8000.
-
-### 3. Frontend Setup ("The Face")
-
-  The frontend uses Vanilla HTML/JS. To satisfy security policies (CodeQL), we host Tailwind CSS locally rather than using a live CDN
-
-  - Check Local Resources: Ensure static/js/tailwind.js exists. If missing, download the script from https://cdn.tailwindcss.com?plugins=forms,typography and save it to that path.
-
-  - Configure API Connection: Open static/js/app.js and ensure API_BASE_URL handles localhost:
-  ```JavaScript
-  const API_BASE_URL = (window.location.hostname === 'localhost') 
-    ? '[http://127.0.0.1:8000](http://127.0.0.1:8000)' 
-    : '[https://nesta-signal-backend.onrender.com](https://nesta-signal-backend.onrender.com)';  ```
-  ```
-
-  - Open index.html in your browser. You can simply double-click the file, or serve it using Python for a better experience:
-   ```bash
-  python -m http.server 5500
-  ```
-
-### 💻 Development Guidelines
-Backend (Python)
-- The Friction Method: If you modify the prompt logic in main.py, ensure the agent maintains its "skeptical" persona. It must verify signals via fetch_article_text before displaying them.
-
-- Error Handling: Ensure any new external API calls (e.g., to GTR or Google) have try/except blocks to prevent the agent from crashing mid-scan.
-
-- Type Hinting: Please use Python type hints where possible (e.g., def my_func(url: str) -> bool:).
-
-Frontend (HTML/CSS)
-- Nesta Branding: We strictly adhere to the Nesta Visual Identity.
-
-  - Fonts: Use Zosia Display for headings and Averta for body text.
-
-  - Colours: Use the defined Tailwind config colors (nesta-blue, nesta-navy, nesta-pink, etc.). Do not introduce random hex codes.
-
-- Simplicity: Do not introduce heavy frontend frameworks (React, Vue) without a major architectural discussion. The goal is to keep the frontend portable (GitHub Pages compatible).
-
-Security Requirements (Crucial)
-To comply with security audits (CodeQL), strictly follow these rules when adding external libraries:
-
-- Use UMD/Standalone Builds: Do not use ES Modules (.mjs) in index.html.
-
-- Subresource Integrity (SRI): All external scripts must include an integrity hash.
 ```
-- Bad: <script src="https://cdn.example.com/lib.js"></script>
 
-- Good: <script src="https://cdn.example.com/lib.js" integrity="sha256-..." crossorigin="anonymous"></script>
+### 2) Create and activate a virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate
 ```
-- Tool: You can generate hashes at srihash.org.
 
+### 3) Install dependencies
 
-Database (Google Sheets)
-- Schema Consistency: If you add new fields to the signal object, update the ensure_sheet_headers function in main.py to prevent header mismatches.
+```bash
+pip install -r requirements.txt
+```
 
+### 4) Configure environment variables
 
-### 📬 Submitting a Pull Request
-- Create a Branch: Use a descriptive name (e.g., feature/add-gtr-source or fix/mobile-menu).
+Create a `.env` file in the repository root. At minimum, most development flows need:
 
-- Test Locally: Verify that the "Initiate Scan" flow completes successfully and data is written to your test Google Sheet.
+- `OPENAI_API_KEY`
+- `GOOGLE_SEARCH_API_KEY`
+- `GOOGLE_SEARCH_CX`
+- `GOOGLE_CREDENTIALS`
+- `SHEET_ID`
 
-- Commit Messages: Write clear, concise commit messages.
+Optional values such as `CRUNCHBASE_API_KEY` may be required for specific features.
 
-- Push and Open PR: Push to your fork and open a Pull Request against the main branch.
+### 5) Run the application
 
-- Description: In your PR description, explain what you changed and why. If you changed the UI, please include a screenshot.
+```bash
+uvicorn app.main:app --reload
+```
 
+---
 
-### 🤝 Code of Conduct
-Please be respectful and constructive in all interactions. We are building a tool to help discover the future, let's build it with a positive, collaborative spirit.
+## Development Workflow
+
+### Branch naming
+
+Please create focused branches using one of these prefixes:
+
+- `feat/<short-description>` for features
+- `fix/<short-description>` for bug fixes
+- `docs/<short-description>` for documentation updates
+- `chore/<short-description>` for maintenance tasks
+
+Examples:
+
+- `feat/add-policy-filtering`
+- `fix/radar-streaming-timeout`
+- `docs/update-readme-setup`
+
+### Understand the module boundaries
+
+Please keep changes aligned with the project structure:
+
+- `app/api/` → API routes and dependency wiring
+- `app/services/` → backend business logic
+- `app/domain/` → models and taxonomy
+- `app/core/` → configuration, logging, security, prompts
+- `static/js/modules/` → frontend API, state, UI, visualisation helpers
+
+As a rule, avoid creating new “god objects” or mixing unrelated responsibilities in a single module.
+
+---
+
+## Testing Standards
+
+Before opening a pull request, run the full test suite:
+
+```bash
+pytest
+```
+
+Contribution expectations:
+
+- All existing tests must pass.
+- New features should include new tests.
+- Bug fixes should include regression tests where practical.
+- If a change cannot be tested automatically, include a clear manual test plan in the PR description.
+
+---
+
+## Pull Request Process
+
+1. Keep PRs **small and focused** (one logical change per PR).
+2. Use the repository PR template and complete all relevant sections.
+3. Ensure tests pass locally before requesting review.
+4. Write clear commit messages and a concise PR summary.
+5. Confirm documentation is updated when behaviour changes.
+
+### Review checklist
+
+Please verify your PR:
+
+- [ ] Builds and runs locally
+- [ ] Passes `pytest`
+- [ ] Includes tests for new behaviour
+- [ ] Preserves existing behaviour unless intentionally changed
+- [ ] Uses British English spelling in docs/comments/user-facing strings
+
+---
+
+## Style Guide
+
+### Python
+
+- Follow **PEP 8**
+- Use **Python 3.10+ type hints** for function signatures
+- Prefer dependency injection and small single-responsibility functions/classes
+
+### JavaScript
+
+- Use **ES6 modules**
+- Avoid global mutable state where possible
+- Keep API concerns separate from UI rendering logic
+
+### Comments and documentation
+
+- Use British English spelling (e.g., *behaviour*, *optimise*, *visualise*)
+- Prefer comments that explain **why**, not **what**
+- Remove dead or commented-out code
+
+---
+
+## Community Expectations
+
+Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+By participating in this project, you agree to contribute in a respectful, constructive, and inclusive way.
+
+---
+
+## Need Help?
+
+If you are unsure where to start, open a discussion or issue and label it clearly (for example, `question` or `good first issue`).
+
+We are glad you are here, and we are happy to help.
