@@ -34,7 +34,12 @@ class Settings(BaseSettings):
     CRUNCHBASE_API_KEY: str | None = None
 
     PROJECT_NAME: str = "Nesta Signal Scout"
-    CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
+    CORS_ORIGINS: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:8000",
+            "https://phia-francis.github.io",
+        ]
+    )
 
 
 SCAN_RESULT_LIMIT: int = 6

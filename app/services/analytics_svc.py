@@ -23,6 +23,18 @@ class HorizonAnalyticsService:
         score = (mainstream_count * self.MAINSTREAM_WEIGHT) + (niche_count * self.NICHE_WEIGHT)
         return min(10.0, score)
 
+    def calculate_sweet_spot(self, signal_metadata: dict[str, float | int]) -> dict[str, float]:
+        """Calculate activity and attention values from research metadata."""
+        activity = self.calculate_activity_score(
+            float(signal_metadata.get("research_funds", 0.0)),
+            float(signal_metadata.get("investment_funds", 0.0)),
+        )
+        attention = self.calculate_attention_score(
+            int(signal_metadata.get("mainstream_count", 0)),
+            int(signal_metadata.get("niche_count", 0)),
+        )
+        return {"activity": round(activity, 1), "attention": round(attention, 1)}
+
     def classify_sweet_spot(self, activity: float, attention: float) -> str:
         """Classify the signal profile into a horizon typology."""
         if activity > 6.0:

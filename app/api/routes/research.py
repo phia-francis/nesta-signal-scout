@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import random
 from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter, Depends
@@ -32,24 +31,29 @@ async def research_scan(
 
     async def generator() -> AsyncGenerator[str, None]:
         try:
-            yield ndjson_line(
-                {"status": "searching", "msg": f"Deep researching '{request.query}'..."}
-            )
+            yield ndjson_line({"status": "searching", "msg": f"Deep researching '{request.query}'..."})
             existing_urls = await sheet_service.get_existing_urls()
             results = await search_service.search(f"{request.query} whitepaper report pdf", num=5)
 
             for item in results:
-                activity = random.uniform(7, 10)
-                attention = random.uniform(2, 6)
+                signal_metadata = {
+                    "research_funds": 0.0,
+                    "investment_funds": 0.0,
+                    "mainstream_count": len(results),
+                    "niche_count": 0,
+                }
+                scores = analytics_service.calculate_sweet_spot(signal_metadata)
+                activity = scores["activity"]
+                attention = scores["attention"]
                 signal = {
                     "mode": "Research",
                     "title": item.get("title", "Untitled"),
                     "summary": item.get("snippet", "No summary"),
                     "url": item.get("link", "#"),
                     "mission": "Targeted Research",
-                    "typology": "Evidence",
-                    "score_activity": round(activity, 1),
-                    "score_attention": round(attention, 1),
+                    "typology": analytics_service.classify_sweet_spot(activity, attention),
+                    "score_activity": activity,
+                    "score_attention": attention,
                     "sparkline": analytics_service.generate_sparkline(activity, attention),
                     "source": "Google Search",
                 }
@@ -59,8 +63,6 @@ async def research_scan(
             yield ndjson_line({"status": "complete"})
         except ServiceError as service_error:
             logging.error("Service error in research scan: %s", service_error)
-            yield ndjson_line(
-                {"status": "error", "msg": "Service unavailable. Please try again later."}
-            )
+            yield ndjson_line({"status": "error", "msg": "Service unavailable. Please try again later."})
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")
