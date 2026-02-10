@@ -6,24 +6,73 @@
   <title>Nesta Signal Scout</title>
   <script src="static/js/tailwind.js"></script>
   <script src="static/js/tailwind-theme.js"></script>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <link rel="stylesheet" href="static/css/styles.css">
 </head>
 <body class="h-screen flex overflow-hidden bg-nesta-off-white">
-  <aside class="w-20 lg:w-72 bg-nesta-blue flex-none flex flex-col text-white transition-all duration-300 z-50">
-    <div class="h-24 flex items-center justify-center lg:justify-start lg:px-8">
-      <span class="font-display text-4xl font-bold tracking-tighter">nesta</span>
+  <aside class="w-64 bg-nesta-navy flex flex-col border-r border-white/10 relative z-20 shadow-2xl">
+    <div class="p-6 border-b border-white/10">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-nesta-blue rounded-sm flex items-center justify-center text-white font-bold text-lg shadow-[0_0_15px_rgba(0,0,255,0.5)]">
+          S
+        </div>
+        <div>
+          <h1 class="font-display text-xl text-white tracking-widest uppercase leading-none">Signal</h1>
+          <h1 class="font-display text-xl text-nesta-blue tracking-widest uppercase leading-none">Scout</h1>
+        </div>
+      </div>
+      <div class="mt-2 text-[9px] text-white/40 font-mono uppercase tracking-widest">
+        v2.4 • Horizon Scanning Agent
+      </div>
     </div>
 
-    <nav class="flex-1 py-8 space-y-2">
-      <button onclick="setTab('radar')" id="nav-radar" class="nav-button nav-button--active">
-        <span class="text-2xl">📡</span>
-        <span class="font-display text-xl hidden lg:block tracking-wide">Mission Radar</span>
-      </button>
-      <button onclick="setTab('database')" id="nav-db" class="nav-button">
-        <span class="text-2xl">🗄️</span>
-        <span class="font-display text-xl hidden lg:block tracking-wide">Database</span>
-      </button>
+    <nav class="flex-1 overflow-y-auto py-6 space-y-8">
+      <div class="px-4">
+        <h3 class="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4 px-2">
+          Active Modes
+        </h3>
+
+        <button onclick="switchAppMode('radar')" id="nav-radar" class="nav-item active group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/5 border-l-2 border-transparent">
+          <span class="text-xl group-hover:scale-110 transition-transform">📡</span>
+          <div class="text-left">
+            <div class="text-sm font-bold text-white group-hover:text-nesta-blue transition-colors">Radar</div>
+            <div class="text-[9px] text-white/50">Broad horizon scanning</div>
+          </div>
+        </button>
+
+        <button onclick="switchAppMode('research')" id="nav-research" class="nav-item group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/5 border-l-2 border-transparent">
+          <span class="text-xl group-hover:scale-110 transition-transform">🔬</span>
+          <div class="text-left">
+            <div class="text-sm font-bold text-white group-hover:text-nesta-purple transition-colors">Research</div>
+            <div class="text-[9px] text-white/50">Academic & Deep Dive</div>
+          </div>
+        </button>
+
+        <button onclick="switchAppMode('policy')" id="nav-policy" class="nav-item group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/5 border-l-2 border-transparent">
+          <span class="text-xl group-hover:scale-110 transition-transform">⚖️</span>
+          <div class="text-left">
+            <div class="text-sm font-bold text-white group-hover:text-nesta-yellow transition-colors">Policy</div>
+            <div class="text-[9px] text-white/50">Regulation & Gov. Trends</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="px-4">
+        <h3 class="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4 px-2">
+          Knowledge Base
+        </h3>
+
+        <button onclick="switchAppMode('database')" id="nav-database" class="nav-item group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/5 border-l-2 border-transparent">
+          <span class="text-xl group-hover:scale-110 transition-transform">💾</span>
+          <div class="text-left">
+            <div class="text-sm font-bold text-white">Signal Database</div>
+            <div class="text-[9px] text-white/50">Saved Intelligence</div>
+          </div>
+        </button>
+      </div>
     </nav>
+
+    <div class="p-6 bg-black/20 border-t border-white/5"></div>
   </aside>
 
   <main class="flex-1 flex flex-col relative overflow-hidden">
@@ -38,17 +87,114 @@
 
     <div id="view-container" class="flex-1 overflow-y-auto p-8 scroll-smooth">
       <section id="view-radar" class="max-w-7xl mx-auto space-y-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
-            <p class="text-sm text-slate-600">Activity vs. Attention from GtR, Crunchbase, and search signals.</p>
-          </div>
-          <button id="radar-rescan" class="btn-nesta bg-nesta-blue text-white font-bold px-5 py-2">
-            Run Radar
-          </button>
+        <div>
+          <h2 class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
+          <p class="text-sm text-slate-600">Activity vs. Attention from GtR, Crunchbase, and search signals.</p>
         </div>
+
+        <div class="bg-white p-8 border border-nesta-sand shadow-hard relative z-10 transition-all duration-300" id="search-interface">
+          <div id="input-standard" class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <div class="md:col-span-4">
+              <label class="block text-[10px] font-bold uppercase text-nesta-navy tracking-widest mb-2">Select Mission</label>
+              <div class="relative">
+                <select id="mission-select" class="w-full bg-nesta-off-white border-2 border-slate-200 p-4 font-body font-bold text-nesta-navy focus:border-nesta-blue focus:shadow-hard focus:outline-none appearance-none">
+                  <option>A Sustainable Future</option>
+                  <option>A Fairer Start</option>
+                  <option>A Healthy Life</option>
+                </select>
+                <div class="absolute right-4 top-1/2 -translate-y-1/2 text-nesta-blue pointer-events-none">▼</div>
+              </div>
+            </div>
+
+            <div class="md:col-span-8">
+              <label class="block text-[10px] font-bold uppercase text-nesta-navy tracking-widest mb-2">Focus Topic</label>
+              <input id="topic-input" type="text" placeholder="e.g. 'Synthetic Biology' or 'Heat Pumps'"
+                class="w-full bg-nesta-off-white border-2 border-slate-200 p-4 font-body text-nesta-navy placeholder-nesta-dark-grey/50 focus:border-nesta-blue focus:shadow-hard focus:outline-none">
+            </div>
+          </div>
+
+          <div id="input-research" class="hidden">
+            <label class="block text-[10px] font-bold uppercase text-nesta-purple tracking-widest mb-2 flex justify-between">
+              <span>Research Hypothesis / Complex Query</span>
+              <span class="opacity-50">Deep Dive Mode</span>
+            </label>
+            <textarea id="research-input" rows="3"
+              placeholder="Enter a detailed query, e.g., 'Impact of generative AI on creative education in primary schools across Europe...'"
+              class="w-full bg-nesta-off-white border-2 border-nesta-purple p-4 font-body text-nesta-navy placeholder-nesta-dark-grey/50 focus:border-nesta-purple focus:shadow-hard focus:outline-none resize-none"></textarea>
+            <div class="mt-2 text-[10px] text-nesta-dark-grey flex gap-4">
+              <span>✓ Target: Academic Papers & PDFs</span>
+              <span>✓ Scope: Global</span>
+              <span>✓ Depth: High</span>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-end">
+            <button onclick="runScan()" id="scan-btn" class="w-full md:w-auto bg-nesta-blue text-white px-8 py-4 font-display font-bold tracking-wide shadow-hard hover:translate-y-[-2px] active:translate-y-0 transition-all flex items-center justify-center gap-2">
+              <span>RUN SCAN</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-nesta-sand shadow-sm py-4 mb-8 transition-all" id="command-bar">
+          <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
+              <span class="text-[10px] font-bold uppercase text-nesta-navy opacity-50 mr-2">Filter:</span>
+              <button class="filter-chip active" data-filter="all">All</button>
+              <button class="filter-chip" data-filter="Hidden Gem">💎 Gems</button>
+              <button class="filter-chip" data-filter="Hype">🔥 Hype</button>
+              <button class="filter-chip" data-filter="Established">🏢 Established</button>
+            </div>
+
+            <div class="flex bg-slate-100 p-1 rounded-md">
+              <button onclick="switchView('grid')" id="btn-view-grid" class="px-4 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-widest bg-white text-nesta-navy shadow-sm transition-all">
+                Grid
+              </button>
+              <button onclick="switchView('network')" id="btn-view-network" class="px-4 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-nesta-blue transition-all">
+                Map
+              </button>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button id="btn-cluster" onclick="generateNarratives()" class="hidden flex items-center gap-2 text-[10px] font-bold uppercase text-nesta-blue hover:bg-slate-50 px-3 py-2 rounded border border-transparent hover:border-nesta-blue transition-all">
+                <span>✨ Auto-Cluster</span>
+              </button>
+
+              <button id="btn-triage" onclick="openTriageMode()" class="hidden bg-nesta-navy text-white px-4 py-2 rounded-sm text-[10px] font-bold uppercase tracking-widest shadow-hard hover:bg-nesta-blue transition-all flex items-center gap-2">
+                <span>Review New Signals</span>
+                <span class="bg-nesta-red text-white text-[9px] px-1.5 rounded-full" id="new-signal-count">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="narrative-drawer" class="hidden bg-slate-50 border-t border-slate-200 p-6 shadow-inner animate-slide-down">
+            <div class="max-w-7xl mx-auto">
+              <h3 class="font-display text-lg text-nesta-navy mb-4">Emerging Narratives</h3>
+              <div id="narrative-container" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </div>
+          </div>
+        </div>
+
         <div id="radar-status" class="text-sm text-slate-500"></div>
+        <div id="scan-logs" class="bg-nesta-navy/90 text-white rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto shadow-inner"></div>
+
+        <div id="view-network-container" class="hidden mb-8">
+          <div class="bg-nesta-navy border-l-4 border-nesta-blue shadow-hard p-4 relative overflow-hidden group">
+            <div class="flex justify-between items-center mb-2 z-10 relative">
+              <h3 class="text-white font-display text-lg tracking-widest uppercase">Signal Connectivity Map</h3>
+              <span class="text-nesta-blue text-xs font-mono">LIVE_NET_V1</span>
+            </div>
+            <div id="signal-network" class="h-[500px] w-full bg-nesta-navy cursor-crosshair"></div>
+          </div>
+        </div>
+
         <div id="radar-feed" class="masonry-grid"></div>
+
+        <div id="empty-state" class="hidden col-span-full py-20 flex flex-col items-center justify-center text-center opacity-50">
+          <div class="w-16 h-16 border-4 border-nesta-sand border-t-nesta-blue rounded-full animate-spin-slow mb-6"></div>
+          <h3 class="font-display text-2xl text-nesta-navy">Ready for Intelligence</h3>
+          <p class="font-body text-nesta-dark-grey">Select a mission above to begin horizon scanning.</p>
+        </div>
       </section>
 
       <section id="view-database" class="max-w-7xl mx-auto space-y-6 hidden">
@@ -75,6 +221,46 @@
       </section>
     </div>
   </main>
+
+  <div id="toast-container" class="fixed bottom-8 right-8 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+  <div id="triage-modal" class="fixed inset-0 bg-nesta-navy z-50 hidden flex flex-col">
+    <div class="flex justify-between items-center p-6 border-b border-white/10">
+      <div class="flex items-center gap-4">
+        <h2 class="text-white font-display text-2xl tracking-widest">WAR ROOM MODE</h2>
+        <span class="bg-nesta-red text-white text-[10px] font-bold px-2 py-1 rounded">LIVE TRIAGE</span>
+      </div>
+      <div class="text-white/50 text-sm font-mono">
+        Keyboard Shortcuts: <span class="text-white font-bold">[A]</span> Archive
+        <span class="text-white font-bold">[S]</span> Star
+        <span class="text-white font-bold">[ESC]</span> Exit
+      </div>
+      <button onclick="closeTriage()" class="text-white hover:text-nesta-red text-2xl">✕</button>
+    </div>
+
+    <div class="flex-1 flex items-center justify-center p-12 relative">
+      <div class="absolute top-0 left-0 h-1 bg-nesta-blue transition-all duration-300" id="triage-progress" style="width: 0%"></div>
+
+      <div id="triage-card-container" class="max-w-2xl w-full"></div>
+    </div>
+
+    <div class="p-8 flex justify-center gap-8 border-t border-white/10 bg-black/20">
+      <button onclick="triageAction('archive')" class="flex flex-col items-center gap-2 group">
+        <div class="w-12 h-12 rounded-full border-2 border-slate-500 flex items-center justify-center text-slate-500 group-hover:border-nesta-red group-hover:bg-nesta-red group-hover:text-white transition-all">✕</div>
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Archive (A)</span>
+      </button>
+
+      <button onclick="triageAction('keep')" class="flex flex-col items-center gap-2 group">
+        <div class="w-12 h-12 rounded-full border-2 border-nesta-green flex items-center justify-center text-nesta-green group-hover:bg-nesta-green group-hover:text-white transition-all">✓</div>
+        <span class="text-xs font-bold text-nesta-green uppercase tracking-widest">Keep (Right)</span>
+      </button>
+
+      <button onclick="triageAction('star')" class="flex flex-col items-center gap-2 group">
+        <div class="w-12 h-12 rounded-full border-2 border-nesta-yellow flex items-center justify-center text-nesta-yellow group-hover:bg-nesta-yellow group-hover:text-nesta-navy transition-all">★</div>
+        <span class="text-xs font-bold text-nesta-yellow uppercase tracking-widest">Star (S)</span>
+      </button>
+    </div>
+  </div>
 
   <script src="static/js/app.js"></script>
 </body>

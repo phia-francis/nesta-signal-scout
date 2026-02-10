@@ -19,6 +19,8 @@ class SignalCard(BaseModel):
 class RadarRequest(BaseModel):
     mission: str
     topic: Optional[str] = None
+    mode: str = "radar"
+    query: Optional[str] = None
     friction_mode: bool = False
 
 
