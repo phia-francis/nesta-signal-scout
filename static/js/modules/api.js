@@ -37,3 +37,20 @@ export async function runRadarScan(body, onMessage) {
     });
   }
 }
+
+export async function clusterSignals(signals) {
+  const response = await fetch(`${state.apiBaseUrl}/api/intelligence/cluster`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(signals),
+  });
+  return response.json();
+}
+
+export async function updateSignalStatus(url, status) {
+  await fetch(`${state.apiBaseUrl}/api/update_signal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, status }),
+  });
+}

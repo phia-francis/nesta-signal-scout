@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.core.config import DEFAULT_SEARCH_RESULTS, SEARCH_TIMEOUT_SECONDS, Settings
+from app.domain.taxonomy import TaxonomyService
 from keywords import NICHE_DOMAINS, SIGNAL_KEYWORDS
 
 
@@ -11,18 +12,20 @@ class ServiceError(Exception):
 
 
 class SearchService:
-    """Google Search integration with trust scoring and friction modifiers."""
+    """Google Search integration with taxonomy-aware query and friction logic."""
 
     FRICTION_TERMS: tuple[str, ...] = (
         '"unregulated"',
         '"black market"',
+        '"hacky"',
         '"workaround"',
         '"grey market"',
         '"informal"',
     )
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, taxonomy: TaxonomyService | None = None) -> None:
         self.settings = settings
+        self.taxonomy = taxonomy or TaxonomyService()
 
     def calculate_trust(self, url: str) -> int:
         """Score URLs with a lightweight source trust heuristic."""
@@ -33,11 +36,28 @@ class SearchService:
             score += 10
         return score
 
-    def apply_friction_modifiers(self, query: str, friction_mode: bool) -> str:
-        """Append friction modifiers when friction mode is enabled."""
+    def calculate_friction(self, query: str, friction_mode: bool) -> str:
+        """Append entropy-style friction modifiers to widen search coverage."""
         if not friction_mode:
             return query
         return f"{query} ({' OR '.join(self.FRICTION_TERMS)})"
+
+    def build_query(self, mission: str, topic: str, mode: str = "radar", *, friction_mode: bool = False) -> str:
+        """Build taxonomy-driven search query with blacklist filtering."""
+        mission_expansions = self.taxonomy.topic_expansions.get(mission, [])
+        mode_terms = self.taxonomy.signal_types.get(mode, self.taxonomy.signal_types["radar"])
+        blacklist_terms = " ".join([f"-{term}" for term in self.taxonomy.blacklist])
+
+        expansion_terms = mission_expansions[:8]
+        combined_expansions = " OR ".join([f'"{term}"' for term in expansion_terms])
+        combined_modes = " OR ".join([f'"{term}"' for term in mode_terms[:6]])
+
+        core_query = f'"{topic}"'
+        if combined_expansions:
+            core_query = f"{core_query} ({combined_expansions})"
+
+        query = f"{mission} {core_query} ({combined_modes}) {blacklist_terms}".strip()
+        return self.calculate_friction(query, friction_mode)
 
     async def search(
         self,
@@ -50,7 +70,7 @@ class SearchService:
         if not self.settings.GOOGLE_SEARCH_API_KEY or not self.settings.GOOGLE_SEARCH_CX:
             raise ServiceError("Search API Key missing configuration.")
 
-        effective_query = self.apply_friction_modifiers(query, friction_mode)
+        effective_query = self.calculate_friction(query, friction_mode)
         params = {
             "key": self.settings.GOOGLE_SEARCH_API_KEY,
             "cx": self.settings.GOOGLE_SEARCH_CX,

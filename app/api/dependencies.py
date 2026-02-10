@@ -7,7 +7,8 @@ from app.domain.taxonomy import TaxonomyService
 from app.services.analytics_svc import HorizonAnalyticsService
 from app.services.crunchbase_svc import CrunchbaseService
 from app.services.gtr_svc import GatewayResearchService
-from app.services.ml_svc import ClusterService, TopicModellingService
+from app.services.cluster_svc import ClusterService
+from app.services.ml_svc import TopicModellingService
 from app.services.search_svc import SearchService
 from app.services.sheet_svc import SheetService
 
@@ -24,7 +25,7 @@ def get_taxonomy() -> TaxonomyService:
 
 @lru_cache(maxsize=1)
 def get_search_service() -> SearchService:
-    return SearchService(get_settings())
+    return SearchService(get_settings(), get_taxonomy())
 
 
 @lru_cache(maxsize=1)

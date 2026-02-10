@@ -19,6 +19,10 @@ class TaxonomyService:
         return keyword_source.MISSION_PRIORITIES
 
     @property
+    def topic_expansions(self) -> dict[str, list[str]]:
+        return keyword_source.TOPIC_EXPANSIONS
+
+    @property
     def signal_types(self) -> dict[str, list[str]]:
         return keyword_source.SIGNAL_TYPES
 

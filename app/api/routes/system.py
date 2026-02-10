@@ -4,9 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_cluster_service, get_sheet_service
+from app.api.dependencies import get_sheet_service
 from app.domain.models import UpdateSignalRequest
-from app.services.ml_svc import ClusterService
 from app.services.search_svc import ServiceError
 from app.services.sheet_svc import SheetService
 
@@ -40,12 +39,3 @@ async def feedback(payload: dict[str, Any]) -> dict[str, str]:
     """Accept feedback payload without blocking user flow."""
     _ = payload
     return {"status": "recorded"}
-
-
-@router.post("/intelligence/cluster")
-async def cluster_signals(
-    signals: list[dict[str, Any]],
-    cluster_service: ClusterService = Depends(get_cluster_service),
-) -> list[dict[str, Any]]:
-    """Cluster raw signals into narrative groups for UI visualisation."""
-    return cluster_service.cluster_signals(signals)

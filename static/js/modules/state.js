@@ -12,4 +12,5 @@ export const state = {
   currentMode: 'radar',
   radarSignals: [],
   databaseItems: [],
+  triageQueue: [],
 };

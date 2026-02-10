@@ -1,3 +1,3 @@
-from app.api.routes import cron, policy, radar, research, system
+from app.api.routes import cron, intelligence, policy, radar, research, system
 
-__all__ = ["radar", "research", "policy", "system", "cron"]
+__all__ = ["radar", "research", "policy", "intelligence", "system", "cron"]
