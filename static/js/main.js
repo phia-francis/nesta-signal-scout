@@ -27,6 +27,29 @@ const state = {
   currentMode: 'radar',
 };
 
+const APP_MODE_CONTENT = {
+  radar: {
+    heading: 'Emerging Signals',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
+  },
+  research: {
+    heading: 'Evidence Base',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
+  },
+  policy: {
+    heading: 'Policy Shifts',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
+  },
+  database: {
+    heading: 'Innovation Sweet Spots',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
+  },
+  default: {
+    heading: 'Innovation Sweet Spots',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
+  },
+};
+
 const radarFeed = document.getElementById('radar-feed');
 const radarStatus = document.getElementById('radar-status');
 const databaseGrid = document.getElementById('database-grid');
@@ -376,6 +399,8 @@ function renderSignalCard(signal, container) {
 
 function switchAppMode(mode) {
   state.currentMode = mode;
+  const modeContent = APP_MODE_CONTENT[mode] || APP_MODE_CONTENT.default;
+
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
   const activeNav = document.getElementById(`nav-${mode}`);
   if (activeNav) {
@@ -393,12 +418,8 @@ function switchAppMode(mode) {
     radarView.classList.add('hidden');
     databaseView.classList.remove('hidden');
     pageTitle.textContent = 'Database';
-    if (viewHeading) {
-      viewHeading.textContent = 'Innovation Sweet Spots';
-    }
-    if (viewDescription) {
-      viewDescription.textContent = 'Activity vs. Attention from GtR, Crunchbase, and search signals.';
-    }
+    if (viewHeading) viewHeading.textContent = modeContent.heading;
+    if (viewDescription) viewDescription.textContent = modeContent.description;
     refreshDatabase();
     showToast('Switched to Database View', 'info');
     return;
@@ -407,19 +428,8 @@ function switchAppMode(mode) {
   radarView.classList.remove('hidden');
   databaseView.classList.add('hidden');
   pageTitle.textContent = 'Mission Discovery';
-
-  if (viewHeading) {
-    const headings = {
-      radar: 'Emerging Signals',
-      research: 'Evidence Base',
-      policy: 'Policy Shifts',
-    };
-    viewHeading.textContent = headings[mode] || 'Innovation Sweet Spots';
-  }
-
-  if (viewDescription) {
-    viewDescription.textContent = 'Activity vs. Attention from GtR, Crunchbase, and search signals.';
-  }
+  if (viewHeading) viewHeading.textContent = modeContent.heading;
+  if (viewDescription) viewDescription.textContent = modeContent.description;
 
   const btnText = scanBtn?.querySelector('span');
 
