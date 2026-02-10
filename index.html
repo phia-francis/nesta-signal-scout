@@ -78,21 +78,26 @@
   <main class="flex-1 flex flex-col relative overflow-hidden">
     <header class="h-20 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-8 flex-none z-40 sticky top-0">
       <div>
-        <h1 id="page-title" class="text-3xl font-display text-nesta-blue leading-none">Mission Radar</h1>
+        <h1 id="page-title" class="text-3xl font-display text-nesta-blue leading-none">Mission Discovery</h1>
       </div>
-      <button id="refresh-db-btn" class="btn-nesta bg-nesta-green text-white font-bold px-6 py-2 flex items-center gap-2">
-        Refresh Data
-      </button>
+      <div class="flex items-center gap-3">
+        <button id="help-tour-btn" class="btn-nesta bg-nesta-pink text-white font-bold px-6 py-2 flex items-center gap-2">
+          Help
+        </button>
+        <button id="refresh-db-btn" class="btn-nesta bg-nesta-green text-white font-bold px-6 py-2 flex items-center gap-2">
+          Refresh Data
+        </button>
+      </div>
     </header>
 
     <div id="view-container" class="flex-1 overflow-y-auto p-8 scroll-smooth">
       <section id="view-radar" class="max-w-7xl mx-auto space-y-6">
         <div>
-          <h2 class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
-          <p class="text-sm text-slate-600">Activity vs. Attention from GtR, Crunchbase, and search signals.</p>
+          <h2 id="view-heading" class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
+          <p id="view-description" class="text-sm text-slate-600">Activity vs. Attention from GtR, Crunchbase, and search signals.</p>
         </div>
 
-        <div class="bg-white p-8 border border-nesta-sand shadow-hard relative z-10 transition-all duration-300" id="search-interface">
+        <div class="bg-white p-8 border border-nesta-sand shadow-hard relative z-10 transition-all duration-300" id="search-panel">
           <div id="input-standard" class="grid grid-cols-1 md:grid-cols-12 gap-6">
             <div class="md:col-span-4">
               <label class="block text-[10px] font-bold uppercase text-nesta-navy tracking-widest mb-2">Select Mission</label>
