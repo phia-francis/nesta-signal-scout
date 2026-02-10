@@ -4,7 +4,7 @@ let API_BASE_URL = window.location.origin;
 const hostname = window.location.hostname;
 
 // 1. GitHub Pages -> Point to Render
-if (hostname.includes('github.io')) {
+if (hostname.endsWith('.github.io')) {
   API_BASE_URL = 'https://nesta-signal-backend.onrender.com';
 }
 // 2. Localhost -> Point to Local Python
@@ -77,8 +77,8 @@ const missionThemes = {
 };
 
 // HELPER: Generate Sparkline SVG
-function generateSparklineSVG(dataPoints) {
-  if (!dataPoints || dataPoints.length === 0) return '';
+function generateSparklineElement(dataPoints) {
+  if (!dataPoints || dataPoints.length === 0) return null;
 
   const width = 100;
   const height = 30;
@@ -96,12 +96,27 @@ function generateSparklineSVG(dataPoints) {
 
   const [lastX, lastY] = points.split(' ').pop().split(',');
 
-  return `
-        <svg width="100%" height="30" viewBox="0 0 100 30" class="overflow-visible">
-            <polyline points="${points}" fill="none" stroke="#0000FF" stroke-width="2" vector-effect="non-scaling-stroke" />
-            <circle cx="${lastX}" cy="${lastY}" r="3" fill="#0000FF" />
-        </svg>
-    `;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', '30');
+  svg.setAttribute('viewBox', '0 0 100 30');
+  svg.classList.add('overflow-visible');
+
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline.setAttribute('points', points);
+  polyline.setAttribute('fill', 'none');
+  polyline.setAttribute('stroke', '#0000FF');
+  polyline.setAttribute('stroke-width', '2');
+  polyline.setAttribute('vector-effect', 'non-scaling-stroke');
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', lastX);
+  circle.setAttribute('cy', lastY);
+  circle.setAttribute('r', '3');
+  circle.setAttribute('fill', '#0000FF');
+
+  svg.append(polyline, circle);
+  return svg;
 }
 
 // HELPER: Get Tooltip Text for Typology
@@ -197,9 +212,10 @@ function showToast(message, type = 'info') {
   div.className = `pointer-events-auto max-w-sm w-full shadow-hard border-l-8 p-4 flex items-center gap-3 toast-enter ${
     colors[type] || colors.info
   }`;
-  div.innerHTML = `
-    <div class="font-bold text-sm tracking-wide">${message}</div>
-  `;
+  const text = document.createElement('div');
+  text.className = 'font-bold text-sm tracking-wide';
+  text.textContent = message;
+  div.appendChild(text);
 
   container.appendChild(div);
 
@@ -219,68 +235,112 @@ function renderSignalCard(signal, container) {
   div.dataset.typology = typology;
 
   const theme = missionThemes[signal.mission] || missionThemes.General;
-  const sparklineHTML = generateSparklineSVG(signal.sparkline || [10, 40, 30, 70, 50, 90, 80]);
+  const sparklineElement = generateSparklineElement(signal.sparkline || [10, 40, 30, 70, 50, 90, 80]);
   const actPercent = Math.min(100, (signal.score_activity / 10) * 100);
   const attPercent = Math.min(100, (signal.score_attention / 10) * 100);
   const isNew = true;
-  const pulseHTML = isNew
-    ? `
-    <div class="pulse-badge">
-      <div class="pulse-dot"></div>
-      NEW
-    </div>
-  `
-    : '';
+  if (isNew) {
+    const badge = document.createElement('div');
+    badge.className = 'pulse-badge';
+    const dot = document.createElement('div');
+    dot.className = 'pulse-dot';
+    badge.append(dot, document.createTextNode('NEW'));
+    div.appendChild(badge);
+  }
 
-  div.innerHTML = `
-    ${pulseHTML}
-    <div class="flex justify-between items-start">
-        <span class="${theme.bg} ${theme.text} text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">
-            ${signal.mission}
-        </span>
-        <span
-            data-tooltip="${getTypologyTooltip(typology)}"
-            class="text-nesta-navy border border-slate-200 text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-slate-50 hover:bg-nesta-navy hover:text-white transition-colors cursor-help">
-            ${typology} ?
-        </span>
-    </div>
+  const header = document.createElement('div');
+  header.className = 'flex justify-between items-start';
 
-    <h3 class="font-display text-xl font-bold leading-tight text-nesta-navy group-hover:text-nesta-blue transition-colors cursor-pointer" onclick="window.open('${signal.url}', '_blank')">
-        ${signal.title}
-    </h3>
+  const missionSpan = document.createElement('span');
+  missionSpan.className = `${theme.bg} ${theme.text} text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm`;
+  missionSpan.textContent = signal.mission;
 
-    <p class="text-sm text-nesta-dark-grey leading-relaxed line-clamp-3">
-        ${signal.summary}
-    </p>
+  const typologySpan = document.createElement('span');
+  typologySpan.className =
+    'text-nesta-navy border border-slate-200 text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-slate-50 hover:bg-nesta-navy hover:text-white transition-colors cursor-help';
+  typologySpan.setAttribute('data-tooltip', getTypologyTooltip(typology));
+  typologySpan.textContent = `${typology} ?`;
 
-    <div class="mt-auto pt-4 border-t border-slate-100 grid grid-cols-2 gap-6">
+  header.append(missionSpan, typologySpan);
 
-        <div class="space-y-2">
-            <div>
-                <div class="flex justify-between text-[10px] font-bold text-nesta-navy uppercase" data-tooltip="Based on UKRI Grant Funding Data">
-                    <span class="border-b border-dotted border-slate-300 cursor-help">Activity</span>
-                    <span>${signal.score_activity}</span>
-                </div>
-                <div class="meter-container"><div class="meter-fill bg-nesta-blue" style="width: ${actPercent}%"></div></div>
-            </div>
-            <div>
-                <div class="flex justify-between text-[10px] font-bold text-nesta-navy uppercase" data-tooltip="Based on Search Volume & News Frequency">
-                    <span class="border-b border-dotted border-slate-300 cursor-help">Attention</span>
-                    <span>${signal.score_attention}</span>
-                </div>
-                <div class="meter-container"><div class="meter-fill bg-nesta-pink" style="width: ${attPercent}%"></div></div>
-            </div>
-        </div>
+  const title = document.createElement('h3');
+  title.className =
+    'font-display text-xl font-bold leading-tight text-nesta-navy group-hover:text-nesta-blue transition-colors cursor-pointer';
+  title.textContent = signal.title;
+  title.addEventListener('click', () => {
+    try {
+      const parsedUrl = new URL(signal.url, window.location.origin);
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        window.open(parsedUrl.href, '_blank');
+      }
+    } catch (error) {
+      return;
+    }
+  });
 
-        <div class="flex flex-col justify-end">
-            <div class="text-[9px] font-bold text-nesta-dark-grey uppercase mb-1 text-right">Trend (12mo)</div>
-            <div class="h-[30px] w-full border-l border-b border-slate-200">
-                ${sparklineHTML}
-            </div>
-        </div>
+  const summary = document.createElement('p');
+  summary.className = 'text-sm text-nesta-dark-grey leading-relaxed line-clamp-3';
+  summary.textContent = signal.summary;
 
-    </div>
-  `;
+  const footer = document.createElement('div');
+  footer.className = 'mt-auto pt-4 border-t border-slate-100 grid grid-cols-2 gap-6';
+
+  const metrics = document.createElement('div');
+  metrics.className = 'space-y-2';
+
+  const activityGroup = document.createElement('div');
+  const activityHeader = document.createElement('div');
+  activityHeader.className = 'flex justify-between text-[10px] font-bold text-nesta-navy uppercase';
+  activityHeader.setAttribute('data-tooltip', 'Based on UKRI Grant Funding Data');
+  const activityLabel = document.createElement('span');
+  activityLabel.className = 'border-b border-dotted border-slate-300 cursor-help';
+  activityLabel.textContent = 'Activity';
+  const activityValue = document.createElement('span');
+  activityValue.textContent = signal.score_activity;
+  activityHeader.append(activityLabel, activityValue);
+  const activityMeter = document.createElement('div');
+  activityMeter.className = 'meter-container';
+  const activityFill = document.createElement('div');
+  activityFill.className = 'meter-fill bg-nesta-blue';
+  activityFill.style.width = `${actPercent}%`;
+  activityMeter.appendChild(activityFill);
+  activityGroup.append(activityHeader, activityMeter);
+
+  const attentionGroup = document.createElement('div');
+  const attentionHeader = document.createElement('div');
+  attentionHeader.className = 'flex justify-between text-[10px] font-bold text-nesta-navy uppercase';
+  attentionHeader.setAttribute('data-tooltip', 'Based on Search Volume & News Frequency');
+  const attentionLabel = document.createElement('span');
+  attentionLabel.className = 'border-b border-dotted border-slate-300 cursor-help';
+  attentionLabel.textContent = 'Attention';
+  const attentionValue = document.createElement('span');
+  attentionValue.textContent = signal.score_attention;
+  attentionHeader.append(attentionLabel, attentionValue);
+  const attentionMeter = document.createElement('div');
+  attentionMeter.className = 'meter-container';
+  const attentionFill = document.createElement('div');
+  attentionFill.className = 'meter-fill bg-nesta-pink';
+  attentionFill.style.width = `${attPercent}%`;
+  attentionMeter.appendChild(attentionFill);
+  attentionGroup.append(attentionHeader, attentionMeter);
+
+  metrics.append(activityGroup, attentionGroup);
+
+  const trend = document.createElement('div');
+  trend.className = 'flex flex-col justify-end';
+  const trendLabel = document.createElement('div');
+  trendLabel.className = 'text-[9px] font-bold text-nesta-dark-grey uppercase mb-1 text-right';
+  trendLabel.textContent = 'Trend (12mo)';
+  const trendChart = document.createElement('div');
+  trendChart.className = 'h-[30px] w-full border-l border-b border-slate-200';
+  if (sparklineElement) {
+    trendChart.appendChild(sparklineElement);
+  }
+  trend.append(trendLabel, trendChart);
+
+  footer.append(metrics, trend);
+
+  div.append(header, title, summary, footer);
 
   div.classList.add('border-l-4', theme.border);
   container.prepend(div);
@@ -591,20 +651,24 @@ async function generateNarratives() {
     });
     const clusters = await res.json();
 
-    container.innerHTML = clusters
-      .map(
-        (cluster) => `
-            <div class="bg-white p-4 border-l-4 border-nesta-purple shadow-sm hover:shadow-md transition-all cursor-pointer group">
-                <div class="text-[9px] font-bold uppercase text-slate-400 mb-1">
-                    ${cluster.count} Signals • ${cluster.keywords.join(', ')}
-                </div>
-                <h4 class="font-display text-md text-nesta-navy font-bold leading-tight group-hover:text-nesta-purple">
-                    ${cluster.title}
-                </h4>
-            </div>
-        `
-      )
-      .join('');
+    container.replaceChildren();
+    const clusterList = Array.isArray(clusters) ? clusters : [];
+    clusterList.forEach((cluster) => {
+      const card = document.createElement('div');
+      card.className =
+        'bg-white p-4 border-l-4 border-nesta-purple shadow-sm hover:shadow-md transition-all cursor-pointer group';
+
+      const meta = document.createElement('div');
+      meta.className = 'text-[9px] font-bold uppercase text-slate-400 mb-1';
+      meta.textContent = `${cluster.count} Signals • ${cluster.keywords.join(', ')}`;
+
+      const title = document.createElement('h4');
+      title.className = 'font-display text-md text-nesta-navy font-bold leading-tight group-hover:text-nesta-purple';
+      title.textContent = cluster.title;
+
+      card.append(meta, title);
+      container.appendChild(card);
+    });
 
     drawer.classList.remove('hidden');
     btn.innerHTML = `<span>✨ Auto-Cluster</span>`;
@@ -668,29 +732,47 @@ function renderTriageCard() {
   const pct = (currentTriageIndex / triageQueue.length) * 100;
   document.getElementById('triage-progress').style.width = `${pct}%`;
 
-  container.innerHTML = `
-      <div class="bg-white p-10 shadow-2xl border-t-8 ${theme.border} relative animate-slide-in">
-          <span class="${theme.bg} ${theme.text} text-xs font-bold uppercase tracking-widest px-3 py-1 mb-4 inline-block rounded-sm">
-              ${signal.mission}
-          </span>
-          <h1 class="font-display text-4xl font-bold text-nesta-navy mb-6 leading-tight">
-              ${signal.title}
-          </h1>
-          <p class="font-body text-lg text-nesta-dark-grey leading-relaxed mb-8">
-              ${signal.summary}
-          </p>
-          <div class="grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
-              <div class="text-center">
-                  <div class="text-xs uppercase font-bold text-slate-400">Activity Score</div>
-                  <div class="text-3xl font-display font-bold text-nesta-blue">${signal.score_activity}</div>
-              </div>
-              <div class="text-center">
-                  <div class="text-xs uppercase font-bold text-slate-400">Attention Score</div>
-                  <div class="text-3xl font-display font-bold text-nesta-pink">${signal.score_attention}</div>
-              </div>
-          </div>
-      </div>
-  `;
+  const card = document.createElement('div');
+  card.className = `bg-white p-10 shadow-2xl border-t-8 ${theme.border} relative animate-slide-in`;
+
+  const badge = document.createElement('span');
+  badge.className = `${theme.bg} ${theme.text} text-xs font-bold uppercase tracking-widest px-3 py-1 mb-4 inline-block rounded-sm`;
+  badge.textContent = signal.mission;
+
+  const title = document.createElement('h1');
+  title.className = 'font-display text-4xl font-bold text-nesta-navy mb-6 leading-tight';
+  title.textContent = signal.title;
+
+  const summary = document.createElement('p');
+  summary.className = 'font-body text-lg text-nesta-dark-grey leading-relaxed mb-8';
+  summary.textContent = signal.summary;
+
+  const grid = document.createElement('div');
+  grid.className = 'grid grid-cols-2 gap-4 border-t border-slate-100 pt-6';
+
+  const activity = document.createElement('div');
+  activity.className = 'text-center';
+  const activityLabel = document.createElement('div');
+  activityLabel.className = 'text-xs uppercase font-bold text-slate-400';
+  activityLabel.textContent = 'Activity Score';
+  const activityValue = document.createElement('div');
+  activityValue.className = 'text-3xl font-display font-bold text-nesta-blue';
+  activityValue.textContent = signal.score_activity;
+  activity.append(activityLabel, activityValue);
+
+  const attention = document.createElement('div');
+  attention.className = 'text-center';
+  const attentionLabel = document.createElement('div');
+  attentionLabel.className = 'text-xs uppercase font-bold text-slate-400';
+  attentionLabel.textContent = 'Attention Score';
+  const attentionValue = document.createElement('div');
+  attentionValue.className = 'text-3xl font-display font-bold text-nesta-pink';
+  attentionValue.textContent = signal.score_attention;
+  attention.append(attentionLabel, attentionValue);
+
+  grid.append(activity, attention);
+  card.append(badge, title, summary, grid);
+  container.replaceChildren(card);
 }
 
 function handleTriageKeys(event) {

@@ -174,3 +174,13 @@ BLACKLIST = [
     "instagram.com",
     "pinterest.com",
 ]
+
+# --- 5. GENERIC TOPICS ---
+GENERIC_TOPICS = [
+    "obesity",
+    "health",
+    "energy",
+    "education",
+    "climate",
+    "food",
+]

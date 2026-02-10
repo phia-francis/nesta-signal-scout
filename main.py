@@ -160,14 +160,7 @@ async def radar_scan(req: RadarRequest):
                 joined_blacklist = " ".join([f"-{word}" for word in kw.BLACKLIST])
                 joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
                 topic_value = (req.topic or "").strip()
-                is_generic = topic_value.lower() in [
-                    "obesity",
-                    "health",
-                    "energy",
-                    "education",
-                    "climate",
-                    "food",
-                ]
+                is_generic = topic_value.lower() in kw.GENERIC_TOPICS
                 if is_generic:
                     pillars = " OR ".join([f'"{pillar}"' for pillar in priorities[:3]])
                     search_term = (
@@ -258,6 +251,7 @@ async def radar_scan(req: RadarRequest):
                         + "\n"
                     )
                 except Exception as exc:
+                    logging.error("Failed to save signal '%s' to sheet: %s", signal.get("title"), exc)
                     yield json.dumps({"status": "error", "msg": f"Write Failed: {str(exc)}"}) + "\n"
 
             yield json.dumps({"status": "complete", "msg": "Scan Routine Finished."}) + "\n"
@@ -275,7 +269,7 @@ async def cluster_signals(signals: List[dict]):
     using TF-IDF Vectorization and K-Means Clustering.
     """
     if len(signals) < 3:
-        return {"clusters": []}
+        return []
 
     texts = [f"{signal['title']} {signal['summary']}" for signal in signals]
     vectorizer = TfidfVectorizer(stop_words="english", max_features=1000)
