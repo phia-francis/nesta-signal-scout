@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+from functools import lru_cache
 from typing import Any, AsyncGenerator, Dict, List
 
 from fastapi import FastAPI, HTTPException
@@ -53,6 +54,27 @@ gtr_svc = GatewayResearchService()
 cb_svc = CrunchbaseService()
 topic_svc = TopicModellingService()
 
+MISSION_KEYWORDS = kw.MISSION_KEYWORDS
+CROSS_CUTTING_KEYWORDS = kw.CROSS_CUTTING_KEYWORDS
+
+
+@lru_cache(maxsize=32)
+def build_allowed_keywords_menu(mission: str) -> str:
+    lines = []
+    for mission_name, terms in MISSION_KEYWORDS.items():
+        if mission != "All Missions" and mission_name != mission:
+            continue
+        if terms:
+            lines.append(f"- {mission_name}: {', '.join(terms)}")
+
+    if mission == "All Missions" and CROSS_CUTTING_KEYWORDS:
+        lines.append(f"- Cross-cutting: {', '.join(CROSS_CUTTING_KEYWORDS)}")
+
+    if not lines:
+        return "Error: Could not load keywords.py variables."
+
+    return "\n".join(lines)
+
 
 @app.get("/")
 def read_root() -> Dict[str, str]:
@@ -72,9 +94,64 @@ def ndjson_line(payload: Dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
+def _build_search_term(req: RadarRequest) -> tuple[str, str]:
+    priorities = kw.MISSION_PRIORITIES.get(req.mission, [])
+    signal_terms = kw.SIGNAL_TYPES.get(req.mode, kw.SIGNAL_TYPES["radar"])
+
+    if req.mode == "research":
+        base_query = req.query if req.query else f"{req.mission} {req.topic or 'innovation'}"
+        joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+        return "🔬 RESEARCH MODE: Global Academic Scan...", f"{base_query} ({joined_signals}) filetype:pdf -site:.com"
+
+    if req.mode == "policy":
+        joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+        return (
+            "⚖️ POLICY MODE: International Policy & Strategy...",
+            f"{req.mission} {req.topic or 'policy'} ({joined_signals}) (site:.gov OR site:.int OR site:.org)",
+        )
+
+    joined_blacklist = " ".join([f"-{word}" for word in kw.BLACKLIST])
+    joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
+    topic_value = (req.topic or "innovation").strip()
+    if topic_value.lower() in kw.GENERIC_TOPICS:
+        pillars = " OR ".join([f'"{pillar}"' for pillar in priorities[:3]])
+        return (
+            "📡 RADAR MODE: Full Spectrum Scan (Industry + Policy + Academic)...",
+            f"{req.mission} ({topic_value} AND ({pillars})) ({joined_signals}) {joined_blacklist}",
+        )
+
+    return (
+        "📡 RADAR MODE: Full Spectrum Scan (Industry + Policy + Academic)...",
+        f"{req.mission} {topic_value} ({joined_signals}) {joined_blacklist}",
+    )
+
+
+async def _calculate_scores(
+    topic: str,
+    gtr_projects: List[Dict[str, Any]],
+    cb_data: List[Dict[str, Any]],
+    web_results: List[Dict[str, Any]],
+) -> tuple[float, float, str, List[str], List[str]]:
+    abstracts = [p.get("abstract", "") for p in gtr_projects if p.get("abstract")]
+    refined_keywords = topic_svc.perform_lda(abstracts)
+    top2vec_seeds = topic_svc.recommend_top2vec_seeds(abstracts)
+
+    total_research = sum(p.get("fund_val", 0) for p in gtr_projects)
+    total_investment = sum(d.get("amount", 0) for d in cb_data)
+    activity_score = analytics_svc.calculate_activity_score(total_research, total_investment)
+
+    niche_results = await search_svc.search_niche(topic)
+    mainstream_count = len(web_results)
+    niche_count = len([item for item in niche_results if item.get("is_niche")])
+    attention_score = analytics_svc.calculate_attention_score(mainstream_count, niche_count)
+
+    typology = analytics_svc.classify_sweet_spot(activity_score, attention_score)
+    return activity_score, attention_score, typology, refined_keywords, top2vec_seeds
+
+
 @app.post("/api/mode/radar")
-async def radar_scan(req: RadarRequest):
-    async def generator():
+async def radar_scan(req: RadarRequest) -> StreamingResponse:
+    async def generator() -> AsyncGenerator[str, None]:
         try:
             topic = req.topic or "innovation"
             mission = req.mission or "All Missions"
@@ -128,46 +205,8 @@ async def radar_scan(req: RadarRequest):
                 + "\n"
             )
 
-            # 1. LOAD KNOWLEDGE
-            priorities = kw.MISSION_PRIORITIES.get(req.mission, [])
-            expansions = kw.TOPIC_EXPANSIONS.get(req.mission, [])
-            signal_terms = kw.SIGNAL_TYPES.get(req.mode, kw.SIGNAL_TYPES["radar"])
-
-            # 2. INTELLIGENT QUERY CONSTRUCTION
-            search_term = ""
-            if req.mode == "research":
-                yield json.dumps(
-                    {"status": "info", "msg": "🔬 RESEARCH MODE: Global Academic Scan..."}
-                ) + "\n"
-                base_query = req.query if req.query else f"{req.mission} {req.topic}"
-                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
-                search_term = f"{base_query} ({joined_signals}) filetype:pdf -site:.com"
-            elif req.mode == "policy":
-                yield json.dumps(
-                    {"status": "info", "msg": "⚖️ POLICY MODE: International Policy & Strategy..."}
-                ) + "\n"
-                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
-                search_term = (
-                    f"{req.mission} {req.topic} ({joined_signals}) (site:.gov OR site:.int OR site:.org)"
-                )
-            else:
-                yield json.dumps(
-                    {
-                        "status": "info",
-                        "msg": "📡 RADAR MODE: Full Spectrum Scan (Industry + Policy + Academic)...",
-                    }
-                ) + "\n"
-                joined_blacklist = " ".join([f"-{word}" for word in kw.BLACKLIST])
-                joined_signals = " OR ".join([f'"{term}"' for term in signal_terms])
-                topic_value = (req.topic or "").strip()
-                is_generic = topic_value.lower() in kw.GENERIC_TOPICS
-                if is_generic:
-                    pillars = " OR ".join([f'"{pillar}"' for pillar in priorities[:3]])
-                    search_term = (
-                        f"{req.mission} ({topic_value} AND ({pillars})) ({joined_signals}) {joined_blacklist}"
-                    )
-                else:
-                    search_term = f"{req.mission} {topic_value} ({joined_signals}) {joined_blacklist}"
+            mode_msg, search_term = _build_search_term(req)
+            yield json.dumps({"status": "info", "msg": mode_msg}) + "\n"
 
             # STEP 4: GOOGLE SEARCH API
             yield json.dumps(
@@ -195,20 +234,40 @@ async def radar_scan(req: RadarRequest):
                 + "\n"
             )
 
-            abstracts = [p.get("abstract", "") for p in gtr_projects if p.get("abstract")]
-            refined_keywords = topic_svc.perform_lda(abstracts)
-            top2vec_seeds = topic_svc.recommend_top2vec_seeds(abstracts)
+            activity_score, attention_score, typology, refined_keywords, top2vec_seeds = (
+                await _calculate_scores(topic, gtr_projects, cb_data, web_results)
+            )
 
-            total_research = sum(p.get("fund_val", 0) for p in gtr_projects)
-            total_investment = sum(d.get("amount", 0) for d in cb_data)
-            activity_score = analytics_svc.calculate_activity_score(total_research, total_investment)
+            for project in gtr_projects[:6]:
+                url_ref = project.get("grantReference") or project.get("title", "")
+                project_signal = {
+                    "mode": "Radar",
+                    "title": project.get("title", f"GtR: {topic}"),
+                    "summary": project.get("abstract", ""),
+                    "url": f"https://gtr.ukri.org/projects?ref={url_ref}",
+                    "mission": mission,
+                    "score_activity": round(activity_score, 1),
+                    "score_attention": round(attention_score, 1),
+                    "typology": typology,
+                    "sparkline": analytics_svc.generate_sparkline(activity_score, attention_score),
+                    "refined_keywords": refined_keywords,
+                    "topic_seeds": top2vec_seeds,
+                    "source": "UKRI GtR",
+                }
 
-            niche_results = await search_svc.search_niche(topic)
-            mainstream_count = len(web_results)
-            niche_count = len([item for item in niche_results if item.get("is_niche")])
-            attention_score = analytics_svc.calculate_attention_score(mainstream_count, niche_count)
+                if project_signal["url"] in existing_urls:
+                    continue
 
-            typology = analytics_svc.classify_sweet_spot(activity_score, attention_score)
+                try:
+                    await sheet_svc.save_signal(project_signal, existing_urls)
+                    yield json.dumps({"status": "blip", "blip": project_signal}) + "\n"
+                except Exception:
+                    logging.exception(
+                        "Failed to save signal '%s' to sheet.", project_signal.get("title")
+                    )
+                    yield json.dumps(
+                        {"status": "error", "msg": "Write Failed: Could not persist signal."}
+                    ) + "\n"
 
             for item in web_results[:6]:
                 if item.get("link") in existing_urls:
@@ -250,14 +309,17 @@ async def radar_scan(req: RadarRequest):
                         )
                         + "\n"
                     )
-                except Exception as exc:
-                    logging.error("Failed to save signal '%s' to sheet: %s", signal.get("title"), exc)
+                except Exception:
+                    logging.exception("Failed to save signal '%s' to sheet.", signal.get("title"))
                     yield json.dumps(
                         {"status": "error", "msg": "Write Failed: Could not persist signal."}
                     ) + "\n"
 
             yield json.dumps({"status": "complete", "msg": "Scan Routine Finished."}) + "\n"
 
+        except ServiceError as exc:
+            logging.error("Service error in radar_scan generator: %s", exc)
+            yield json.dumps({"status": "error", "msg": "Service unavailable. Please try again later."}) + "\n"
         except Exception as exc:
             logging.exception("Unexpected failure in radar_scan generator: %s", exc)
             yield json.dumps(
@@ -294,8 +356,9 @@ async def cluster_signals(signals: List[dict]):
     terms = vectorizer.get_feature_names_out()
 
     results = []
-    for i, cluster_id in enumerate(clusters):
-        top_terms = [terms[ind] for ind in order_centroids[i, :3]]
+    for cluster_id in clusters:
+        centroid_index = int(cluster_id)
+        top_terms = [terms[ind] for ind in order_centroids[centroid_index, :3]]
         cluster_title = f"Narrative: {', '.join(top_terms).title()}"
 
         results.append(

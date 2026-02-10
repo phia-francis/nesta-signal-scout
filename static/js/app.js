@@ -19,12 +19,11 @@ const state = {
   activeTab: 'radar',
   radarSignals: [],
   databaseItems: [],
+  globalSignalsArray: [],
+  triageQueue: [],
+  currentTriageIndex: 0,
+  currentMode: 'radar',
 };
-
-let globalSignalsArray = [];
-let triageQueue = [];
-let currentTriageIndex = 0;
-let currentMode = 'radar';
 
 const radarFeed = document.getElementById('radar-feed');
 const radarStatus = document.getElementById('radar-status');
@@ -50,6 +49,23 @@ document.addEventListener('DOMContentLoaded', () => {
       filterGrid(type);
     });
   });
+
+  document.querySelectorAll('.nav-item[data-mode]').forEach((button) => {
+    button.addEventListener('click', () => switchAppMode(button.dataset.mode));
+  });
+
+  document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
+  document.getElementById('scan-btn')?.addEventListener('click', runScan);
+  document.getElementById('btn-view-grid')?.addEventListener('click', () => switchView('grid'));
+  document.getElementById('btn-view-network')?.addEventListener('click', () => switchView('network'));
+  document.getElementById('btn-cluster')?.addEventListener('click', generateNarratives);
+  document.getElementById('btn-triage')?.addEventListener('click', openTriageMode);
+  document.getElementById('triage-close')?.addEventListener('click', closeTriage);
+  document.querySelectorAll('[data-triage-action]').forEach((button) => {
+    button.addEventListener('click', () => triageAction(button.dataset.triageAction));
+  });
+
+  switchAppMode('radar');
 });
 
 // 1. Mission Theme Configuration (Contrast Safe)
@@ -354,7 +370,7 @@ function renderSignalCard(signal, container) {
 }
 
 function switchAppMode(mode) {
-  currentMode = mode;
+  state.currentMode = mode;
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
   const activeNav = document.getElementById(`nav-${mode}`);
   if (activeNav) {
@@ -457,21 +473,36 @@ async function refreshDatabase() {
     }
     const data = await res.json();
     state.databaseItems = data.signals || [];
-    globalSignalsArray = [...state.databaseItems];
+    state.globalSignalsArray = [...state.databaseItems];
     renderDatabase(state.databaseItems);
     renderNetworkGraph(state.databaseItems);
   } catch (e) {
-    grid.innerHTML = `
-      <div class="py-10 flex flex-col items-center gap-4">
-        <div class="p-4 bg-red-50 border border-red-100 rounded-full text-red-500">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-        </div>
-        <div class="text-center">
-          <h3 class="font-bold text-nesta-navy">Connection Error</h3>
-          <p class="text-sm text-slate-500 mt-1">${e.message}</p>
-        </div>
-        <button onclick="refreshDatabase()" class="btn-nesta bg-nesta-navy text-white font-bold px-6 py-2">Retry Connection</button>
-      </div>`;
+    grid.replaceChildren();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'py-10 flex flex-col items-center gap-4';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'p-4 bg-red-50 border border-red-100 rounded-full text-red-500';
+    iconWrap.innerHTML =
+      '<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'text-center';
+    const h3 = document.createElement('h3');
+    h3.className = 'font-bold text-nesta-navy';
+    h3.textContent = 'Connection Error';
+    const p = document.createElement('p');
+    p.className = 'text-sm text-slate-500 mt-1';
+    p.textContent = e.message;
+    textWrap.append(h3, p);
+
+    const retry = document.createElement('button');
+    retry.className = 'btn-nesta bg-nesta-navy text-white font-bold px-6 py-2';
+    retry.textContent = 'Retry Connection';
+    retry.addEventListener('click', refreshDatabase);
+
+    wrapper.append(iconWrap, textWrap, retry);
+    grid.appendChild(wrapper);
   }
 }
 
@@ -498,7 +529,7 @@ async function runScan() {
   const emptyState = document.getElementById('empty-state');
   const logContainer = document.getElementById('scan-logs');
   let blipCount = 0;
-  globalSignalsArray = [];
+  state.globalSignalsArray = [];
 
   if (logContainer) {
     logContainer.innerHTML = '';
@@ -510,23 +541,9 @@ async function runScan() {
   radarFeed.innerHTML = '';
   radarStatus.textContent = 'Starting scan...';
   try {
-    const payload = { mode: currentMode };
-    if (currentMode === 'research') {
-      const query = researchInput?.value.trim();
-      if (!query) {
-        showToast('Please enter a research question', 'error');
-        return;
-      }
-      payload.query = query;
-      payload.mission = 'Research';
-    } else {
-      const topic = topicInput && topicInput.value.trim() ? topicInput.value.trim() : '';
-      if (!topic) {
-        showToast('Please enter a topic', 'error');
-        return;
-      }
-      payload.mission = missionSelect ? missionSelect.value : 'All Missions';
-      payload.topic = topic;
+    const payload = buildScanPayload(missionSelect, topicInput, researchInput);
+    if (!payload) {
+      return;
     }
 
     const response = await fetch(`${API_BASE_URL}/api/mode/radar`, {
@@ -546,54 +563,89 @@ async function runScan() {
       for (const line of lines) {
         if (!line.trim()) continue;
         const data = JSON.parse(line);
-        if (data.msg) {
-          radarStatus.textContent = data.msg;
-        }
-
-        if (data.status === 'info') {
-          addLog(data.msg, 'info');
-        } else if (data.status === 'success') {
-          addLog(data.msg, 'success');
-        } else if (data.status === 'warning') {
-          addLog(data.msg, 'warning');
-        } else if (data.status === 'blip') {
-          globalSignalsArray.push(data.blip);
-          renderRadarBlip(data.blip);
-          blipCount += 1;
-          showToast(`Signal Found: ${data.blip.title.substring(0, 20)}...`, 'success');
-        } else if (data.status === 'error') {
-          addLog(data.msg, 'error');
-          radarStatus.textContent = data.msg || 'Connection failed';
-          radarStatus.classList.add('text-red-500');
-          showToast('Error during scan', 'error');
-        } else if (data.status === 'complete') {
-          addLog('Scan Complete.', 'success');
-          const triageBtn = document.getElementById('btn-triage');
-          const countBadge = document.getElementById('new-signal-count');
-          const clusterBtn = document.getElementById('btn-cluster');
-
-          if (triageBtn && countBadge) {
-            triageBtn.classList.remove('hidden');
-            countBadge.innerText = globalSignalsArray.length;
-          }
-          if (clusterBtn) {
-            clusterBtn.classList.remove('hidden');
-          }
-
-          showToast(`Scan finished. ${globalSignalsArray.length} signals ready for review.`, 'success');
-        }
+        blipCount += handleStreamData(data);
       }
     }
     if (blipCount === 0 && emptyState) {
       emptyState.classList.remove('hidden');
     }
-    renderNetworkGraph(globalSignalsArray);
+    renderNetworkGraph(state.globalSignalsArray);
   } catch (error) {
     radarStatus.textContent = 'Connection failed: Check API Key';
     radarStatus.classList.add('text-red-500');
     addLog('Connection failed: Check API Key', 'error');
     showToast('Error during scan', 'error');
   }
+}
+
+function buildScanPayload(missionSelect, topicInput, researchInput) {
+  const payload = { mode: state.currentMode };
+  if (state.currentMode === 'research') {
+    const query = researchInput?.value.trim();
+    if (!query) {
+      showToast('Please enter a research question', 'error');
+      return null;
+    }
+    payload.query = query;
+    payload.mission = 'Research';
+    return payload;
+  }
+
+  const topic = topicInput && topicInput.value.trim() ? topicInput.value.trim() : '';
+  if (!topic) {
+    showToast('Please enter a topic', 'error');
+    return null;
+  }
+  payload.mission = missionSelect ? missionSelect.value : 'All Missions';
+  payload.topic = topic;
+  return payload;
+}
+
+function handleStreamData(data) {
+  if (data.msg) {
+    radarStatus.textContent = data.msg;
+  }
+
+  if (data.status === 'info') {
+    addLog(data.msg, 'info');
+    return 0;
+  }
+  if (data.status === 'success') {
+    addLog(data.msg, 'success');
+    return 0;
+  }
+  if (data.status === 'warning') {
+    addLog(data.msg, 'warning');
+    return 0;
+  }
+  if (data.status === 'blip') {
+    state.globalSignalsArray.push(data.blip);
+    renderRadarBlip(data.blip);
+    showToast(`Signal Found: ${data.blip.title.substring(0, 20)}...`, 'success');
+    return 1;
+  }
+  if (data.status === 'error') {
+    addLog(data.msg, 'error');
+    radarStatus.textContent = data.msg || 'Connection failed';
+    radarStatus.classList.add('text-red-500');
+    showToast('Error during scan', 'error');
+    return 0;
+  }
+  if (data.status === 'complete') {
+    addLog('Scan Complete.', 'success');
+    const triageBtn = document.getElementById('btn-triage');
+    const countBadge = document.getElementById('new-signal-count');
+    const clusterBtn = document.getElementById('btn-cluster');
+    if (triageBtn && countBadge) {
+      triageBtn.classList.remove('hidden');
+      countBadge.innerText = state.globalSignalsArray.length;
+    }
+    if (clusterBtn) {
+      clusterBtn.classList.remove('hidden');
+    }
+    showToast(`Scan finished. ${state.globalSignalsArray.length} signals ready for review.`, 'success');
+  }
+  return 0;
 }
 
 function switchView(mode) {
@@ -647,7 +699,7 @@ async function generateNarratives() {
     const res = await fetch(`${API_BASE_URL}/api/intelligence/cluster`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(globalSignalsArray),
+      body: JSON.stringify(state.globalSignalsArray),
     });
     const clusters = await res.json();
 
@@ -700,13 +752,13 @@ function filterGrid(type) {
 }
 
 function openTriageMode() {
-  if (!globalSignalsArray.length) {
+  if (!state.globalSignalsArray.length) {
     showToast('No signals to triage.', 'error');
     return;
   }
 
-  triageQueue = [...globalSignalsArray];
-  currentTriageIndex = 0;
+  state.triageQueue = [...state.globalSignalsArray];
+  state.currentTriageIndex = 0;
 
   document.getElementById('triage-modal').classList.remove('hidden');
   renderTriageCard();
@@ -719,17 +771,17 @@ function closeTriage() {
 }
 
 function renderTriageCard() {
-  if (currentTriageIndex >= triageQueue.length) {
+  if (state.currentTriageIndex >= state.triageQueue.length) {
     closeTriage();
     showToast('Triage Complete!', 'success');
     return;
   }
 
-  const signal = triageQueue[currentTriageIndex];
+  const signal = state.triageQueue[state.currentTriageIndex];
   const container = document.getElementById('triage-card-container');
   const theme = missionThemes[signal.mission] || missionThemes.General;
 
-  const pct = (currentTriageIndex / triageQueue.length) * 100;
+  const pct = (state.currentTriageIndex / state.triageQueue.length) * 100;
   document.getElementById('triage-progress').style.width = `${pct}%`;
 
   const card = document.createElement('div');
@@ -783,7 +835,7 @@ function handleTriageKeys(event) {
 }
 
 function triageAction(action) {
-  const signal = triageQueue[currentTriageIndex];
+  const signal = state.triageQueue[state.currentTriageIndex];
   if (!signal) {
     return;
   }
@@ -807,19 +859,7 @@ function triageAction(action) {
   }
 
   setTimeout(() => {
-    currentTriageIndex += 1;
+    state.currentTriageIndex += 1;
     renderTriageCard();
   }, 200);
 }
-
-window.refreshDatabase = refreshDatabase;
-window.runScan = runScan;
-window.switchView = switchView;
-window.generateNarratives = generateNarratives;
-window.openTriageMode = openTriageMode;
-window.closeTriage = closeTriage;
-window.triageAction = triageAction;
-
-window.switchAppMode = switchAppMode;
-
-switchAppMode('radar');
