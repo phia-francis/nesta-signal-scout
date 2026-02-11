@@ -93,12 +93,13 @@ async def radar_scan(
 
             yield ndjson_line({"status": "complete", "msg": "Scan Routine Finished."})
         except ServiceError as service_error:
-            logging.error("Service error in radar scan: %s", service_error)
-            yield ndjson_line(
-                {"status": "error", "msg": f"Live scan failed due to external service error: {service_error}"}
-            )
+            logging.error("Service error in radar scan: %s", service_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-service"})
         except ValueError as validation_error:
-            logging.warning("Validation error in radar scan: %s", validation_error)
-            yield ndjson_line({"status": "error", "msg": str(validation_error)})
+            logging.error("Validation error in radar scan: %s", validation_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-validation"})
+        except Exception as unexpected_error:
+            logging.error("Unhandled error in radar scan: %s", unexpected_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-unhandled"})
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")

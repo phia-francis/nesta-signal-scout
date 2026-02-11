@@ -119,14 +119,33 @@ export function showEmptyState(topic, container) {
   const safeTopic = topic && topic.trim() ? topic.trim() : 'your search';
   const wrapper = document.createElement('div');
   wrapper.className = 'col-span-full py-20 flex flex-col items-center justify-center text-center';
-  wrapper.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-16 h-16 text-nesta-sand mb-6" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"></circle>
-      <path d="M20 20l-3.5-3.5"></path>
-    </svg>
-    <h3 class="font-display text-xl text-nesta-navy">No signals found for '${safeTopic}'.</h3>
-    <p class="font-body text-sm text-nesta-navy/70 mt-2">Try adjusting your search terms or enabling Friction Mode.</p>
-  `;
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke', 'currentColor');
+  icon.setAttribute('stroke-width', '1.8');
+  icon.setAttribute('class', 'w-16 h-16 text-nesta-sand mb-6');
+  icon.setAttribute('aria-hidden', 'true');
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '11');
+  circle.setAttribute('cy', '11');
+  circle.setAttribute('r', '7');
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  line.setAttribute('d', 'M20 20l-3.5-3.5');
+  icon.append(circle, line);
+
+  const heading = document.createElement('h3');
+  heading.className = 'font-display text-xl text-nesta-navy';
+  heading.textContent = `No signals found for '${safeTopic}'.`;
+
+  const subtext = document.createElement('p');
+  subtext.className = 'font-body text-sm text-nesta-navy/70 mt-2';
+  subtext.textContent = 'Try adjusting your search terms or enabling Friction Mode.';
+
+  wrapper.append(icon, heading, subtext);
   container.appendChild(wrapper);
 }
 

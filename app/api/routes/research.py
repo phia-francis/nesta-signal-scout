@@ -53,10 +53,13 @@ async def research_scan(
 
             yield ndjson_line({"status": "complete"})
         except ServiceError as service_error:
-            logging.error("Service error in research scan: %s", service_error)
-            yield ndjson_line({"status": "error", "msg": "Service unavailable. Please try again later."})
+            logging.error("Service error in research scan: %s", service_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: research-service"})
         except ValueError as validation_error:
-            logging.warning("Validation error in research scan: %s", validation_error)
-            yield ndjson_line({"status": "error", "msg": str(validation_error)})
+            logging.error("Validation error in research scan: %s", validation_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: research-validation"})
+        except Exception as unexpected_error:
+            logging.error("Unhandled error in research scan: %s", unexpected_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: research-unhandled"})
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")
