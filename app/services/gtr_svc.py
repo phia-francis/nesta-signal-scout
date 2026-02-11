@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime, timezone
 
 import httpx
+from dateutil import parser as date_parser
 
+from app.core.resilience import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,20 @@ class GatewayResearchService:
 
     BASE_URL = "https://gtr.ukri.org/gtr/api"
 
-    async def fetch_projects(self, query: str) -> list[dict]:
+    @staticmethod
+    def _parse_project_date(project: dict) -> datetime | None:
+        for key in ("start", "startDate", "start_date", "firstAuthorised"):
+            value = project.get(key)
+            if value:
+                try:
+                    parsed = date_parser.parse(str(value))
+                    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError, date_parser.ParserError):
+                    continue
+        return None
+
+    @retry_with_backoff(retries=3, delay=1.0)
+    async def fetch_projects(self, query: str, min_start_date: datetime) -> list[dict]:
         """Fetch project data and normalise it for the scan pipeline."""
         if not query:
             logger.warning("GtR query missing.")
@@ -30,21 +47,17 @@ class GatewayResearchService:
                     params={"term": query, "page": 1, "size": PAGE_SIZE},
                     headers=HEADERS,
                 )
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error("GtR API returned status for query '%s': %s", query, exc.response.status_code)
+            raise
         except httpx.HTTPError as exc:
             logger.error("GtR request failed for query '%s': %s", query, exc)
             return []
 
-        if response.status_code != 200:
-            logger.error(
-                "GtR API returned non-200 status for query '%s': %s",
-                query,
-                response.status_code,
-            )
-            return []
-
         try:
             payload = response.json()
-        except ValueError:
+        except json.JSONDecodeError:
             logger.error(
                 "GtR API returned invalid JSON for query '%s'. Raw body: %s",
                 query,
@@ -58,6 +71,10 @@ class GatewayResearchService:
 
         normalised_projects: list[dict] = []
         for project in projects:
+            project_date = self._parse_project_date(project)
+            if project_date and project_date < min_start_date:
+                continue
+
             try:
                 fund_val = float(project.get("fund", 0) or 0)
             except (TypeError, ValueError):
@@ -69,6 +86,7 @@ class GatewayResearchService:
                     "abstract": project.get("abstractText") or project.get("abstract") or "",
                     "fund_val": fund_val,
                     "grantReference": project.get("grantReference", ""),
+                    "start_date": project_date,
                 }
             )
 

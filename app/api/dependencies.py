@@ -11,6 +11,7 @@ from app.services.cluster_svc import ClusterService
 from app.services.ml_svc import TopicModellingService
 from app.services.search_svc import SearchService
 from app.services.sheet_svc import SheetService
+from app.services.scan_logic import ScanOrchestrator
 
 
 @lru_cache(maxsize=1)
@@ -56,3 +57,14 @@ def get_topic_service() -> TopicModellingService:
 @lru_cache(maxsize=1)
 def get_cluster_service() -> ClusterService:
     return ClusterService()
+
+
+@lru_cache(maxsize=1)
+def get_scan_orchestrator() -> ScanOrchestrator:
+    return ScanOrchestrator(
+        gateway_service=get_gateway_service(),
+        openalex_service=get_openalex_service(),
+        search_service=get_search_service(),
+        analytics_service=get_analytics_service(),
+        taxonomy=get_taxonomy(),
+    )

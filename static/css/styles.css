@@ -186,7 +186,7 @@ h3,
   max-width: 200px;
   text-align: center;
   line-height: 1.4;
-  z-index: 50;
+  z-index: 9999;
   box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.2);
   border: 1px solid #ffffff;
   opacity: 0;
@@ -378,6 +378,7 @@ h3,
 }
 
 .signal-card {
+  overflow: visible !important;
   break-inside: avoid;
   margin-bottom: 1.5rem;
   border: 1px solid #e2e8f0;
@@ -389,4 +390,14 @@ h3,
   transform: translate(-2px, -2px);
   box-shadow: 6px 6px 0px 0px #0f294a;
   border-color: #0000ff;
+}
+
+
+.tooltip {
+  z-index: 9999;
+}
+
+.modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
 }

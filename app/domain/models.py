@@ -1,19 +1,51 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
+class RawSignal(BaseModel):
+    """Signal payload returned directly from upstream sources."""
+
+    source: str
+    title: str
+    url: str
+    abstract: str = ""
+    date: datetime
+    raw_score: float = 0.0
+    mission: str = "General"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    is_novel: bool = False
+
+
+class ScoredSignal(RawSignal):
+    """Processed signal with calculated scoring dimensions."""
+
+    score_activity: float
+    score_attention: float
+    score_recency: float
+    final_score: float
+    typology: str
+
+
 class SignalCard(BaseModel):
+    """The final output sent to the UI."""
+
     title: str
     url: str
     summary: str
-    typology: str = Field(..., description="Hidden Gem, Hype, Established, or Nascent")
-    score_activity: float = 0.0
-    score_attention: float = 0.0
+    source: str
     mission: str
-    sparkline: list[int] = Field(default_factory=list)
+    date: str
+    score_activity: float
+    score_attention: float
+    score_recency: float
+    final_score: float
+    typology: str
+    is_novel: bool = False
+    related_keywords: list[str] = Field(default_factory=list)
 
 
 class RadarRequest(BaseModel):

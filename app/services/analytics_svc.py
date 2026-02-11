@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import numpy as np
 
 
@@ -34,6 +36,19 @@ class HorizonAnalyticsService:
             int(signal_metadata.get("niche_count", 0)),
         )
         return {"activity": round(activity, 1), "attention": round(attention, 1)}
+
+    def calculate_recency_score(self, date: datetime) -> float:
+        """Score signal recency based on strict business freshness windows."""
+        now = datetime.now(timezone.utc)
+        candidate = date if date.tzinfo else date.replace(tzinfo=timezone.utc)
+        age_days = (now - candidate).days
+        if age_days < 30:
+            return 10.0
+        if age_days < 182:
+            return 7.5
+        if age_days < 365:
+            return 5.0
+        return 0.0
 
     def classify_sweet_spot(self, activity: float, attention: float) -> str:
         """Classify the signal profile into a horizon typology."""
