@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -14,21 +13,19 @@ from app.api.routes.intelligence import router as intelligence_router
 from app.api.routes.radar import router as radar_router
 from app.api.routes.research import router as research_router
 from app.api.routes.system import router as system_router
+from app.api.dependencies import get_settings
 from app.core.security import configure_cors
-
-
-def _has_any_env(*names: str) -> bool:
-    return any(bool(os.getenv(name)) for name in names)
 
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
+    settings = get_settings()
     missing: list[str] = []
-    if not _has_any_env("OPENAI_API_KEY"):
+    if not settings.OPENAI_API_KEY:
         missing.append("OPENAI_API_KEY")
-    if not _has_any_env("Google Search_API_KEY", "Google_Search_API_KEY", "GOOGLE_SEARCH_API_KEY", "GOOGLE_SEARCH_KEY"):
+    if not settings.GOOGLE_SEARCH_API_KEY:
         missing.append("Google Search_API_KEY")
-    if not _has_any_env("Google Search_CX", "Google_Search_CX", "GOOGLE_SEARCH_CX"):
+    if not settings.GOOGLE_SEARCH_CX:
         missing.append("Google Search_CX")
 
     if missing:

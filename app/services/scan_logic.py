@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from difflib import SequenceMatcher
 from collections.abc import Generator
@@ -29,6 +30,7 @@ GT_R_FUNDING_DIVISOR = 25_000.0
 OPENALEX_CITATION_DIVISOR = 100.0
 GOOGLE_BASELINE_ATTENTION = 7.0
 FETCH_CACHE_TTL_SECONDS = 24 * 60 * 60
+DEDUPE_SIMILARITY_THRESHOLD = 0.85
 
 
 class ScanOrchestrator:
@@ -53,8 +55,8 @@ class ScanOrchestrator:
     def cutoff_date(self) -> datetime:
         return datetime.now(timezone.utc) - timedelta(days=ONE_YEAR_DAYS)
 
-    def _cache_key(self, *, topic: str, mode: str, cutoff: datetime) -> str:
-        return f"{topic.strip().lower()}|{mode}|{cutoff.date().isoformat()}"
+    def _cache_key(self, *, topic: str, mode: str, friction_mode: bool, cutoff: datetime) -> str:
+        return f"{topic.strip().lower()}|{mode}|{str(friction_mode).lower()}|{cutoff.date().isoformat()}"
 
     def _clone_raw_signals(self, signals: list[RawSignal]) -> list[RawSignal]:
         return [signal.model_copy(deep=True) for signal in signals]
@@ -73,13 +75,17 @@ class ScanOrchestrator:
             raise ValueError("Topic is required to fetch signals.")
 
         cutoff_date = self.cutoff_date
-        cache_key = self._cache_key(topic=clean_topic, mode=mode, cutoff=cutoff_date)
+        cache_key = self._cache_key(topic=clean_topic, mode=mode, friction_mode=friction_mode, cutoff=cutoff_date)
         cached = self._fetch_cache.get(cache_key)
         if cached and (time.time() - cached[0]) < FETCH_CACHE_TTL_SECONDS:
             _, cached_signals, cached_terms = cached
             return self._clone_raw_signals(cached_signals), list(cached_terms)
 
-        related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+        try:
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+        except Exception as keyword_error:
+            logging.warning("Keyword enrichment failed for topic %s: %s", clean_topic, keyword_error)
+            related_terms = []
         from_publication_date = cutoff_date.date().isoformat()
 
         gtr_result, openalex_result, google_year_result, google_month_result = await asyncio.gather(
@@ -119,13 +125,14 @@ class ScanOrchestrator:
         *,
         mission: str,
         related_terms: list[str],
+        override_cutoff_date: datetime | None = None,
     ) -> Generator[SignalCard, None, None]:
         """Apply strict recency filtering and weighted scoring, yielding UI-ready cards."""
-        cutoff_date = self.cutoff_date
+        effective_cutoff = override_cutoff_date or self.cutoff_date
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:
-            if raw_signal.date < cutoff_date:
+            if raw_signal.date < effective_cutoff:
                 continue
 
             activity = self._calculate_activity(raw_signal)
@@ -163,7 +170,15 @@ class ScanOrchestrator:
         except (ServiceError, Exception):
             works = []
         raw_signals = self._normalise_openalex(works, mission="Research")
-        return list(self.process_signals(raw_signals, mission="Research", related_terms=[]))
+        override_cutoff = datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS)
+        return list(
+            self.process_signals(
+                raw_signals,
+                mission="Research",
+                related_terms=[],
+                override_cutoff_date=override_cutoff,
+            )
+        )
 
     async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
         """Policy-focused cards from high-trust government search results."""
@@ -290,7 +305,7 @@ class ScanOrchestrator:
                     signal.title.strip().lower(),
                     existing.title.strip().lower(),
                 ).ratio()
-                if similarity > 0.85:
+                if similarity > DEDUPE_SIMILARITY_THRESHOLD:
                     is_fuzzy_duplicate = True
                     break
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import logging
 import time
@@ -31,6 +32,7 @@ class SheetService:
         self._sync_queue: list[dict[str, Any]] = []
         self._queue_lock = asyncio.Lock()
         self._last_sync_at = time.monotonic()
+        atexit.register(self._flush_queue_on_exit)
 
         if not self.settings.GOOGLE_CREDENTIALS:
             logging.warning("No Google credentials found.")
@@ -117,14 +119,18 @@ class SheetService:
         for signal in signals:
             await self.queue_signal_for_sync(signal)
 
-    async def batch_sync_to_sheets(self) -> None:
-        """Flush up to 50 queued signals to Google Sheets in one batch call."""
+    async def batch_sync_to_sheets(self, *, force: bool = False) -> None:
+        """Flush queued signals to Google Sheets in batch calls."""
         async with self._queue_lock:
             if not self._sync_queue:
                 self._last_sync_at = time.monotonic()
                 return
-            batch = self._sync_queue[:QUEUE_FLUSH_BATCH_SIZE]
-            self._sync_queue = self._sync_queue[QUEUE_FLUSH_BATCH_SIZE:]
+            if force:
+                batch = list(self._sync_queue)
+                self._sync_queue = []
+            else:
+                batch = self._sync_queue[:QUEUE_FLUSH_BATCH_SIZE]
+                self._sync_queue = self._sync_queue[QUEUE_FLUSH_BATCH_SIZE:]
             self._last_sync_at = time.monotonic()
 
         rows_to_append = [self._signal_to_row(signal) for signal in batch]
@@ -217,3 +223,13 @@ class SheetService:
             return await asyncio.to_thread(self.get_database_sheet().get_all_records)
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to fetch saved signals: {sheet_error}") from sheet_error
+
+    def _flush_queue_on_exit(self) -> None:
+        """Best-effort queue flush during interpreter shutdown."""
+        if not self._sync_queue:
+            return
+        try:
+            asyncio.run(self.batch_sync_to_sheets(force=True))
+        except RuntimeError:
+            # Event loop state may prevent flush during shutdown.
+            pass
