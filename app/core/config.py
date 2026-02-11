@@ -34,11 +34,14 @@ class Settings(BaseSettings):
     OPENALEX_API_KEY: str | None = None
 
     PROJECT_NAME: str = "Nesta Signal Scout"
+    # Set BACKEND_CORS_ORIGINS in .env as a JSON array, e.g.
+    # BACKEND_CORS_ORIGINS=["https://nesta-signal-scout.onrender.com"]
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:8000",
-            "https://phia-francis.github.io",
-        ]
+            "https://nesta-signal-scout.onrender.com",
+        ],
+        validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS"),
     )
 
 
