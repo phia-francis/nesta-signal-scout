@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.core.config import DEFAULT_SEARCH_RESULTS, SEARCH_TIMEOUT_SECONDS, Settings
+from app.core.resilience import retry_with_backoff
 from app.domain.taxonomy import TaxonomyService
 from keywords import NICHE_DOMAINS, SIGNAL_KEYWORDS
 
@@ -59,11 +60,13 @@ class SearchService:
         query = f"{mission} {core_query} ({combined_modes}) {blacklist_terms}".strip()
         return self.calculate_friction(query, friction_mode)
 
+    @retry_with_backoff(retries=3, delay=1.0)
     async def search(
         self,
         query: str,
         num: int = DEFAULT_SEARCH_RESULTS,
         *,
+        freshness: str | None = None,
         friction_mode: bool = False,
     ) -> list[dict]:
         """Execute Google custom search and return trust-sorted results."""
@@ -77,11 +80,19 @@ class SearchService:
             "q": effective_query,
             "num": num,
         }
-        async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS) as client:
-            response = await client.get("https://www.googleapis.com/customsearch/v1", params=params)
-            if response.status_code != 200:
-                raise ServiceError(f"Search API Error: {response.status_code}")
-            items = response.json().get("items", [])
+        freshness_map = {"month": "qdr:m", "year": "qdr:y"}
+        if freshness in freshness_map:
+            params["tbs"] = freshness_map[freshness]
+
+        try:
+            async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS) as client:
+                response = await client.get("https://www.googleapis.com/customsearch/v1", params=params)
+                response.raise_for_status()
+                items = response.json().get("items", [])
+        except httpx.HTTPStatusError as exc:
+            raise
+        except httpx.HTTPError as exc:
+            raise ServiceError(f"Search request failed: {exc}") from exc
 
         for item in items:
             item["trust"] = self.calculate_trust(item.get("link", ""))

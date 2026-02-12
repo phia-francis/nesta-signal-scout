@@ -4,33 +4,16 @@ import json
 import logging
 from typing import Any, AsyncGenerator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import (
-    get_analytics_service,
-    get_openalex_service,
-    get_gateway_service,
-    get_sheet_service,
-    get_taxonomy,
-    get_topic_service,
-)
-from app.core.config import SCAN_RESULT_LIMIT
+from app.api.dependencies import get_scan_orchestrator, get_sheet_service
 from app.domain.models import RadarRequest
-from app.domain.taxonomy import TaxonomyService
-from app.services.analytics_svc import HorizonAnalyticsService
-from app.services.openalex_svc import OpenAlexService
-from app.services.gtr_svc import GatewayResearchService
-from app.services.ml_svc import TopicModellingService
-from app.services.scan_logic import _build_search_query
+from app.services.scan_logic import ScanOrchestrator
 from app.services.search_svc import ServiceError
 from app.services.sheet_svc import SheetService
 
 router = APIRouter(prefix="/api", tags=["radar"])
-
-ATTENTION_SCORE_CAP = 10.0
-CITATION_DIVISOR = 100
-CITATION_FUNDING_EQUIVALENCY = 25000
 
 
 def ndjson_line(payload: dict[str, Any]) -> str:
@@ -40,20 +23,31 @@ def ndjson_line(payload: dict[str, Any]) -> str:
 @router.post("/mode/radar")
 async def radar_scan(
     request: RadarRequest,
+    background_tasks: BackgroundTasks,
+    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
     sheet_service: SheetService = Depends(get_sheet_service),
-    analytics_service: HorizonAnalyticsService = Depends(get_analytics_service),
-    gateway_service: GatewayResearchService = Depends(get_gateway_service),
-    openalex_service: OpenAlexService = Depends(get_openalex_service),
-    topic_service: TopicModellingService = Depends(get_topic_service),
-    taxonomy: TaxonomyService = Depends(get_taxonomy),
 ) -> StreamingResponse:
-    """Run the radar scan and stream NDJSON updates for responsive UI behaviour."""
+    """Thin controller: validate input, delegate scan orchestration, stream results."""
+
+    effective_topic = (request.topic or "").strip() or (request.query or "").strip()
+    if not effective_topic:
+        logging.warning("Scan attempted without topic or query.")
+
+        async def invalid_input_generator() -> AsyncGenerator[str, None]:
+            yield ndjson_line(
+                {
+                    "status": "error",
+                    "msg": "Please provide a valid topic or search query to start the scan.",
+                }
+            )
+
+        return StreamingResponse(invalid_input_generator(), media_type="application/x-ndjson")
+
+    request.topic = effective_topic
 
     async def generator() -> AsyncGenerator[str, None]:
         try:
-            topic = request.topic or "innovation"
             mission = request.mission or "All Missions"
-
             yield ndjson_line({"status": "info", "msg": "Authenticating with Google Sheets..."})
             existing_urls = await sheet_service.get_existing_urls()
             yield ndjson_line(
@@ -63,83 +57,49 @@ async def radar_scan(
                 }
             )
 
-            gtr_projects = await gateway_service.fetch_projects(topic)
-            openalex_works = await openalex_service.search_works(topic)
-            mode_message, _ = _build_search_query(request, taxonomy)
-            yield ndjson_line({"status": "info", "msg": mode_message})
-
-            abstracts = [project.get("abstract", "") for project in gtr_projects if project.get("abstract")]
-            refined_keywords = topic_service.perform_lda(abstracts)
-            topic_seeds = topic_service.recommend_top2vec_seeds(abstracts)
-
-            citation_count = sum(work.get("score", 0) for work in openalex_works)
-            adjusted_activity_input = citation_count * CITATION_FUNDING_EQUIVALENCY
-            activity_score = analytics_service.calculate_activity_score(
-                sum(project.get("fund_val", 0) for project in gtr_projects),
-                adjusted_activity_input,
+            raw_signals, related_terms = await orchestrator.fetch_signals(
+                request.topic,
+                mission=mission,
+                mode=request.mode,
+                friction_mode=request.friction_mode,
             )
-            max_citations = max((work.get("score", 0) for work in openalex_works), default=0)
-            attention_score = (
-                min(ATTENTION_SCORE_CAP, max_citations / CITATION_DIVISOR)
-                if max_citations
-                else 0.0
+            scored_signals = list(
+                orchestrator.process_signals(
+                    raw_signals,
+                    mission=mission,
+                    related_terms=related_terms,
+                )
             )
-            typology = analytics_service.classify_sweet_spot(activity_score, attention_score)
-            sparkline = analytics_service.generate_sparkline(activity_score, attention_score)
 
-            for project in gtr_projects[:SCAN_RESULT_LIMIT]:
-                signal = {
-                    "mode": "Radar",
-                    "title": project.get("title", f"GtR: {topic}"),
-                    "summary": project.get("abstract", ""),
-                    "url": f"https://gtr.ukri.org/projects?ref={project.get('grantReference') or project.get('title', '')}",
-                    "mission": mission,
-                    "score_activity": round(activity_score, 1),
-                    "score_attention": round(attention_score, 1),
-                    "typology": typology,
-                    "sparkline": sparkline,
-                    "refined_keywords": refined_keywords,
-                    "topic_seeds": topic_seeds,
-                    "source": "UKRI GtR",
-                }
-                if signal["url"] in existing_urls:
-                    continue
-                await sheet_service.save_signal(signal, existing_urls)
-                yield ndjson_line({"status": "blip", "blip": signal})
+            if not scored_signals:
+                yield ndjson_line(
+                    {
+                        "status": "error",
+                        "msg": "No live signals matched the 1 month to 1 year sweet-spot window.",
+                    }
+                )
+                return
 
-            for work in openalex_works[:SCAN_RESULT_LIMIT]:
-                if work.get("url") in existing_urls:
+            pending_signals: list[dict[str, Any]] = []
+            for signal in scored_signals:
+                if signal.url in existing_urls:
                     continue
-                work_attention = min(
-                    ATTENTION_SCORE_CAP,
-                    work.get("score", 0) / CITATION_DIVISOR,
-                )
-                work_typology = analytics_service.classify_sweet_spot(
-                    activity_score,
-                    work_attention,
-                )
-                signal = {
-                    "mode": "Radar",
-                    "title": work.get("title", "Untitled Signal"),
-                    "summary": work.get("summary", ""),
-                    "url": work.get("url", ""),
-                    "mission": mission,
-                    "score_activity": round(activity_score, 1),
-                    "score_attention": round(work_attention, 1),
-                    "typology": work_typology,
-                    "sparkline": sparkline,
-                    "refined_keywords": refined_keywords,
-                    "topic_seeds": topic_seeds,
-                    "source": "OpenAlex",
-                }
-                await sheet_service.save_signal(signal, existing_urls)
-                yield ndjson_line({"status": "blip", "blip": signal})
+                payload = {"mode": "Radar", **signal.model_dump()}
+                pending_signals.append(payload)
+                yield ndjson_line({"status": "blip", "blip": payload})
+
+            if pending_signals:
+                background_tasks.add_task(sheet_service.queue_signals_for_sync, pending_signals)
 
             yield ndjson_line({"status": "complete", "msg": "Scan Routine Finished."})
         except ServiceError as service_error:
-            logging.error("Service error in radar scan: %s", service_error)
-            yield ndjson_line(
-                {"status": "error", "msg": "Service unavailable. Please try again later."}
-            )
+            logging.error("Service error in radar scan: %s", service_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-service"})
+        except ValueError as validation_error:
+            logging.error("Validation error in radar scan: %s", validation_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-validation"})
+        except Exception as unexpected_error:
+            logging.error("Unhandled error in radar scan: %s", unexpected_error, exc_info=True)
+            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-unhandled"})
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")

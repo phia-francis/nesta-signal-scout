@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
 
 import httpx
 
 from app.core.config import SEARCH_TIMEOUT_SECONDS, Settings
-from app.services.search_svc import ServiceError
+from app.core.resilience import retry_with_backoff
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAlexService:
@@ -16,20 +18,12 @@ class OpenAlexService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    @staticmethod
-    def _reconstruct_abstract(abstract_index: Mapping[str, list[int]] | None) -> str:
-        if not abstract_index:
-            return ""
+    @retry_with_backoff(retries=3, delay=1.0)
+    async def search_works(self, topic: str, from_publication_date: str) -> list[dict]:
+        """Search OpenAlex works and map to scan-friendly fields."""
+        if not topic:
+            return []
 
-        positions_to_words: dict[int, str] = {}
-        for word, positions in abstract_index.items():
-            for position in positions:
-                positions_to_words[position] = word
-
-        return " ".join(word for _, word in sorted(positions_to_words.items()))
-
-    async def search_works(self, query: str) -> list[dict]:
-        """Search OpenAlex works and map to a simplified response model."""
         headers: dict[str, str] = {
             "User-Agent": "Nesta Signal Scout (mailto:openalex@nesta.org.uk)",
         }
@@ -37,45 +31,38 @@ class OpenAlexService:
             headers["api-key"] = self.settings.OPENALEX_API_KEY
 
         params = {
-            "search": query,
+            "search": topic,
             "per_page": 10,
             "sort": "relevance_score:desc",
+            "filter": f"from_publication_date:{from_publication_date}",
         }
 
         try:
             async with httpx.AsyncClient(timeout=SEARCH_TIMEOUT_SECONDS) as client:
                 response = await client.get(self.BASE_URL, params=params, headers=headers)
                 response.raise_for_status()
+                payload = response.json()
         except httpx.HTTPStatusError as exc:
-            raise ServiceError(f"OpenAlex API Error: {exc.response.status_code}") from exc
-        except httpx.RequestError as exc:
-            raise ServiceError(f"OpenAlex request failed: {exc}") from exc
+            logger.error("OpenAlex API status for topic '%s': %s", topic, exc.response.status_code)
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error("OpenAlex request failed for topic '%s': %s", topic, exc)
+            return []
 
-        works = response.json().get("results", [])
-        if not works:
-            raise ServiceError("OpenAlex returned no works for this topic.")
-
-        simplified: list[dict] = []
+        works = payload.get("results", [])
+        mapped: list[dict] = []
         for work in works:
-            title = work.get("title") or "Untitled Work"
-            abstract = self._reconstruct_abstract(work.get("abstract_inverted_index"))
-            publication_year = work.get("publication_year")
-            if not abstract:
-                abstract = (
-                    f"{title} ({publication_year})"
-                    if publication_year
-                    else title
-                )
-
-            doi = work.get("doi")
-            simplified.append(
+            cited_by_count = int(work.get("cited_by_count") or 0)
+            mapped.append(
                 {
-                    "title": title,
-                    "url": doi or work.get("id", ""),
-                    "summary": abstract,
-                    "date": work.get("publication_date"),
-                    "score": int(work.get("cited_by_count") or 0),
+                    "title": work.get("title") or "Untitled Work",
+                    "url": work.get("doi") or work.get("id", ""),
+                    "summary": work.get("display_name") or work.get("title") or "",
+                    "activity": 0.0,
+                    "attention": cited_by_count,
+                    "cited_by_count": cited_by_count,
+                    "publication_date": work.get("publication_date"),
                 }
             )
 
-        return simplified
+        return mapped
