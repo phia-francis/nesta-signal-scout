@@ -77,7 +77,7 @@ class ScanOrchestrator:
         cutoff_date = self.cutoff_date
         cache_key = self._cache_key(topic=clean_topic, mode=mode, friction_mode=friction_mode, cutoff=cutoff_date)
         cached = self._fetch_cache.get(cache_key)
-        if cached and (time.time() - cached[0]) < FETCH_CACHE_TTL_SECONDS:
+        if cached and (time.monotonic() - cached[0]) < FETCH_CACHE_TTL_SECONDS:
             _, cached_signals, cached_terms = cached
             return self._clone_raw_signals(cached_signals), list(cached_terms)
 
@@ -116,7 +116,7 @@ class ScanOrchestrator:
             )
         )
 
-        self._fetch_cache[cache_key] = (time.time(), self._clone_raw_signals(raw_signals), list(related_terms))
+        self._fetch_cache[cache_key] = (time.monotonic(), self._clone_raw_signals(raw_signals), list(related_terms))
         return raw_signals, related_terms
 
     def process_signals(
@@ -293,6 +293,7 @@ class ScanOrchestrator:
         seen_urls: set[str] = set()
         kept: list[SignalCard] = []
 
+        # TODO: O(n^2) complexity. For large datasets, consider Locality-Sensitive Hashing (LSH) or SimHash fingerprints.
         for signal in signals:
             normalised_url = self._normalise_url(signal.url)
             if normalised_url and normalised_url in seen_urls:
@@ -350,6 +351,22 @@ class ScanOrchestrator:
             return None
 
     @staticmethod
+    def _build_sparkline(scored: ScoredSignal) -> list[int]:
+        base = max(0, min(100, int(round(scored.final_score * 10))))
+        activity = max(0, min(100, int(round(scored.score_activity * 10))))
+        attention = max(0, min(100, int(round(scored.score_attention * 10))))
+        recency = max(0, min(100, int(round(scored.score_recency * 10))))
+        return [
+            max(0, base - 8),
+            max(0, base - 4),
+            base,
+            min(100, base + 3),
+            min(100, base + 6),
+            activity,
+            max(attention, recency),
+        ]
+
+    @staticmethod
     def _to_signal_card(scored: ScoredSignal, *, related_terms: list[str]) -> SignalCard:
         return SignalCard(
             title=scored.title,
@@ -364,5 +381,6 @@ class ScanOrchestrator:
             final_score=scored.final_score,
             typology=scored.typology,
             is_novel=scored.is_novel,
+            sparkline=ScanOrchestrator._build_sparkline(scored),
             related_keywords=related_terms,
         )

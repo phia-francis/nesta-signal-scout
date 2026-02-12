@@ -64,6 +64,13 @@ export function createSignalCard(signal) {
   missionPill.className = `rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${theme.bg} ${theme.text}`;
   missionPill.textContent = mission;
 
+  if (signal.is_novel) {
+    const noveltyPill = document.createElement('span');
+    noveltyPill.className = 'rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-nesta-teal/15 text-nesta-navy border border-nesta-teal/40';
+    noveltyPill.textContent = 'New';
+    card.appendChild(noveltyPill);
+  }
+
   const title = document.createElement('h3');
   title.className = 'font-display text-xl leading-tight text-nesta-navy mb-2';
   title.textContent = signal.title || 'Untitled Signal';
@@ -149,22 +156,52 @@ export function showEmptyState(topic, container) {
   container.appendChild(wrapper);
 }
 
+export function clearConsole() {
+  const consoleEl = document.getElementById('console');
+  if (consoleEl) {
+    consoleEl.innerHTML = '';
+  }
+}
+
+export function appendConsoleLog(message, type = 'info') {
+  const consoleEl = document.getElementById('console');
+  if (!consoleEl) return;
+
+  const line = document.createElement('div');
+  line.className = `log-entry log-entry-${type}`;
+  line.textContent = message;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+export function startScan() {
+  const loader = document.getElementById('scan-loader');
+  const feed = document.getElementById('radar-feed');
+  loader?.classList.remove('hidden');
+  feed?.classList.add('hidden');
+}
+
+export function finishScan() {
+  const loader = document.getElementById('scan-loader');
+  const feed = document.getElementById('radar-feed');
+  loader?.classList.add('hidden');
+  feed?.classList.remove('hidden');
+}
+
 export function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
-  const palette = {
-    success: 'bg-nesta-green border-nesta-green text-white',
-    error: 'bg-nesta-red border-nesta-red text-white',
-    info: 'bg-nesta-navy border-nesta-navy text-white',
-  };
+  container.querySelectorAll('.modern-toast').forEach((existingToast) => existingToast.remove());
 
   const toast = document.createElement('div');
-  toast.className = `pointer-events-auto max-w-sm w-full shadow-hard border-l-8 p-4 flex items-center gap-3 ${palette[type] || palette.info}`;
+  toast.className = `modern-toast ${type === 'error' ? 'error' : ''}`.trim();
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
   toast.textContent = message;
   container.appendChild(toast);
 
-  setTimeout(() => {
+  window.setTimeout(() => {
     toast.remove();
   }, 4000);
 }

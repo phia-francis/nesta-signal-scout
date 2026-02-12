@@ -4,6 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -14,7 +15,6 @@ from app.api.routes.radar import router as radar_router
 from app.api.routes.research import router as research_router
 from app.api.routes.system import router as system_router
 from app.api.dependencies import get_settings
-from app.core.security import configure_cors
 
 
 @asynccontextmanager
@@ -36,8 +36,22 @@ async def app_lifespan(_: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
-    application = FastAPI(lifespan=app_lifespan)
-    configure_cors(application)
+    application = FastAPI(
+        title="Nesta Signal Scout",
+        version="1.0",
+        lifespan=app_lifespan,
+    )
+
+    # --- CORS CONFIGURATION ---
+    # We must explicitly allow the frontend domain to communicate with this backend.
+    settings = get_settings()
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     application.mount("/static", StaticFiles(directory="static"), name="static")
     application.include_router(radar_router)
     application.include_router(research_router)

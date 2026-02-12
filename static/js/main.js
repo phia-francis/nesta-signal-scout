@@ -293,7 +293,7 @@ function renderSignalCard(signal, container) {
   const sparklineElement = generateSparklineElement(signal.sparkline);
   const actPercent = Math.min(100, (signal.score_activity / 10) * 100);
   const attPercent = Math.min(100, (signal.score_attention / 10) * 100);
-  const isNew = true;
+  const isNew = Boolean(signal.is_novel);
   if (isNew) {
     const badge = document.createElement('div');
     badge.className = 'pulse-badge';
@@ -432,7 +432,6 @@ function switchAppMode(mode) {
     if (viewHeading) viewHeading.textContent = modeContent.heading;
     if (viewDescription) viewDescription.textContent = modeContent.description;
     refreshDatabase();
-    showToast('Switched to Database View', 'info');
     return;
   }
 
@@ -455,7 +454,6 @@ function switchAppMode(mode) {
       'w-full md:w-auto bg-nesta-purple text-white px-8 py-4 font-display font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2';
     btnText.innerText = 'RUN DEEP DIVE';
     interfaceBox.classList.add('border-nesta-purple');
-    showToast('Mode: Research (Complex Query Enabled)', 'info');
   } else {
     stdInput.classList.remove('hidden');
     resInput.classList.add('hidden');
@@ -463,7 +461,6 @@ function switchAppMode(mode) {
     scanBtn.className = `w-full md:w-auto ${color} px-8 py-4 font-display font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2`;
     btnText.innerText = `RUN ${mode.toUpperCase()} SCAN`;
     interfaceBox.classList.remove('border-nesta-purple');
-    showToast(`Mode: ${mode.toUpperCase()} Active`, 'info');
   }
 }
 
@@ -556,16 +553,36 @@ function renderRadarBlip(blip) {
   renderSignalCard(blip, radarFeed);
 }
 
+function getConsoleContainer() {
+  return document.getElementById('console') || document.getElementById('scan-logs');
+}
+
 function addLog(message, type = 'info') {
-  const logContainer = document.getElementById('scan-logs');
+  const logContainer = getConsoleContainer();
   if (!logContainer) {
     return;
   }
   const entry = document.createElement('div');
-  entry.className = `log-${type}`;
+  entry.className = `log-entry log-entry-${type}`;
   entry.textContent = message;
   logContainer.appendChild(entry);
   logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+
+function startScan() {
+  const loader = document.getElementById('scan-loader');
+  loader?.classList.remove('hidden');
+  radarFeed.classList.add('hidden');
+}
+
+function finishScan() {
+  const loader = document.getElementById('scan-loader');
+  loader?.classList.add('hidden');
+function finishScan() {
+  const loader = document.getElementById('scan-loader');
+  loader?.classList.add('hidden');
+}
 }
 
 async function runScan() {
@@ -573,13 +590,14 @@ async function runScan() {
   const topicInput = document.getElementById('topic-input');
   const researchInput = document.getElementById('research-input');
   const emptyState = document.getElementById('empty-state');
-  const logContainer = document.getElementById('scan-logs');
+  const logContainer = getConsoleContainer();
   let blipCount = 0;
   state.globalSignalsArray = [];
 
   if (logContainer) {
     logContainer.innerHTML = '';
   }
+  startScan();
   if (emptyState) {
     emptyState.classList.add('hidden');
   }
@@ -620,7 +638,9 @@ async function runScan() {
     radarStatus.textContent = 'Connection failed: Check API Key';
     radarStatus.classList.add('text-red-500');
     addLog('Connection failed: Check API Key', 'error');
-    showToast('Error during scan', 'error');
+    showToast('Connection Failed', 'error');
+  } finally {
+    finishScan();
   }
 }
 
