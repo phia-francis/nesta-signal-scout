@@ -167,6 +167,11 @@ export function appendConsoleLog(message, type = 'info') {
   const consoleEl = document.getElementById('console');
   if (!consoleEl) return;
 
+  const lastEntry = consoleEl.lastElementChild;
+  if (lastEntry?.textContent === message && lastEntry.classList.contains(`log-entry-${type}`)) {
+    return;
+  }
+
   const line = document.createElement('div');
   line.className = `log-entry log-entry-${type}`;
   line.textContent = message;

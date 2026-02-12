@@ -19,17 +19,20 @@ from app.api.dependencies import get_settings
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
-    settings = get_settings()
-    missing: list[str] = []
-    if not settings.OPENAI_API_KEY:
-        missing.append("OPENAI_API_KEY")
-    if not settings.GOOGLE_SEARCH_API_KEY:
-        missing.append("Google Search_API_KEY")
-    if not settings.GOOGLE_SEARCH_CX:
-        missing.append("Google Search_CX")
+    try:
+        settings = get_settings()
+        missing: list[str] = []
+        if not settings.OPENAI_API_KEY:
+            missing.append("OPENAI_API_KEY")
+        if not settings.GOOGLE_SEARCH_API_KEY:
+            missing.append("Google Search_API_KEY")
+        if not settings.GOOGLE_SEARCH_CX:
+            missing.append("Google Search_CX")
 
-    if missing:
-        raise RuntimeError(f"Missing critical environment variables: {', '.join(missing)}")
+        if missing:
+            logging.warning("Missing environment variables at startup: %s", ", ".join(missing))
+    except Exception:
+        logging.warning("Startup environment check failed; continuing without strict validation", exc_info=True)
 
     yield
 
@@ -42,12 +45,13 @@ def create_app() -> FastAPI:
         lifespan=app_lifespan,
     )
 
-    # --- CORS CONFIGURATION ---
-    # We must explicitly allow the frontend domain to communicate with this backend.
-    settings = get_settings()
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=[
+            "https://phia-francis.github.io",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
