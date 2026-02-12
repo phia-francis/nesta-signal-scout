@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -48,3 +50,8 @@ class Settings(BaseSettings):
 SCAN_RESULT_LIMIT: int = 6
 DEFAULT_SEARCH_RESULTS: int = 10
 SEARCH_TIMEOUT_SECONDS: int = 20
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
