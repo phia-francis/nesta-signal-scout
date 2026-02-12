@@ -112,12 +112,13 @@ class SheetService:
                 or (time.monotonic() - self._last_sync_at) >= QUEUE_FLUSH_INTERVAL_SECONDS
             )
         if should_flush:
-            await self.batch_sync_to_sheets()
+            await self.batch_sync_to_sheets(force=True)
 
     async def queue_signals_for_sync(self, signals: list[SignalCard | dict[str, Any]]) -> None:
         """Queue many signals for periodic background sync."""
         for signal in signals:
             await self.queue_signal_for_sync(signal)
+        await self.batch_sync_to_sheets(force=True)
 
     async def batch_sync_to_sheets(self, *, force: bool = False) -> None:
         """Flush queued signals to Google Sheets in batch calls."""
@@ -161,6 +162,7 @@ class SheetService:
                 await self._update_existing_signal(signal.get("url", ""), signal)
             else:
                 await self.queue_signal_for_sync(signal)
+        await self.batch_sync_to_sheets(force=True)
 
     async def upsert_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
         """Compatibility wrapper for existing callers."""
@@ -223,6 +225,10 @@ class SheetService:
             return await asyncio.to_thread(self.get_database_sheet().get_all_records)
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to fetch saved signals: {sheet_error}") from sheet_error
+
+    async def flush_pending_sync(self) -> None:
+        """Force-flush any queued signals, including partial batches."""
+        await self.batch_sync_to_sheets(force=True)
 
     def _flush_queue_on_exit(self) -> None:
         """Best-effort queue flush during interpreter shutdown."""

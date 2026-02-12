@@ -14,6 +14,7 @@ tailwind.config = {
           orange: '#FF6E47',
           yellow: '#FDB633',
           sand: '#D2C9C0',
+          'dark-grey': '#646363',
           white: '#FFFFFF',
           'off-white': '#F8F8FC',
         },

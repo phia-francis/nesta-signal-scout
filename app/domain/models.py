@@ -45,6 +45,7 @@ class SignalCard(BaseModel):
     final_score: float
     typology: str
     is_novel: bool = False
+    sparkline: list[int] = Field(default_factory=list)
     related_keywords: list[str] = Field(default_factory=list)
 
 

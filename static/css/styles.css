@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --nesta-black: #0F2940;
+  --nesta-teal: #00D2A2;
+  --nesta-coral: #F75E5E;
+  --nesta-silver: #F3F4F5;
+  --nesta-white: #FFFFFF;
+  --font-main: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  font-family: var(--font-main);
+}
+
 /* CORRECT RELATIVE PATHS */
 /* usage: ../ means "go up one folder" (from css to static), then into fonts */
 
@@ -37,17 +50,18 @@
 }
 
 body {
-  background-color: #f8f8fc;
-  color: #0f294a;
-  font-family: 'Averta', sans-serif;
+  background-color: var(--nesta-silver);
+  color: var(--nesta-black);
+  font-family: var(--font-main);
 }
 
 h1,
 h2,
 h3,
 .brand-font {
-  font-family: 'Zosia Display', sans-serif;
-  letter-spacing: -0.02em;
+  color: var(--nesta-black);
+  font-family: var(--font-main);
+  letter-spacing: -0.01em;
 }
 
 .btn-nesta {
@@ -114,9 +128,28 @@ h3,
   font-weight: bold;
 }
 
-#scan-logs {
-  font-family: 'Courier New', Courier, monospace;
+#console {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 41, 64, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 41, 64, 0.08);
+  font-family: 'Averta', var(--font-main);
   font-size: 12px;
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #F3F4F5;
+  border-radius: 10px;
+  border-left: 3px solid #00D2A2;
+  color: #0F2940;
+  padding: 0.5rem 0.75rem;
+}
+
+.log-entry-error {
+  border-left-color: #F75E5E;
 }
 
 /* TOAST ANIMATIONS */
@@ -400,4 +433,81 @@ h3,
 .modal-content {
   max-height: 90vh;
   overflow-y: auto;
+}
+
+
+.filter-btn,
+#btn-view-grid,
+#btn-view-network {
+  border-radius: 999px;
+  background: var(--nesta-silver);
+  border: 1px solid rgba(15, 41, 64, 0.2);
+  color: var(--nesta-black);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 8px 24px;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover,
+#btn-view-grid:hover,
+#btn-view-network:hover {
+  background: var(--nesta-white);
+  border-color: rgba(15, 41, 64, 0.35);
+}
+
+.filter-btn.active,
+#btn-view-grid.bg-white,
+#btn-view-network.bg-white {
+  background: var(--nesta-black);
+  color: var(--nesta-teal);
+  border: none;
+}
+
+@keyframes toastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modern-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  max-width: 360px;
+  width: calc(100% - 3rem);
+  background: var(--nesta-black);
+  color: var(--nesta-white);
+  border-left: 4px solid var(--nesta-teal);
+  box-shadow: 0 18px 40px rgba(15, 41, 64, 0.35);
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  z-index: 70;
+  animation: toastSlideUp 220ms ease-out;
+}
+
+.modern-toast.error {
+  border-left-color: var(--nesta-coral);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-loader {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 2px solid rgba(0, 210, 162, 0.2);
+  border-top: 2px solid #00D2A2;
+  animation: spin 1s linear infinite;
+  margin: 1rem auto;
 }

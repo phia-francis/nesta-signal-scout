@@ -13,7 +13,7 @@ R = TypeVar("R")
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
-def _is_retryable(exc: httpx.RequestError) -> bool:
+def _is_retryable(exc: httpx.RequestError | httpx.HTTPStatusError) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in RETRYABLE_STATUS_CODES
     return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout))
@@ -33,7 +33,7 @@ def retry_with_backoff(
             while True:
                 try:
                     return await func(*args, **kwargs)
-                except httpx.RequestError as exc:
+                except (httpx.RequestError, httpx.HTTPStatusError) as exc:
                     attempt += 1
                     if attempt > retries or not _is_retryable(exc):
                         raise

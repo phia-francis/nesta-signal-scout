@@ -7,7 +7,7 @@ import {
 } from './api.js';
 import { state } from './state.js';
 import { initialiseTriage } from './triage.js';
-import { renderSignals, showToast } from './ui.js';
+import { appendConsoleLog, clearConsole, finishScan, renderSignals, showToast, startScan } from './ui.js';
 import { renderNetworkGraph } from './vis.js';
 
 let triageController;
@@ -18,12 +18,8 @@ async function refreshDatabase() {
   renderSignals(state.databaseItems, databaseGrid, 'database');
 }
 
-function appendLog(message) {
-  const logs = document.getElementById('scan-logs');
-  const line = document.createElement('div');
-  line.className = 'text-xs text-white/80';
-  line.textContent = message;
-  logs?.appendChild(line);
+function appendLog(message, type = 'info') {
+  appendConsoleLog(message, type);
 }
 
 function updateTriageBadge() {
@@ -41,19 +37,19 @@ async function runScan() {
   const mission = document.getElementById('mission-select')?.value || 'A Sustainable Future';
   const topic = (document.getElementById('topic-input')?.value || '').trim();
   const feed = document.getElementById('radar-feed');
-  const logs = document.getElementById('scan-logs');
 
   state.radarSignals = [];
   state.triageQueue = [];
   if (feed) feed.innerHTML = '';
-  if (logs) logs.innerHTML = '';
+  clearConsole();
+  startScan();
 
   let receivedBlip = false;
-  await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
-    appendLog(message.msg || message.status);
+  try {
+    await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
+    appendLog(message.msg || message.status, message.status || 'info');
 
     if (message.blip) {
-      message.blip.is_new = true;
       receivedBlip = true;
       state.radarSignals.push(message.blip);
       state.triageQueue.push(message.blip);
@@ -62,10 +58,16 @@ async function runScan() {
     }
   });
 
-  if (!receivedBlip) {
-    renderSignals([], feed, topic);
+    if (!receivedBlip) {
+      renderSignals([], feed, topic);
+    }
+    showToast('Scan complete', 'success');
+  } catch (error) {
+    appendLog('Connection Failed', 'error');
+    showToast('Connection Failed', 'error');
+  } finally {
+    finishScan();
   }
-  showToast('Scan complete', 'success');
 }
 
 function switchMode(mode) {
