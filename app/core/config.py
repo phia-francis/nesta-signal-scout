@@ -11,13 +11,18 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    GOOGLE_SEARCH_API_KEY: str = ""
-    GOOGLE_SEARCH_CX: str = ""
-    OPENAI_API_KEY: str = ""
+    # Required (Pydantic will raise error if missing in Env, unless we handle it)
+    # BUT since we want to handle it gracefully in main.py, use None default:
+    GOOGLE_SEARCH_API_KEY: str | None = None
+    GOOGLE_SEARCH_CX: str | None = None
+    OPENAI_API_KEY: str | None = None
+    
+    # Optional
+    OPENALEX_API_KEY: str | None = None
     GOOGLE_CREDENTIALS: str | None = None
     SHEET_ID: str | None = None
+    SHEET_URL: str | None = None
     CHAT_MODEL: str = "gpt-4o-mini"
-    OPENALEX_API_KEY: str | None = None
 
     PROJECT_NAME: str = "Nesta Signal Scout"
     # Set BACKEND_CORS_ORIGINS in .env as a JSON array, e.g.
