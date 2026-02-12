@@ -14,7 +14,7 @@ from app.api.routes.intelligence import router as intelligence_router
 from app.api.routes.radar import router as radar_router
 from app.api.routes.research import router as research_router
 from app.api.routes.system import router as system_router
-from app.api.dependencies import get_settings
+from app.core.config import get_settings
 
 
 @asynccontextmanager
@@ -45,13 +45,18 @@ def create_app() -> FastAPI:
         lifespan=app_lifespan,
     )
 
+    settings = get_settings()
+    allowed_origins = [
+        str(origin).rstrip("/") for origin in settings.CORS_ORIGINS
+    ] + [
+        "https://phia-francis.github.io",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://phia-francis.github.io",
-            "http://localhost:8000",
-            "http://127.0.0.1:8000",
-        ],
+        allow_origins=list(dict.fromkeys(allowed_origins)),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
