@@ -579,7 +579,10 @@ function startScan() {
 function finishScan() {
   const loader = document.getElementById('scan-loader');
   loader?.classList.add('hidden');
-  radarFeed.classList.remove('hidden');
+function finishScan() {
+  const loader = document.getElementById('scan-loader');
+  loader?.classList.add('hidden');
+}
 }
 
 async function runScan() {

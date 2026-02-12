@@ -116,8 +116,11 @@ class SheetService:
 
     async def queue_signals_for_sync(self, signals: list[SignalCard | dict[str, Any]]) -> None:
         """Queue many signals for periodic background sync."""
-        for signal in signals:
-            await self.queue_signal_for_sync(signal)
+        if not signals:
+            return
+        payloads = [s.model_dump() if isinstance(s, SignalCard) else s for s in signals]
+        async with self._queue_lock:
+            self._sync_queue.extend(payloads)
         await self.batch_sync_to_sheets(force=True)
 
     async def batch_sync_to_sheets(self, *, force: bool = False) -> None:

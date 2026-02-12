@@ -44,17 +44,10 @@ def create_app() -> FastAPI:
 
     # --- CORS CONFIGURATION ---
     # We must explicitly allow the frontend domain to communicate with this backend.
-    origins = [
-        "http://localhost",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "https://phia-francis.github.io",
-        "https://phia-francis.github.io/",
-    ]
-
+    settings = get_settings()
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
