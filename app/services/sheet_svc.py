@@ -22,9 +22,10 @@ QUEUE_FLUSH_BATCH_SIZE = 50
 class SheetService:
     """Google Sheets persistence service with buffered background sync."""
 
-    DATABASE_TAB_NAME = "Database"
+    DATABASE_TAB_NAME = "Sheet1"
     WATCHLIST_TAB_NAME = "Watchlist"
     STATUS_COLUMN_INDEX = 11
+    URL_COLUMN_INDEX = 5
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -74,17 +75,15 @@ class SheetService:
         return self._get_worksheet(self.WATCHLIST_TAB_NAME)
 
     async def get_existing_urls(self) -> set[str]:
-        """Fetch URL set from both Database and Watchlist tabs for deduplication."""
+        """Fetch existing URLs by reading URL column directly from both tabs."""
         try:
-            database_records = await asyncio.to_thread(self.get_database_sheet().get_all_records)
-            watchlist_records = await asyncio.to_thread(self.get_watchlist_sheet().get_all_records)
-            return {
-                record.get("URL", "")
-                for record in [*database_records, *watchlist_records]
-                if record.get("URL")
-            }
-        except gspread.exceptions.GSpreadException as sheet_error:
-            logging.error("Failed to get existing URLs: %s", sheet_error)
+            db_urls = await asyncio.to_thread(self.get_database_sheet().col_values, self.URL_COLUMN_INDEX)
+            wl_urls = await asyncio.to_thread(self.get_watchlist_sheet().col_values, self.URL_COLUMN_INDEX)
+            combined = {url.strip() for url in [*db_urls, *wl_urls] if isinstance(url, str) and url.strip()}
+            combined.discard("URL")
+            return combined
+        except Exception as sheet_error:
+            logging.error("Failed to fetch existing URLs: %s", sheet_error)
             return set()
 
     def _signal_to_row(self, signal: dict[str, Any]) -> list[Any]:
@@ -100,7 +99,19 @@ class SheetService:
             signal.get("score_attention", 0),
             signal.get("source", "Web"),
             signal.get("status", "New"),
+            signal.get("narrative_group", ""),
         ]
+
+    @staticmethod
+    def _normalise_headers(headers: list[str]) -> list[str]:
+        """Make headers deterministic even with blanks/duplicates."""
+        seen: dict[str, int] = {}
+        normalised: list[str] = []
+        for index, header in enumerate(headers, start=1):
+            base = (header or "").strip() or f"Column_{index}"
+            seen[base] = seen.get(base, 0) + 1
+            normalised.append(base if seen[base] == 1 else f"{base}_{seen[base]}")
+        return normalised
 
     async def queue_signal_for_sync(self, signal: SignalCard | dict[str, Any]) -> None:
         """Queue a single signal for periodic background sync."""
@@ -147,50 +158,64 @@ class SheetService:
 
     async def save_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
         """Backwards-compatible helper: queue one signal instead of immediate write."""
-        if existing_urls and signal.get("url") in existing_urls:
-            await self._update_existing_signal(signal.get("url", ""), signal)
-            return
-        await self.queue_signal_for_sync(signal)
+        await self.save_signals_batch([signal], existing_urls=existing_urls)
 
     async def save_signals_batch(
         self,
         signals: list[dict[str, Any]],
         existing_urls: set[str] | None = None,
     ) -> None:
-        """Queue many signals instead of writing during user request lifecycle."""
+        """Upsert many signals with batched update+append operations."""
         if not signals:
             return
-        for signal in signals:
-            if existing_urls and signal.get("url") in existing_urls:
-                await self._update_existing_signal(signal.get("url", ""), signal)
-            else:
-                await self.queue_signal_for_sync(signal)
-        await self.batch_sync_to_sheets(force=True)
+
+        try:
+            sheet = self.get_database_sheet()
+            url_column = await asyncio.to_thread(sheet.col_values, self.URL_COLUMN_INDEX)
+            db_row_by_url = {
+                url.strip(): index
+                for index, url in enumerate(url_column, start=1)
+                if isinstance(url, str) and url.strip() and url.strip() != "URL"
+            }
+
+            cells_to_update: list[gspread.cell.Cell] = []
+            rows_to_append: list[list[Any]] = []
+
+            for signal in signals:
+                url = str(signal.get("url") or "").strip()
+                row_index = db_row_by_url.get(url)
+                if row_index:
+                    cells_to_update.extend(
+                        [
+                            gspread.cell.Cell(row_index, 3, signal.get("mission", "General")),
+                            gspread.cell.Cell(row_index, 4, signal.get("title", "Untitled")),
+                            gspread.cell.Cell(row_index, 6, (signal.get("summary", "") or "")[:500]),
+                            gspread.cell.Cell(row_index, 7, signal.get("typology", "Unsorted")),
+                            gspread.cell.Cell(row_index, 8, signal.get("score_activity", 0)),
+                            gspread.cell.Cell(row_index, 9, signal.get("score_attention", 0)),
+                            gspread.cell.Cell(row_index, 10, signal.get("source", "Web")),
+                            gspread.cell.Cell(row_index, 12, signal.get("narrative_group", "")),
+                        ]
+                    )
+                else:
+                    rows_to_append.append(self._signal_to_row(signal))
+
+            if cells_to_update:
+                await asyncio.to_thread(sheet.update_cells, cells_to_update, value_input_option="USER_ENTERED")
+
+            if rows_to_append:
+                await asyncio.to_thread(sheet.append_rows, rows_to_append)
+
+        except gspread.exceptions.GSpreadException as sheet_error:
+            raise ServiceError(f"Failed to save signal batch: {sheet_error}") from sheet_error
 
     async def upsert_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
         """Compatibility wrapper for existing callers."""
         await self.save_signal(signal, existing_urls)
 
     async def _update_existing_signal(self, url: str, signal: dict[str, Any]) -> None:
-        """Update existing signal row in the Database tab by URL."""
-        try:
-            sheet = self.get_database_sheet()
-            cell = await asyncio.to_thread(sheet.find, url)
-            if not cell:
-                return
-            updates = [
-                (cell.row, 3, signal.get("mission", "General")),
-                (cell.row, 4, signal.get("title", "Untitled")),
-                (cell.row, 6, (signal.get("summary", "") or "")[:500]),
-                (cell.row, 7, signal.get("typology", "Unsorted")),
-                (cell.row, 8, signal.get("score_activity", 0)),
-                (cell.row, 9, signal.get("score_attention", 0)),
-                (cell.row, 10, signal.get("source", "Web")),
-            ]
-            for row_index, column_index, value in updates:
-                await asyncio.to_thread(sheet.update_cell, row_index, column_index, value)
-        except gspread.exceptions.GSpreadException as sheet_error:
-            raise ServiceError(f"Failed to update signal: {sheet_error}") from sheet_error
+        """Backwards compatibility wrapper using batch upsert implementation."""
+        await self.save_signals_batch([signal], existing_urls={url})
 
     async def add_to_watchlist(self, signal: dict[str, Any]) -> None:
         """Persist starred signals into Watchlist tab for analyst triage."""
@@ -215,17 +240,30 @@ class SheetService:
         """Update signal status in the Database tab by URL."""
         try:
             sheet = self.get_database_sheet()
-            cell = await asyncio.to_thread(sheet.find, url)
-            if cell:
-                await asyncio.to_thread(sheet.update_cell, cell.row, self.STATUS_COLUMN_INDEX, status)
+            url_column = await asyncio.to_thread(sheet.col_values, self.URL_COLUMN_INDEX)
+            row_index = next(
+                (idx for idx, value in enumerate(url_column, start=1) if str(value).strip() == str(url).strip()),
+                None,
+            )
+            if row_index:
+                await asyncio.to_thread(sheet.update_cell, row_index, self.STATUS_COLUMN_INDEX, status)
         except gspread.exceptions.GSpreadException as sheet_error:
             logging.error("Failed to update status for %s: %s", url, sheet_error)
             raise ServiceError("Failed to update status.") from sheet_error
 
     async def get_all(self) -> list[dict[str, Any]]:
-        """Return all saved signals from Database tab."""
+        """Return all saved signals as raw records from Database tab."""
         try:
-            return await asyncio.to_thread(self.get_database_sheet().get_all_records)
+            values = await asyncio.to_thread(self.get_database_sheet().get_all_values)
+            if not values:
+                return []
+
+            headers = self._normalise_headers(values[0])
+            records: list[dict[str, Any]] = []
+            for row in values[1:]:
+                padded = row + [""] * (len(headers) - len(row))
+                records.append({header: padded[index] for index, header in enumerate(headers)})
+            return records
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to fetch saved signals: {sheet_error}") from sheet_error
 

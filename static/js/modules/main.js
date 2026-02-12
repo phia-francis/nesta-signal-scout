@@ -14,8 +14,10 @@ let triageController;
 
 async function refreshDatabase() {
   const databaseGrid = document.getElementById('database-grid');
+  const groupByValue = document.getElementById('database-group')?.value || 'none';
+  const groupBy = groupByValue === 'none' ? null : groupByValue;
   state.databaseItems = await fetchSavedSignals();
-  renderSignals(state.databaseItems, databaseGrid, 'database');
+  renderSignals(state.databaseItems, databaseGrid, 'database', groupBy);
 }
 
 function appendLog(message, type = 'info') {
@@ -137,6 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
+  document.getElementById('database-group')?.addEventListener('change', refreshDatabase);
   document.getElementById('btn-view-grid')?.addEventListener('click', () => switchVisualMode('grid'));
   document.getElementById('btn-view-network')?.addEventListener('click', () => switchVisualMode('network'));
   document.getElementById('btn-cluster')?.addEventListener('click', runAutoCluster);

@@ -147,7 +147,6 @@ class ScanOrchestrator:
 
             scored = ScoredSignal(
                 **raw_signal.model_dump(),
-                mission=mission,
                 score_activity=round(activity, 2),
                 score_attention=round(attention, 2),
                 score_recency=round(recency, 2),

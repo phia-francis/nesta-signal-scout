@@ -4,9 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_cluster_service, get_scan_orchestrator
+from app.api.dependencies import get_cluster_service, get_scan_orchestrator, get_sheet_service
 from app.services.cluster_svc import ClusterService
 from app.services.scan_logic import ScanOrchestrator
+from app.services.sheet_svc import SheetService
 
 router = APIRouter(prefix="/api", tags=["intelligence"])
 
@@ -15,9 +16,60 @@ router = APIRouter(prefix="/api", tags=["intelligence"])
 async def cluster_signals(
     signals: list[dict[str, Any]],
     cluster_service: ClusterService = Depends(get_cluster_service),
+    sheet_service: SheetService = Depends(get_sheet_service),
 ) -> list[dict[str, Any]]:
-    """Group raw signals into narrative clusters for analyst workflows."""
-    return cluster_service.cluster_signals(signals)
+    """Group mission-relevant current + historical signals and persist narrative labels."""
+    if not signals:
+        return []
+
+    mission = str(signals[0].get("mission") or "").strip()
+    database_records = await sheet_service.get_all()
+    mission_records = [
+        record
+        for record in database_records
+        if str(record.get("Mission") or "").strip() == mission
+    ]
+
+    db_signals: list[dict[str, Any]] = []
+    for record in mission_records:
+        db_signals.append(
+            {
+                "title": record.get("Title", "Untitled"),
+                "url": record.get("URL", ""),
+                "summary": record.get("Summary", "") or "",
+                "source": record.get("Source", "Web"),
+                "mission": record.get("Mission", mission or "General"),
+                "typology": record.get("Typology", "Unsorted"),
+                "score_activity": record.get("Activity Score", 0) or 0,
+                "score_attention": record.get("Attention Score", 0) or 0,
+                "status": record.get("Status", "New"),
+                "mode": record.get("Mode", "Radar"),
+            }
+        )
+
+    deduped_by_url: dict[str, dict[str, Any]] = {}
+    for signal in [*db_signals, *signals]:
+        url = str(signal.get("url") or "").strip()
+        if not url:
+            continue
+        deduped_by_url[url] = signal
+
+    combined_signals = list(deduped_by_url.values())
+    if len(combined_signals) < 3:
+        return []
+
+    clusters = cluster_service.cluster_signals(combined_signals)
+
+    clustered_signals: list[dict[str, Any]] = []
+    for cluster in clusters:
+        narrative_group = cluster.get("title", "")
+        for signal in cluster.get("signals", []):
+            payload = dict(signal)
+            payload["narrative_group"] = narrative_group
+            clustered_signals.append(payload)
+
+    await sheet_service.save_signals_batch(clustered_signals)
+    return clustered_signals
 
 
 @router.post("/mode/intelligence")
