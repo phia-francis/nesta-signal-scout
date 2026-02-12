@@ -11,24 +11,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    OPENAI_API_KEY: str | None = None
-    GOOGLE_SEARCH_API_KEY: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "Google Search_API_KEY",
-            "Google_Search_API_KEY",
-            "GOOGLE_SEARCH_API_KEY",
-            "GOOGLE_SEARCH_KEY",
-        ),
-    )
-    GOOGLE_SEARCH_CX: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "Google Search_CX",
-            "Google_Search_CX",
-            "GOOGLE_SEARCH_CX",
-        ),
-    )
+    GOOGLE_SEARCH_API_KEY: str = ""
+    GOOGLE_SEARCH_CX: str = ""
+    OPENAI_API_KEY: str = ""
     GOOGLE_CREDENTIALS: str | None = None
     SHEET_ID: str | None = None
     CHAT_MODEL: str = "gpt-4o-mini"
