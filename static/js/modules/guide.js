@@ -33,8 +33,7 @@ class MissionDiscoveryTour {
     this.activeTarget = null;
     this.isActive = false;
 
-    this.handleResize = this.onResize.bind(this);
-    this.handleScroll = this.onScroll.bind(this);
+    this.handleViewportChange = this.onViewportChange.bind(this);
     this.handleKeydown = this.onKeydown.bind(this);
 
     this.createUi();
@@ -139,8 +138,8 @@ class MissionDiscoveryTour {
 
     if (!this.isActive) {
       document.body.append(this.overlay, this.card);
-      window.addEventListener('resize', this.handleResize);
-      window.addEventListener('scroll', this.handleScroll, { passive: true, capture: true });
+      window.addEventListener('resize', this.handleViewportChange);
+      window.addEventListener('scroll', this.handleViewportChange, true);
       document.addEventListener('keydown', this.handleKeydown);
       this.isActive = true;
     }
@@ -157,8 +156,8 @@ class MissionDiscoveryTour {
     this.overlay.remove();
     this.card.remove();
 
-    window.removeEventListener('resize', this.handleResize);
-    window.removeEventListener('scroll', this.handleScroll, true);
+    window.removeEventListener('resize', this.handleViewportChange);
+    window.removeEventListener('scroll', this.handleViewportChange, true);
     document.removeEventListener('keydown', this.handleKeydown);
     this.isActive = false;
   }
@@ -172,16 +171,12 @@ class MissionDiscoveryTour {
     this.activeTarget = null;
   }
 
-  onResize() {
-    if (this.isActive) {
-      this.updateCardPosition();
+  onViewportChange() {
+    if (!this.isActive) {
+      return;
     }
-  }
 
-  onScroll() {
-    if (this.isActive) {
-      this.updateCardPosition();
-    }
+    this.updateCardPosition();
   }
 
   onKeydown(event) {
@@ -252,29 +247,32 @@ class MissionDiscoveryTour {
 
     if (shouldScroll) {
       target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
-      window.setTimeout(() => this.updateCardPosition(), 220);
-    } else {
-      this.updateCardPosition();
     }
 
     const isFirst = this.currentStepIndex === 0;
     const isLast = this.currentStepIndex === TOUR_STEPS.length - 1;
 
-    this.title.textContent = `${step.title}`;
-    this.description.textContent = `${step.description}`;
+    this.title.textContent = step.title;
+    this.description.textContent = step.description;
     this.counter.textContent = `Step ${this.currentStepIndex + 1} of ${TOUR_STEPS.length}`;
 
     this.previousButton.disabled = isFirst;
     this.previousButton.classList.toggle('opacity-50', isFirst);
     this.previousButton.classList.toggle('cursor-not-allowed', isFirst);
     this.nextButton.textContent = isLast ? 'Finish' : 'Next';
+
+    this.updateCardPosition();
   }
 }
 
-const tour = new MissionDiscoveryTour();
+let tourInstance;
 
 export function startTour() {
-  tour.start();
+  if (!tourInstance) {
+    tourInstance = new MissionDiscoveryTour();
+  }
+
+  tourInstance.start();
 }
 
-export { TOUR_STEPS, tour };
+export { TOUR_STEPS };

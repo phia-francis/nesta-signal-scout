@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_scan_orchestrator
+from app.api.dependencies import get_search_service
 from app.domain.models import PolicyRequest
-from app.services.scan_logic import ScanOrchestrator
+from app.services.search_svc import SearchService
 
 router = APIRouter(prefix="/api", tags=["policy"])
 
@@ -12,13 +14,9 @@ router = APIRouter(prefix="/api", tags=["policy"])
 @router.post("/mode/policy")
 async def policy_mode(
     request: PolicyRequest,
-    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
-) -> dict[str, object]:
-    """Run policy-specific scan and return SignalCard payloads."""
-    cards = await orchestrator.fetch_policy_scan(request.topic)
-    return {
-        "status": "success",
-        "data": {
-            "results": [card.model_dump() for card in cards],
-        },
-    }
+    search_service: SearchService = Depends(get_search_service),
+) -> dict[str, Any]:
+    """Run policy-specific search query and return standard response shape."""
+    query = f"(site:gov.uk OR site:parliament.uk) {request.topic}"
+    results = await search_service.search(query)
+    return {"status": "success", "data": {"results": results}}

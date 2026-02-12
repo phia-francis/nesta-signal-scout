@@ -15,7 +15,7 @@ let triageController;
 async function refreshDatabase() {
   const databaseGrid = document.getElementById('database-grid');
   state.databaseItems = await fetchSavedSignals();
-  renderSignals(state.databaseItems, databaseGrid, 'database');
+  renderSignals(state.databaseItems, databaseGrid);
 }
 
 function appendLog(message) {
@@ -39,7 +39,7 @@ function updateTriageBadge() {
 
 async function runScan() {
   const mission = document.getElementById('mission-select')?.value || 'A Sustainable Future';
-  const topic = (document.getElementById('topic-input')?.value || '').trim();
+  const topic = document.getElementById('topic-input')?.value || 'innovation';
   const feed = document.getElementById('radar-feed');
   const logs = document.getElementById('scan-logs');
 
@@ -48,23 +48,18 @@ async function runScan() {
   if (feed) feed.innerHTML = '';
   if (logs) logs.innerHTML = '';
 
-  let receivedBlip = false;
   await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
     appendLog(message.msg || message.status);
 
     if (message.blip) {
       message.blip.is_new = true;
-      receivedBlip = true;
       state.radarSignals.push(message.blip);
       state.triageQueue.push(message.blip);
-      renderSignals(state.radarSignals, feed, topic);
+      renderSignals(state.radarSignals, feed);
       updateTriageBadge();
     }
   });
 
-  if (!receivedBlip) {
-    renderSignals([], feed, topic);
-  }
   showToast('Scan complete', 'success');
 }
 

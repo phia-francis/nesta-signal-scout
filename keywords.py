@@ -5,6 +5,8 @@ The Intelligence Core of Signal Scout.
 
 from openai import OpenAI
 
+_client = None
+
 # --- 1. NESTA MISSION PRIORITIES (Strategic Pillars) ---
 MISSION_PRIORITIES = {
     "A Sustainable Future": ["Decarbonisation", "Retrofit Innovation", "Heat Pumps", "Green Skills", "Net Zero"],
@@ -67,19 +69,16 @@ GENERIC_TOPICS = ["obesity", "health", "energy", "education", "climate", "food"]
 
 def generate_broad_scan_queries(seed_terms, num_signals=5):
     """Backward-compatible helper used by tests/agent logic."""
-    try:
-        client = OpenAI()
-    except Exception:
-        return []
-
-    seed_prompt_terms = ", ".join(seed_terms) if seed_terms else ""
+    global _client
+    if _client is None:
+        _client = OpenAI()
 
     prompt = (
         "Generate concise search queries for weak signal scanning. "
-        f"Seed terms: {seed_prompt_terms}. "
+        f"Seed terms: {', '.join(seed_terms) if seed_terms else 'innovation'}. "
         f"Return exactly {num_signals} queries, one per line."
     )
-    response = client.chat.completions.create(
+    response = _client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You generate search queries for horizon scanning."},
@@ -89,7 +88,8 @@ def generate_broad_scan_queries(seed_terms, num_signals=5):
     content = response.choices[0].message.content or ""
     lines = [line.strip("•- ").strip() for line in content.splitlines() if line.strip()]
     if not lines:
-        raise ValueError("Failed to generate search queries from keywords.")
+        fallback = " ".join(seed_terms).strip() if seed_terms else "innovation trends"
+        lines = [fallback]
     while len(lines) < num_signals:
         lines.append(lines[-1])
     return lines[:num_signals]

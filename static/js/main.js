@@ -1,14 +1,3 @@
-window.addEventListener('unhandledrejection', (event) => {
-  console.warn('Unhandled promise rejection:', event.reason);
-  if (
-    event.reason &&
-    event.reason.message &&
-    event.reason.message.includes('message channel closed')
-  ) {
-    event.preventDefault();
-  }
-});
-
 import { startTour } from './modules/guide.js';
 
 // DYNAMIC API CONFIGURATION
@@ -41,23 +30,23 @@ const state = {
 const APP_MODE_CONTENT = {
   radar: {
     heading: 'Emerging Signals',
-    description: 'Activity vs. Attention from GtR, OpenAlex, and search signals.',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
   },
   research: {
     heading: 'Evidence Base',
-    description: 'Activity vs. Attention from GtR, OpenAlex, and search signals.',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
   },
   policy: {
     heading: 'Policy Shifts',
-    description: 'Activity vs. Attention from GtR, OpenAlex, and search signals.',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
   },
   database: {
     heading: 'Innovation Sweet Spots',
-    description: 'Activity vs. Attention from GtR, OpenAlex, and search signals.',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
   },
   default: {
     heading: 'Innovation Sweet Spots',
-    description: 'Activity vs. Attention from GtR, OpenAlex, and search signals.',
+    description: 'Activity vs. Attention from GtR, Crunchbase, and search signals.',
   },
 };
 
@@ -290,7 +279,7 @@ function renderSignalCard(signal, container) {
   div.dataset.typology = typology;
 
   const theme = missionThemes[signal.mission] || missionThemes.General;
-  const sparklineElement = generateSparklineElement(signal.sparkline);
+  const sparklineElement = generateSparklineElement(signal.sparkline || [10, 40, 30, 70, 50, 90, 80]);
   const actPercent = Math.min(100, (signal.score_activity / 10) * 100);
   const attPercent = Math.min(100, (signal.score_attention / 10) * 100);
   const isNew = true;
