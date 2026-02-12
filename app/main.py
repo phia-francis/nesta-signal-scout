@@ -25,9 +25,9 @@ async def app_lifespan(_: FastAPI):
         if not settings.OPENAI_API_KEY:
             missing.append("OPENAI_API_KEY")
         if not settings.GOOGLE_SEARCH_API_KEY:
-            missing.append("Google Search_API_KEY")
+            missing.append("GOOGLE_SEARCH_API_KEY")
         if not settings.GOOGLE_SEARCH_CX:
-            missing.append("Google Search_CX")
+            missing.append("GOOGLE_SEARCH_CX")
 
         if missing:
             logging.warning("Missing environment variables at startup: %s", ", ".join(missing))
@@ -46,17 +46,20 @@ def create_app() -> FastAPI:
     )
 
     settings = get_settings()
-    allowed_origins = [
-        str(origin).rstrip("/") for origin in settings.CORS_ORIGINS
-    ] + [
+    allowed_origins_set = {
         "https://phia-francis.github.io",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-    ]
+    }
+
+    if settings.CORS_ORIGINS:
+        allowed_origins_set.update(str(origin).rstrip("/") for origin in settings.CORS_ORIGINS)
+
+    allowed_origins = list(allowed_origins_set)
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=list(dict.fromkeys(allowed_origins)),
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

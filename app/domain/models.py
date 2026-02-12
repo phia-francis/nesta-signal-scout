@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, List
 
 from pydantic import BaseModel, Field
 
@@ -45,7 +45,7 @@ class SignalCard(BaseModel):
     final_score: float
     typology: str
     is_novel: bool = False
-    sparkline: list[int] = Field(default_factory=list)
+    sparkline: List[int] = Field(default_factory=list, description="Activity trend")
     related_keywords: list[str] = Field(default_factory=list)
 
 
