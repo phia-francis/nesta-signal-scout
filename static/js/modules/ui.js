@@ -82,9 +82,20 @@ export function createSignalCard(signal) {
   const footer = document.createElement('footer');
   footer.className = 'mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3';
 
+  const metricsWrap = document.createElement('div');
+  metricsWrap.className = 'flex flex-col gap-1';
+
   const metrics = document.createElement('div');
   metrics.className = 'text-xs text-nesta-navy/70';
   metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
+  metricsWrap.appendChild(metrics);
+
+  if (signal.narrative_group) {
+    const narrativeBadge = document.createElement('span');
+    narrativeBadge.className = 'inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold bg-nesta-purple/10 text-nesta-purple';
+    narrativeBadge.textContent = signal.narrative_group;
+    metricsWrap.appendChild(narrativeBadge);
+  }
 
   const copyButton = document.createElement('button');
   copyButton.type = 'button';
@@ -101,7 +112,7 @@ export function createSignalCard(signal) {
     }
   });
 
-  footer.append(metrics, copyButton);
+  footer.append(metricsWrap, copyButton);
 
   if (signal.url) {
     title.classList.add('cursor-pointer', 'hover:text-nesta-blue', 'transition-colors');
@@ -182,15 +193,23 @@ export function appendConsoleLog(message, type = 'info') {
 export function startScan() {
   const loader = document.getElementById('scan-loader');
   const feed = document.getElementById('radar-feed');
+  const emptyState = document.getElementById('empty-state');
+  const intelligencePlaceholder = document.getElementById('intelligence-placeholder');
   loader?.classList.remove('hidden');
   feed?.classList.add('hidden');
+  emptyState?.classList.add('hidden');
+  intelligencePlaceholder?.classList.add('hidden');
 }
 
 export function finishScan() {
   const loader = document.getElementById('scan-loader');
   const feed = document.getElementById('radar-feed');
+  const emptyState = document.getElementById('empty-state');
+  const intelligencePlaceholder = document.getElementById('intelligence-placeholder');
   loader?.classList.add('hidden');
   feed?.classList.remove('hidden');
+  emptyState?.classList.add('hidden');
+  intelligencePlaceholder?.classList.add('hidden');
 }
 
 export function showToast(message, type = 'info') {
@@ -211,7 +230,7 @@ export function showToast(message, type = 'info') {
   }, 4000);
 }
 
-export function renderSignals(signals, container, topic = '') {
+export function renderSignals(signals, container, topic = '', groupBy = null) {
   if (!container) return;
   container.innerHTML = '';
 
@@ -220,8 +239,50 @@ export function renderSignals(signals, container, topic = '') {
     return;
   }
 
-  signals.forEach((signal) => {
-    container.appendChild(createSignalCard(signal));
+  if (!groupBy) {
+    signals.forEach((signal) => {
+      container.appendChild(createSignalCard(signal));
+    });
+    return;
+  }
+
+  const groupedSignals = signals.reduce((acc, signal) => {
+    const rawGroup = signal?.[groupBy];
+    const groupName = typeof rawGroup === 'string' && rawGroup.trim() ? rawGroup.trim() : 'Unsorted';
+    if (!acc[groupName]) {
+      acc[groupName] = [];
+    }
+    acc[groupName].push(signal);
+    return acc;
+  }, {});
+
+  const sortedGroupNames = Object.keys(groupedSignals).sort((left, right) => {
+    if (left === 'Unsorted') return 1;
+    if (right === 'Unsorted') return -1;
+    return left.localeCompare(right);
+  });
+
+  sortedGroupNames.forEach((groupName) => {
+    const section = document.createElement('div');
+    section.className = 'mb-8';
+
+    const heading = document.createElement('h3');
+    heading.className = 'font-display text-lg text-nesta-navy mb-4 border-b border-slate-200 pb-2';
+    heading.textContent = groupName;
+    const countSpan = document.createElement('span');
+    countSpan.className = 'text-sm text-slate-400 ml-2';
+    countSpan.textContent = `(${groupedSignals[groupName].length})`;
+    heading.appendChild(countSpan);
+
+    const groupGrid = document.createElement('div');
+    groupGrid.className = 'masonry-grid';
+
+    groupedSignals[groupName].forEach((signal) => {
+      groupGrid.appendChild(createSignalCard(signal));
+    });
+
+    section.append(heading, groupGrid);
+    container.appendChild(section);
   });
 }
 

@@ -47,6 +47,7 @@ class SignalCard(BaseModel):
     is_novel: bool = False
     sparkline: List[int] = Field(default_factory=list, description="Activity trend")
     related_keywords: list[str] = Field(default_factory=list)
+    narrative_group: str | None = Field(default=None, description="Thematic cluster name")
 
 
 class RadarRequest(BaseModel):
