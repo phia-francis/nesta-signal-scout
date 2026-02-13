@@ -582,79 +582,90 @@ function startScan() {
 function finishScan() {
   const loader = document.getElementById('scan-loader');
   loader?.classList.add('hidden');
+  radarFeed.classList.remove('hidden');
 }
 async function runScan() {
   const missionSelect = document.getElementById('mission-select');
   const topicInput = document.getElementById('topic-input');
   const researchInput = document.getElementById('research-input');
   const emptyState = document.getElementById('empty-state');
-  const resultsContainer = document.getElementById('live-results-grid') || radarFeed;
   const logContainer = getConsoleContainer();
+
+  // Reset UI
   state.globalSignalsArray = [];
-
-  if (logContainer) {
-    logContainer.innerHTML = '';
-  }
+  if (logContainer) logContainer.innerHTML = '';
+  if (emptyState) emptyState.classList.add('hidden');
+  radarFeed.innerHTML = '';
   startScan();
-  if (emptyState) {
-    emptyState.classList.add('hidden');
-  }
-
-  if (resultsContainer) {
-    resultsContainer.innerHTML = '<div class="animate-pulse text-slate-400">Scanning horizon...</div>';
-  }
-  radarStatus.textContent = 'Starting scan...';
 
   try {
     const payload = buildScanPayload(missionSelect, topicInput, researchInput);
-    if (!payload) {
-      return;
+    if (!payload) return;
+
+    // --- BRANCH 1: RESEARCH MODE (Standard JSON) ---
+    if (state.currentMode === 'research') {
+      radarStatus.textContent = 'Synthesizing evidence...';
+      const response = await fetch(`${API_BASE_URL}/api/mode/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error(`Research failed: ${response.statusText}`);
+
+      const signals = await response.json();
+      state.globalSignalsArray = signals;
+      renderSignals(signals, radarFeed, 'Research');
+      showToast('Research complete. Synthesis generated.', 'success');
     }
 
-    const mode = state.currentMode || 'radar';
-    const endpoint = mode === 'research' ? '/api/mode/research' : '/api/mode/radar';
-    const query = payload.query || payload.topic || '';
+    // --- BRANCH 2: RADAR MODE (Streaming NDJSON) ---
+    else {
+      radarStatus.textContent = 'Scanning horizon...';
+      const response = await fetch(`${API_BASE_URL}/api/mode/radar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    if (!response.ok) {
-      throw new Error('Scan failed');
-    }
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-    const newSignals = await response.json();
-
-    if (newSignals && newSignals.length > 0 && resultsContainer) {
-      resultsContainer.innerHTML = '';
-      renderSignals(newSignals, resultsContainer, 'live');
-      state.globalSignalsArray = newSignals;
-      radarStatus.textContent = `Scan complete: ${newSignals.length} signal(s) found.`;
-      radarStatus.classList.remove('text-red-500');
-    } else if (resultsContainer) {
-      resultsContainer.innerHTML = '<div>No signals found.</div>';
-      if (emptyState) {
-        emptyState.classList.remove('hidden');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            handleStreamData(data);
+          } catch (e) {
+            console.warn('Stream parse error', e);
+          }
+        }
       }
     }
 
-    await refreshDatabase();
-    renderNetworkGraph(state.globalSignalsArray);
-  } catch (error) {
-    console.error('Scan Error:', error);
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
+    // Finalize
+    if (state.globalSignalsArray.length > 0) {
+      renderNetworkGraph(state.globalSignalsArray);
+    } else if (emptyState) {
+      emptyState.classList.remove('hidden');
     }
-    radarStatus.textContent = 'Connection failed: Check API Key';
-    radarStatus.classList.add('text-red-500');
-    addLog('Connection failed: Check API Key', 'error');
-    showToast('Connection Failed', 'error');
+  } catch (error) {
+    console.error(error);
+    radarStatus.textContent = 'Scan failed';
+    showToast('Error during scan', 'error');
   } finally {
     finishScan();
   }
 }
+
 
 function buildScanPayload(missionSelect, topicInput, researchInput) {
   const payload = { mode: state.currentMode };
