@@ -8,7 +8,6 @@ from app.services.analytics_svc import HorizonAnalyticsService
 from app.services.openalex_svc import OpenAlexService
 from app.services.gtr_svc import GatewayResearchService
 from app.services.cluster_svc import ClusterService
-from app.services.ml_svc import TopicModellingService
 from app.services.search_svc import SearchService
 from app.services.sheet_svc import SheetService
 from app.services.scan_logic import ScanOrchestrator
@@ -49,9 +48,6 @@ def get_analytics_service() -> HorizonAnalyticsService:
     return HorizonAnalyticsService()
 
 
-@lru_cache(maxsize=1)
-def get_topic_service() -> TopicModellingService:
-    return TopicModellingService()
 
 
 @lru_cache(maxsize=1)

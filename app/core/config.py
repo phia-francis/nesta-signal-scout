@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     GOOGLE_SEARCH_API_KEY: str | None = None
     GOOGLE_SEARCH_CX: str | None = None
     OPENAI_API_KEY: str | None = None
-    
+
     # Optional
     OPENALEX_API_KEY: str | None = None
     GOOGLE_CREDENTIALS: str | None = None
