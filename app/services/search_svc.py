@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+
 import aiohttp
 
 from app.core.config import DEFAULT_SEARCH_RESULTS, Settings
 from app.domain.taxonomy import TaxonomyService
 from keywords import NICHE_DOMAINS, SIGNAL_KEYWORDS
+
 
 class ServiceError(Exception):
     """Service error used for consistent API-level failure handling."""
@@ -21,6 +25,7 @@ class SearchService:
         '"grey market"',
         '"informal"',
     )
+    RETRYABLE_STATUS_CODES: set[int] = {429, 500, 502, 503, 504}
 
     def __init__(self, settings: Settings, taxonomy: TaxonomyService | None = None) -> None:
         self.settings = settings
@@ -28,11 +33,10 @@ class SearchService:
         self.api_key = self.settings.GOOGLE_SEARCH_API_KEY
         self.cx = self.settings.GOOGLE_SEARCH_CX
 
-        # DEBUG LOGGING (Remove in production)
-        print(
-            "DEBUG: Search Service Init - "
-            f"Key: {'Found' if self.api_key else 'Missing'}, "
-            f"CX: {'Found' if self.cx else 'Missing'}"
+        logging.debug(
+            "DEBUG: Search Service Init - Key: %s, CX: %s",
+            "Found" if self.api_key else "Missing",
+            "Found" if self.cx else "Missing",
         )
 
     def calculate_trust(self, url: str) -> int:
@@ -75,7 +79,7 @@ class SearchService:
         freshness: str | None = None,
         friction_mode: bool = False,
     ) -> list[dict]:
-        """Execute Google Custom Search and return trust-sorted results."""
+        """Execute Google Custom Search with retries and return trust-sorted results."""
         if not self.api_key or not self.cx:
             raise ServiceError("Configuration Error: GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_CX is missing.")
 
@@ -92,14 +96,31 @@ class SearchService:
         if freshness in freshness_map:
             params["tbs"] = freshness_map[freshness]
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get("https://www.googleapis.com/customsearch/v1", params=params) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise Exception(f"Google Search API Failed: {response.status} - {error_text}")
+        retries = 3
+        delay_s = 1.0
+        items: list[dict] = []
 
-                data = await response.json()
-                items = data.get("items", [])
+        for attempt in range(retries + 1):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("https://www.googleapis.com/customsearch/v1", params=params) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            if response.status in self.RETRYABLE_STATUS_CODES and attempt < retries:
+                                await asyncio.sleep(delay_s)
+                                delay_s *= 2
+                                continue
+                            raise ServiceError(f"Google Search API Failed: {response.status} - {error_text}")
+
+                        data = await response.json()
+                        items = data.get("items", [])
+                        break
+            except aiohttp.ClientError as exc:
+                if attempt < retries:
+                    await asyncio.sleep(delay_s)
+                    delay_s *= 2
+                    continue
+                raise ServiceError(f"Google Search API request failed: {exc}") from exc
 
         results: list[dict] = []
         for item in items:

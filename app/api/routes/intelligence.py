@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel
 
 from app.api.dependencies import (
@@ -143,12 +142,6 @@ async def generate_signals(
     search_service: SearchService = Depends(get_search_service),
     sheet_service: SheetService = Depends(get_sheet_service),
 ) -> list[dict[str, Any]]:
-    if not os.getenv("GOOGLE_SEARCH_API_KEY") or not os.getenv("GOOGLE_SEARCH_CX"):
-        raise HTTPException(
-            status_code=500,
-            detail="Configuration Error: GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_CX missing. Live search disabled.",
-        )
-
     raw_results = await search_service.search(payload.query, num=10)
     normalized_results = [
         {
@@ -181,7 +174,7 @@ async def generate_signals(
         generated_signals.append(synthesis)
     else:
         for result in normalized_results:
-            signal = await llm_service.process_single_result(result, mode="radar")
+            signal = await llm_service.process_single_result(result, mode=mode)
             if signal:
                 generated_signals.append(signal)
 
