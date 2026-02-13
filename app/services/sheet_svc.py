@@ -259,6 +259,12 @@ class SheetService:
             logging.error("Failed to update status for %s: %s", url, sheet_error)
             raise ServiceError("Failed to update status.") from sheet_error
 
+
+    async def get_rows_by_mission(self, mission: str) -> list[dict[str, Any]]:
+        """Fetch only rows matching a specific mission by filtering all records."""
+        all_records = await self.get_all()
+        return [record for record in all_records if record.get("Mission") == mission]
+
     async def get_all(self) -> list[dict[str, Any]]:
         """Return all saved signals as raw records from Database tab."""
         try:

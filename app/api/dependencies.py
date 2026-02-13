@@ -8,6 +8,7 @@ from app.services.analytics_svc import HorizonAnalyticsService
 from app.services.openalex_svc import OpenAlexService
 from app.services.gtr_svc import GatewayResearchService
 from app.services.cluster_svc import ClusterService
+from app.services.llm_svc import LLMService
 from app.services.search_svc import SearchService
 from app.services.sheet_svc import SheetService
 from app.services.scan_logic import ScanOrchestrator
@@ -64,3 +65,8 @@ def get_scan_orchestrator() -> ScanOrchestrator:
         analytics_service=get_analytics_service(),
         taxonomy=get_taxonomy(),
     )
+
+
+@lru_cache(maxsize=1)
+def get_llm_service() -> LLMService:
+    return LLMService()
