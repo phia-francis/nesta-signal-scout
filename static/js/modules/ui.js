@@ -268,7 +268,11 @@ export function renderSignals(signals, container, topic = '', groupBy = null) {
 
     const heading = document.createElement('h3');
     heading.className = 'font-display text-lg text-nesta-navy mb-4 border-b border-slate-200 pb-2';
-    heading.innerHTML = `${groupName}<span class="text-sm text-slate-400 ml-2">(${groupedSignals[groupName].length})</span>`;
+    heading.textContent = groupName;
+    const countSpan = document.createElement('span');
+    countSpan.className = 'text-sm text-slate-400 ml-2';
+    countSpan.textContent = `(${groupedSignals[groupName].length})`;
+    heading.appendChild(countSpan);
 
     const groupGrid = document.createElement('div');
     groupGrid.className = 'masonry-grid';

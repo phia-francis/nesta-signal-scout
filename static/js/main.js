@@ -10,6 +10,9 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 import { startTour } from './modules/guide.js';
+import { fetchSavedSignals } from './modules/api.js';
+import { renderSignals } from './modules/ui.js';
+import { state as moduleState } from './modules/state.js';
 
 // DYNAMIC API CONFIGURATION
 let API_BASE_URL = window.location.origin;
@@ -93,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
+  document.getElementById('database-group')?.addEventListener('change', refreshDatabase);
   document.getElementById('help-tour-btn')?.addEventListener('click', startTour);
   document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('btn-view-grid')?.addEventListener('click', () => switchView('grid'));
@@ -505,20 +509,19 @@ function renderDatabase(items) {
 
 async function refreshDatabase() {
   const grid = document.getElementById('database-grid');
+  const groupByValue = document.getElementById('database-group')?.value || 'none';
+  const groupBy = groupByValue === 'none' ? null : groupByValue;
+
+  if (!grid) return;
   grid.innerHTML = '';
   renderDatabaseSkeletons();
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/saved`);
-    if (res.status !== 200) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Database connection failed');
-    }
-    const data = await res.json();
-    state.databaseItems = data.signals || [];
-    state.globalSignalsArray = [...state.databaseItems];
-    renderDatabase(state.databaseItems);
-    renderNetworkGraph(state.databaseItems);
+    moduleState.databaseItems = await fetchSavedSignals();
+    state.databaseItems = moduleState.databaseItems;
+    state.globalSignalsArray = [...moduleState.databaseItems];
+    renderSignals(moduleState.databaseItems, grid, 'database', groupBy);
+    renderNetworkGraph(moduleState.databaseItems);
   } catch (e) {
     grid.replaceChildren();
     const wrapper = document.createElement('div');

@@ -26,6 +26,15 @@ class SheetService:
     WATCHLIST_TAB_NAME = "Watchlist"
     STATUS_COLUMN_INDEX = 11
     URL_COLUMN_INDEX = 5
+    MODE_COLUMN_INDEX = 2
+    MISSION_COLUMN_INDEX = 3
+    TITLE_COLUMN_INDEX = 4
+    SUMMARY_COLUMN_INDEX = 6
+    TYPOLOGY_COLUMN_INDEX = 7
+    ACTIVITY_COLUMN_INDEX = 8
+    ATTENTION_COLUMN_INDEX = 9
+    SOURCE_COLUMN_INDEX = 10
+    NARRATIVE_GROUP_COLUMN_INDEX = 12
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -158,12 +167,11 @@ class SheetService:
 
     async def save_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
         """Backwards-compatible helper: queue one signal instead of immediate write."""
-        await self.save_signals_batch([signal], existing_urls=existing_urls)
+        await self.save_signals_batch([signal])
 
     async def save_signals_batch(
         self,
         signals: list[dict[str, Any]],
-        existing_urls: set[str] | None = None,
     ) -> None:
         """Upsert many signals with batched update+append operations."""
         if not signals:
@@ -187,14 +195,14 @@ class SheetService:
                 if row_index:
                     cells_to_update.extend(
                         [
-                            gspread.cell.Cell(row_index, 3, signal.get("mission", "General")),
-                            gspread.cell.Cell(row_index, 4, signal.get("title", "Untitled")),
-                            gspread.cell.Cell(row_index, 6, (signal.get("summary", "") or "")[:500]),
-                            gspread.cell.Cell(row_index, 7, signal.get("typology", "Unsorted")),
-                            gspread.cell.Cell(row_index, 8, signal.get("score_activity", 0)),
-                            gspread.cell.Cell(row_index, 9, signal.get("score_attention", 0)),
-                            gspread.cell.Cell(row_index, 10, signal.get("source", "Web")),
-                            gspread.cell.Cell(row_index, 12, signal.get("narrative_group", "")),
+                            gspread.cell.Cell(row_index, self.MISSION_COLUMN_INDEX, signal.get("mission", "General")),
+                            gspread.cell.Cell(row_index, self.TITLE_COLUMN_INDEX, signal.get("title", "Untitled")),
+                            gspread.cell.Cell(row_index, self.SUMMARY_COLUMN_INDEX, (signal.get("summary", "") or "")[:500]),
+                            gspread.cell.Cell(row_index, self.TYPOLOGY_COLUMN_INDEX, signal.get("typology", "Unsorted")),
+                            gspread.cell.Cell(row_index, self.ACTIVITY_COLUMN_INDEX, signal.get("score_activity", 0)),
+                            gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
+                            gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
+                            gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group", "")),
                         ]
                     )
                 else:
@@ -215,7 +223,7 @@ class SheetService:
 
     async def _update_existing_signal(self, url: str, signal: dict[str, Any]) -> None:
         """Backwards compatibility wrapper using batch upsert implementation."""
-        await self.save_signals_batch([signal], existing_urls={url})
+        await self.save_signals_batch([signal])
 
     async def add_to_watchlist(self, signal: dict[str, Any]) -> None:
         """Persist starred signals into Watchlist tab for analyst triage."""

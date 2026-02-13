@@ -30,22 +30,21 @@ async def cluster_signals(
         if str(record.get("Mission") or "").strip() == mission
     ]
 
-    db_signals: list[dict[str, Any]] = []
-    for record in mission_records:
-        db_signals.append(
-            {
-                "title": record.get("Title", "Untitled"),
-                "url": record.get("URL", ""),
-                "summary": record.get("Summary", "") or "",
-                "source": record.get("Source", "Web"),
-                "mission": record.get("Mission", mission or "General"),
-                "typology": record.get("Typology", "Unsorted"),
-                "score_activity": record.get("Activity Score", 0) or 0,
-                "score_attention": record.get("Attention Score", 0) or 0,
-                "status": record.get("Status", "New"),
-                "mode": record.get("Mode", "Radar"),
-            }
-        )
+    db_signals: list[dict[str, Any]] = [
+        {
+            "title": record.get("Title", "Untitled"),
+            "url": record.get("URL", ""),
+            "summary": record.get("Summary", "") or "",
+            "source": record.get("Source", "Web"),
+            "mission": record.get("Mission", mission or "General"),
+            "typology": record.get("Typology", "Unsorted"),
+            "score_activity": record.get("Activity Score", 0) or 0,
+            "score_attention": record.get("Attention Score", 0) or 0,
+            "status": record.get("Status", "New"),
+            "mode": record.get("Mode", "Radar"),
+        }
+        for record in mission_records
+    ]
 
     deduped_by_url: dict[str, dict[str, Any]] = {}
     for signal in [*db_signals, *signals]:
@@ -60,16 +59,17 @@ async def cluster_signals(
 
     clusters = cluster_service.cluster_signals(combined_signals)
 
-    clustered_signals: list[dict[str, Any]] = []
+    # Prepare a flat list of signals for persistence, adding narrative_group
+    signals_to_save: list[dict[str, Any]] = []
     for cluster in clusters:
         narrative_group = cluster.get("title", "")
         for signal in cluster.get("signals", []):
             payload = dict(signal)
             payload["narrative_group"] = narrative_group
-            clustered_signals.append(payload)
+            signals_to_save.append(payload)
 
-    await sheet_service.save_signals_batch(clustered_signals)
-    return clustered_signals
+    await sheet_service.save_signals_batch(signals_to_save)
+    return clusters
 
 
 @router.post("/mode/intelligence")
