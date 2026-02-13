@@ -28,7 +28,6 @@ class SheetService:
     URL_COLUMN_INDEX = 5
     MODE_COLUMN_INDEX = 2
     MISSION_COLUMN_INDEX = 3
-    MISSION_COL_IDX = 3
     TITLE_COLUMN_INDEX = 4
     SUMMARY_COLUMN_INDEX = 6
     TYPOLOGY_COLUMN_INDEX = 7
@@ -262,7 +261,7 @@ class SheetService:
 
 
     async def get_rows_by_mission(self, mission: str) -> list[dict[str, Any]]:
-        """Fetch only rows matching a specific mission to reduce memory usage."""
+        """Fetch only rows matching a specific mission by filtering all records."""
         all_records = await self.get_all()
         return [record for record in all_records if record.get("Mission") == mission]
 
