@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from pydantic import AliasChoices, Field
@@ -13,10 +14,10 @@ class Settings(BaseSettings):
 
     # Required (Pydantic will raise error if missing in Env, unless we handle it)
     # BUT since we want to handle it gracefully in main.py, use None default:
-    GOOGLE_SEARCH_API_KEY: str | None = None
-    GOOGLE_SEARCH_CX: str | None = None
+    GOOGLE_SEARCH_API_KEY: str | None = os.getenv("GOOGLE_SEARCH_API_KEY")
+    GOOGLE_SEARCH_CX: str | None = os.getenv("GOOGLE_SEARCH_CX")
     OPENAI_API_KEY: str | None = None
-    
+
     # Optional
     OPENALEX_API_KEY: str | None = None
     GOOGLE_CREDENTIALS: str | None = None

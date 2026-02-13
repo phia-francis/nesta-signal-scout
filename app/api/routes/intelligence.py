@@ -1,20 +1,71 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pydantic import BaseModel
 
-from app.api.dependencies import get_cluster_service, get_scan_orchestrator, get_sheet_service
+from app.api.dependencies import (
+    get_cluster_service,
+    get_scan_orchestrator,
+    get_search_service,
+    get_sheet_service,
+)
 from app.services.cluster_svc import ClusterService
 from app.services.scan_logic import ScanOrchestrator
+from app.services.search_svc import SearchService
 from app.services.sheet_svc import SheetService
 
 router = APIRouter(prefix="/api", tags=["intelligence"])
 
 
+class StartOpPayload(BaseModel):
+    query: str
+
+
+class IntelligenceLlmService:
+    """Lightweight synthesis helpers for search result shaping."""
+
+    async def generate_signal(self, context: str, system_prompt: str, mode: str) -> dict[str, Any]:
+        del system_prompt
+        snippets = [line.strip() for line in context.splitlines() if line.strip()]
+        summary = " ".join(snippets[:6])[:500] if snippets else "No synthesis context available."
+        return {
+            "title": "Research Synthesis",
+            "summary": summary,
+            "source": "Web Synthesis",
+            "mission": "Research",
+            "typology": "Synthesis",
+            "score_activity": 0,
+            "score_attention": 0,
+            "mode": mode.title(),
+        }
+
+    async def process_single_result(self, result: dict[str, Any], mode: str) -> dict[str, Any] | None:
+        url = str(result.get("url") or "").strip()
+        if not url:
+            return None
+        return {
+            "title": result.get("title") or "Untitled",
+            "url": url,
+            "summary": (result.get("snippet") or "")[:500],
+            "source": "Web",
+            "mission": "General",
+            "typology": "Unsorted",
+            "score_activity": 0,
+            "score_attention": 0,
+            "mode": mode.title(),
+        }
+
+
+llm_service = IntelligenceLlmService()
+
+
 @router.post("/intelligence/cluster")
 async def cluster_signals(
     signals: list[dict[str, Any]],
+    background_tasks: BackgroundTasks,
     cluster_service: ClusterService = Depends(get_cluster_service),
     sheet_service: SheetService = Depends(get_sheet_service),
 ) -> list[dict[str, Any]]:
@@ -23,6 +74,7 @@ async def cluster_signals(
         return []
 
     mission = str(signals[0].get("mission") or "").strip()
+    # TODO: Refactor SheetService to support server-side filtering (e.g. get_rows_by_mission) to avoid OOM on large datasets.
     database_records = await sheet_service.get_all()
     mission_records = [
         record
@@ -68,7 +120,7 @@ async def cluster_signals(
             payload["narrative_group"] = narrative_group
             signals_to_save.append(payload)
 
-    await sheet_service.save_signals_batch(signals_to_save)
+    background_tasks.add_task(sheet_service.save_signals_batch, signals_to_save)
     return clusters
 
 
@@ -81,3 +133,59 @@ async def intelligence_mode(
     topic = (payload.get("topic") or "").strip()
     cards = await orchestrator.fetch_intelligence_brief(topic)
     return {"status": "success", "data": {"results": [card.model_dump() for card in cards]}}
+
+
+@router.post("/mode/{mode}")
+async def generate_signals(
+    mode: str,
+    payload: StartOpPayload,
+    background_tasks: BackgroundTasks,
+    search_service: SearchService = Depends(get_search_service),
+    sheet_service: SheetService = Depends(get_sheet_service),
+) -> list[dict[str, Any]]:
+    if not os.getenv("GOOGLE_SEARCH_API_KEY") or not os.getenv("GOOGLE_SEARCH_CX"):
+        raise HTTPException(
+            status_code=500,
+            detail="Configuration Error: GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_CX missing. Live search disabled.",
+        )
+
+    raw_results = await search_service.search(payload.query, num=10)
+    normalized_results = [
+        {
+            "title": result.get("title", "Untitled"),
+            "url": result.get("url") or result.get("link") or "",
+            "snippet": result.get("snippet") or result.get("summary") or "",
+        }
+        for result in raw_results
+    ]
+
+    generated_signals: list[dict[str, Any]] = []
+    if mode == "research":
+        combined_context = "\n\n".join(
+            [f"Source ({result['url']}): {result['snippet']}" for result in normalized_results if result["url"]]
+        )
+        all_urls = ", ".join([result["url"] for result in normalized_results if result["url"]])
+
+        system_prompt = (
+            "You are an expert analyst. Synthesize the provided search snippets into ONE comprehensive "
+            "Signal Card. Aggregate perspectives and conflicts. "
+            "The 'URL' field must contain the primary source, but mention others in the text."
+        )
+
+        synthesis = await llm_service.generate_signal(
+            context=combined_context,
+            system_prompt=system_prompt,
+            mode="research",
+        )
+        synthesis["url"] = all_urls
+        generated_signals.append(synthesis)
+    else:
+        for result in normalized_results:
+            signal = await llm_service.process_single_result(result, mode="radar")
+            if signal:
+                generated_signals.append(signal)
+
+    if generated_signals:
+        background_tasks.add_task(sheet_service.save_signals_batch, generated_signals)
+
+    return generated_signals
