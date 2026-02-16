@@ -1,0 +1,513 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nesta-black: #0F2940;
+  --nesta-teal: #00D2A2;
+  --nesta-coral: #F75E5E;
+  --nesta-silver: #F3F4F5;
+  --nesta-white: #FFFFFF;
+  --font-main: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  font-family: var(--font-main);
+}
+
+/* CORRECT RELATIVE PATHS */
+/* usage: ../ means "go up one folder" (from css to static), then into fonts */
+
+@font-face {
+  font-family: 'Zosia Display';
+  src: url('../fonts/Zosia-Display.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Averta';
+  src: url('../fonts/Averta-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Averta';
+  src: url('../fonts/Averta-Semibold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.tour-highlight {
+  position: relative;
+  z-index: 65;
+  box-shadow: 0 0 0 4px #0000ff, 0 0 0 8px #e6007c;
+  border-radius: 0.5rem;
+}
+
+body {
+  background-color: var(--nesta-silver);
+  color: var(--nesta-black);
+  font-family: var(--font-main);
+}
+
+h1,
+h2,
+h3,
+.brand-font {
+  color: var(--nesta-black);
+  font-family: var(--font-main);
+  letter-spacing: -0.01em;
+}
+
+.btn-nesta {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 4px 4px 0px 0px #0f294a;
+}
+
+.btn-nesta:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #0f294a;
+}
+
+.btn-nesta:active {
+  transform: translate(0px, 0px);
+  box-shadow: 2px 2px 0px 0px #0f294a;
+}
+
+.nav-button {
+  @apply w-full flex items-center gap-4 px-4 lg:px-8 py-4 border-l-4 border-transparent transition-all;
+}
+
+.nav-button--active {
+  @apply border-white bg-white/10;
+}
+
+/* Skeleton Loader */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, #f1f5f9 4%, #e2e8f0 25%, #f1f5f9 36%);
+  background-size: 1000px 100%;
+}
+
+/* Masonry Grid */
+.masonry-grid {
+  column-count: 1;
+  column-gap: 1.5rem;
+}
+
+/* Terminal Log Colors */
+.log-info {
+  color: #cbd5e1;
+}
+
+.log-success {
+  color: #18a48c;
+  font-weight: bold;
+}
+
+.log-warning {
+  color: #fdb633;
+}
+
+.log-error {
+  color: #eb003b;
+  font-weight: bold;
+}
+
+#console {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 41, 64, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 41, 64, 0.08);
+  font-family: 'Averta', var(--font-main);
+  font-size: 12px;
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #F3F4F5;
+  border-radius: 10px;
+  border-left: 3px solid #00D2A2;
+  color: #0F2940;
+  padding: 0.5rem 0.75rem;
+}
+
+.log-entry-error {
+  border-left-color: #F75E5E;
+}
+
+/* TOAST ANIMATIONS */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.toast-enter {
+  animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.toast-exit {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+/* ACTIVITY METER (Visual Bar) */
+.meter-container {
+  height: 4px;
+  background: #e2e8f0;
+  width: 100%;
+  margin-top: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: #0000ff;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- 1. NESTA HARD-EDGE TOOLTIPS --- */
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]:before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: #0f294a;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 12px;
+  width: max-content;
+  max-width: 200px;
+  text-align: center;
+  line-height: 1.4;
+  z-index: 9999;
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.2);
+  border: 1px solid #ffffff;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.1s ease-out;
+  pointer-events: none;
+}
+
+[data-tooltip]:after {
+  content: '';
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #0f294a transparent transparent transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.1s ease-out;
+}
+
+[data-tooltip]:hover:before,
+[data-tooltip]:hover:after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --- 2. STAGGERED ENTRY ANIMATION --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideInUp 0.4s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out forwards;
+}
+
+/* --- FEATURE #4: PULSE BADGE --- */
+.pulse-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #eb003b;
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 2px;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(235, 0, 59, 0.3);
+  pointer-events: none;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* --- FEATURE #5: FILTER CHIPS --- */
+.filter-chip {
+  background: transparent;
+  border: 1px solid #0f294a;
+  color: #0f294a;
+  padding: 6px 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 2px 2px 0px 0px rgba(15, 41, 74, 0.1);
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0px 0px #0f294a;
+}
+
+.filter-chip.active {
+  background: #0f294a;
+  color: white;
+  box-shadow: 3px 3px 0px 0px rgba(15, 41, 74, 0.3);
+}
+
+/* MODERN SIDEBAR NAVIGATION */
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-item.active#nav-radar {
+  background: linear-gradient(90deg, rgba(0, 0, 255, 0.1) 0%, transparent 100%);
+  border-left-color: #0000ff;
+}
+
+.nav-item.active#nav-radar .text-sm {
+  color: #0000ff;
+}
+
+.nav-item.active#nav-research {
+  background: linear-gradient(90deg, rgba(165, 94, 234, 0.1) 0%, transparent 100%);
+  border-left-color: #a55eea;
+}
+
+.nav-item.active#nav-research .text-sm {
+  color: #a55eea;
+}
+
+.nav-item.active#nav-policy {
+  background: linear-gradient(90deg, rgba(253, 182, 51, 0.1) 0%, transparent 100%);
+  border-left-color: #fdb633;
+}
+
+.nav-item.active#nav-policy .text-sm {
+  color: #fdb633;
+}
+
+.nav-item.active#nav-database {
+  background: linear-gradient(90deg, rgba(24, 164, 140, 0.1) 0%, transparent 100%);
+  border-left-color: #18a48c;
+}
+
+.nav-item.active#nav-database .text-sm {
+  color: #18a48c;
+}
+
+@media (min-width: 768px) {
+  .masonry-grid {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1200px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+}
+
+.signal-card {
+  overflow: visible !important;
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+  box-shadow: 4px 4px 0px 0px #0f294a;
+}
+
+.signal-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #0f294a;
+  border-color: #0000ff;
+}
+
+
+.tooltip {
+  z-index: 9999;
+}
+
+.modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+
+.filter-btn,
+#btn-view-grid,
+#btn-view-network {
+  border-radius: 999px;
+  background: var(--nesta-silver);
+  border: 1px solid rgba(15, 41, 64, 0.2);
+  color: var(--nesta-black);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 8px 24px;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover,
+#btn-view-grid:hover,
+#btn-view-network:hover {
+  background: var(--nesta-white);
+  border-color: rgba(15, 41, 64, 0.35);
+}
+
+.filter-btn.active,
+#btn-view-grid.bg-white,
+#btn-view-network.bg-white {
+  background: var(--nesta-black);
+  color: var(--nesta-teal);
+  border: none;
+}
+
+@keyframes toastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modern-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  max-width: 360px;
+  width: calc(100% - 3rem);
+  background: var(--nesta-black);
+  color: var(--nesta-white);
+  border-left: 4px solid var(--nesta-teal);
+  box-shadow: 0 18px 40px rgba(15, 41, 64, 0.35);
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  z-index: 70;
+  animation: toastSlideUp 220ms ease-out;
+}
+
+.modern-toast.error {
+  border-left-color: var(--nesta-coral);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-loader {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 2px solid rgba(0, 210, 162, 0.2);
+  border-top: 2px solid #00D2A2;
+  animation: spin 1s linear infinite;
+  margin: 1rem auto;
+}
