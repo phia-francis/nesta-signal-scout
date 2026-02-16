@@ -83,7 +83,6 @@ export async function runPolicyScan(payload, onMessage) {
     
     for (const result of data.data.results) {
       onMessage({ status: 'blip', blip: result });
-      await new Promise(resolve => setTimeout(resolve, 50));
     }
     
     onMessage({ status: 'complete', msg: 'Policy scan complete' });
