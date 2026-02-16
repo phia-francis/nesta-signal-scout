@@ -642,56 +642,6 @@ function finalizeScan(emptyState) {
   }
 }
 
-async function runResearchScan(payload) {
-  radarStatus.textContent = 'Synthesizing evidence...';
-  const response = await fetch(`${API_BASE_URL}/api/mode/research`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) throw new Error(`Research failed: ${response.statusText}`);
-
-  const signals = await response.json();
-  state.globalSignalsArray = signals;
-  renderSignals(signals, radarFeed, 'Research');
-  showToast('Research complete. Synthesis generated.', 'success');
-}
-
-async function runRadarScan(payload) {
-  radarStatus.textContent = 'Scanning horizon...';
-  const response = await fetch(`${API_BASE_URL}/api/mode/radar`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) throw new Error(`Radar failed: ${response.statusText}`);
-  if (!response.body) throw new Error('Radar stream unavailable');
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const data = JSON.parse(line);
-        handleStreamData(data);
-      } catch (e) {
-        console.warn('Stream parse error', e);
-      }
-    }
-  }
-}
-
 async function runScan() {
   const missionSelect = document.getElementById('mission-select');
   const topicInput = document.getElementById('topic-input');
