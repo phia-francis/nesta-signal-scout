@@ -1,268 +1,158 @@
-# Nesta Signal Scout - Production Refactor
+# Signal Scout
 
-**Version:** 2.0.0  
-**Date:** February 2026  
-**Status:** Production-Ready
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
+[![Build](https://img.shields.io/badge/build-pytest%20passing-brightgreen.svg)](tests)
+
+**Signal Scout is an AI-powered intelligence agent that helps Nesta discover weak signals, emerging research, and policy shifts across priority missions.**
+
+---
 
 ## Overview
 
-Signal Scout is a production-grade AI-powered horizon scanning agent for Nesta's Discovery Hub. It combines Google Search, OpenAlex, UKRI GtR, and OpenAI synthesis to discover emerging innovations across Nesta's mission areas.
+Signal Scout (formerly *Nesta Horizon Scanning Agent*) combines a FastAPI backend with a modular JavaScript frontend to run live horizon scans, persist insights, and support rapid analyst triage.
 
-## What Was Fixed
+The platform is designed for maintainability and handover readiness, with a refactored Domain-Driven Design (DDD) architecture and clear separation of concerns.
 
-### 1. Configuration (CRITICAL)
-- ✅ **Fail-fast validation**: App now fails loudly if environment variables are missing
-- ✅ **Proper error messages**: Clear guidance on what's misconfigured
-- ✅ **Startup summary**: Logs configuration status without leaking secrets
+---
 
-### 2. Agent Logic
-- ✅ **Research mode synthesis**: Now properly aggregates many sources → one AI-synthesised card
-- ✅ **International policy mode**: Removed UK-only bias, now includes global government sources (.gov, .gov.uk, .gov.au, .gov.ca, .int, .org)
-- ✅ **Real LLM integration**: Replaced stub with actual OpenAI synthesis using `gpt-4o`
-- ✅ **Proper caching**: 24-hour cache for expensive API calls
+## Architecture: “Brain” and “Face”
 
-### 3. Frontend Architecture
-- ✅ **Complete modular structure**: All missing modules created (state.js, api.js, ui.js, triage.js, vis.js)
-- ✅ **Responsive design**: Mobile-first, works on all screen sizes
-- ✅ **Nesta branding**: Strict adherence to Nesta visual identity (colors, fonts, styling)
-- ✅ **Modern UX**: Hard-edge aesthetic, proper loading states, toast notifications
-- ✅ **Keyboard-driven triage**: Efficient signal review workflow
+### The Brain (FastAPI + Python)
+The backend handles:
+- API routing and orchestration
+- External data retrieval (Google Search, GtR, Crunchbase)
+- Taxonomy-driven query construction
+- Scoring, clustering, and persistence workflows
 
-### 4. Database Optimisation
-- ✅ **Batch operations**: Prevents database OOM crashes
-- ✅ **Async operations**: Non-blocking Google Sheets integration
-- ✅ **Proper error handling**: Graceful degradation on failures
+### The Face (GitHub Pages + Modular JavaScript)
+The frontend handles:
+- Real-time scan visualisation
+- Interactive cards and toasts
+- Narrative clustering and signal mapping
+- Keyboard-driven triage workflows
 
-## Architecture
+This split keeps the service layer robust while allowing fast interface iteration.
 
-```
-signal-scout-refactor/
-├── app/
-│   ├── api/
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── cron.py
-│   │       ├── intelligence.py
-│   │       ├── policy.py
-│   │       ├── radar.py
-│   │       ├── research.py (FIXED - now does synthesis)
-│   │       └── system.py
-│   ├── core/
-│   │   ├── config.py (FIXED - fail-fast validation)
-│   │   ├── logging.py
-│   │   ├── prompts.py
-│   │   └── resilience.py
-│   ├── domain/
-│   │   ├── models.py
-│   │   └── taxonomy.py
-│   └── services/
-│       ├── analytics_svc.py
-│       ├── cluster_svc.py
-│       ├── crunchbase_svc.py (deprecated)
-│       ├── gtr_svc.py
-│       ├── llm_svc.py (FIXED - real OpenAI integration)
-│       ├── openalex_svc.py
-│       ├── scan_logic.py (FIXED - international policy)
-│       ├── search_svc.py
-│       └── sheet_svc.py
-├── static/
-│   ├── css/
-│   │   └── styles.css (Nesta branding)
-│   ├── js/
-│   │   ├── api.js (NEW - API communication)
-│   │   ├── app.js (entry point)
-│   │   ├── main.js (NEW - orchestrator)
-│   │   ├── state.js (NEW - state management)
-│   │   ├── triage.js (NEW - keyboard triage)
-│   │   ├── ui.js (NEW - rendering)
-│   │   ├── vis.js (NEW - network visualisation)
-│   │   └── tailwind-theme.js
-│   └── fonts/
-│       ├── Averta-Regular.otf
-│       ├── Averta-Semibold.otf
-│       └── Zosia-Display.woff2
-└── templates/
-    └── index.html (NEW - modern responsive UI)
-```
+---
 
-## Environment Variables
+## Key Features
 
-Create a `.env` file with these **REQUIRED** variables:
+### 1) Multi-Mode Scanning
+- **Radar Mode**: broad weak-signal discovery
+- **Research Mode**: targeted academic and evidence-led discovery
+- **Policy Mode**: policy and regulation scanning
+
+### 2) The Friction Method
+Signal Scout supports friction-enabled search expansion, applying entropy-style terms (for example *unregulated*, *black market*, and *workaround*) to surface less visible signals.
+
+### 3) Live Intelligence
+The application streams NDJSON updates during scans for responsive user feedback while data is fetched, scored, and stored.
+
+### 4) Visual Analytics
+- **Auto-Cluster Engine**: TF-IDF + MiniBatch K-Means narrative grouping
+- **Network Graph**: Vis.js graphing for signal relationships
+- **Sparklines**: compact activity/attention trend visuals on signal cards
+
+### 5) Triage Mode (“War Room”)
+A rapid review workflow with keyboard shortcuts for high-throughput analyst triage.
+
+### 6) Taxonomy Integration
+Expert-curated mission and topic taxonomy powers mission-aware query expansion and consistent scan quality.
+
+---
+
+## Installation and Setup
+
+### Prerequisites
+- Python **3.10+**
+- Node.js (optional, useful for frontend development tooling)
+- Google Cloud service account credentials (for Sheets integration)
+
+### Installation
 
 ```bash
-# OpenAI Configuration (REQUIRED)
-OPENAI_API_KEY="sk-..."
-OPENAI_MODEL="gpt-4o"
-OPENAI_MAX_TOKENS=2000
-
-# Google Search Configuration (REQUIRED)
-GOOGLE_SEARCH_API_KEY="..."
-GOOGLE_SEARCH_CX="..."
-
-# Google Sheets Configuration (REQUIRED)
-GOOGLE_CREDENTIALS='{"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}'
-SHEET_ID="..."
-SHEET_URL="https://docs.google.com/spreadsheets/d/..."
-
-# OpenAlex Configuration (OPTIONAL)
-OPENALEX_API_KEY="..."  # Optional but recommended
-
-# Application Settings
-LOG_LEVEL="INFO"
-ENVIRONMENT="production"
-CRON_SECRET="..."  # Optional, for scheduled jobs
-```
-
-### How to Get Environment Variables
-
-1. **OPENAI_API_KEY**: Get from https://platform.openai.com/api-keys
-2. **GOOGLE_SEARCH_API_KEY**: Create at https://console.cloud.google.com/apis/credentials
-3. **GOOGLE_SEARCH_CX**: Create Custom Search Engine at https://programmablesearchengine.google.com/
-4. **GOOGLE_CREDENTIALS**: Create service account at https://console.cloud.google.com/iam-admin/serviceaccounts
-5. **SHEET_ID**: Extract from your Google Sheet URL: `https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit`
-
-## Deployment on Render
-
-### Step 1: Push to GitHub
-
-```bash
-cd signal-scout-refactor
-git init
-git add .
-git commit -m "Production-ready Signal Scout v2.0"
-git remote add origin https://github.com/nesta/signal-scout.git
-git push -u origin main
-```
-
-### Step 2: Create Web Service on Render
-
-1. Go to https://dashboard.render.com/
-2. Click "New +" → "Web Service"
-3. Connect your GitHub repository
-4. Configure:
-   - **Name**: `signal-scout`
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Instance Type**: At least `Standard` (need sufficient memory for OpenAI/Sheets)
-
-### Step 3: Set Environment Variables
-
-In Render dashboard, go to "Environment" tab and add ALL required variables from `.env` above.
-
-**CRITICAL**: Ensure `GOOGLE_CREDENTIALS` is a single-line JSON string (remove newlines from private_key).
-
-### Step 4: Deploy
-
-Click "Create Web Service" - Render will automatically deploy.
-
-## Testing Locally
-
-```bash
-# Install dependencies
+git clone https://github.com/phia-francis/nesta-signal-scout.git
+cd nesta-signal-scout
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Set environment variables
-export OPENAI_API_KEY="..."
-export GOOGLE_SEARCH_API_KEY="..."
-export GOOGLE_SEARCH_CX="..."
-export GOOGLE_CREDENTIALS='{"type":"service_account",...}'
-export SHEET_ID="..."
-
-# Run server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Open browser
-open http://localhost:8000
 ```
+
+### Configuration
+Create a `.env` file in the repository root and provide the required environment variables.
+
+#### Core variables
+- `OPENAI_API_KEY`
+- `GOOGLE_SEARCH_API_KEY`
+- `GOOGLE_SEARCH_CX`
+- `GOOGLE_CREDENTIALS` (JSON service account payload as a string)
+- `SHEET_ID`
+
+#### Optional/extended variables
+- `CRUNCHBASE_API_KEY`
+- `GTR_API_KEY`
+- `CHAT_MODEL`
+
+> Note: some legacy aliases are supported in settings, but the canonical variable names above are recommended.
+
+### Run the application
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Then open `http://127.0.0.1:8000`.
+
+---
 
 ## Usage Guide
 
-### Scan Modes
+### Running a scan
+1. Choose a mode (Radar, Research, or Policy).
+2. Select mission/topic inputs.
+3. Run scan and monitor live streaming updates.
 
-1. **Radar Mode** (Discovery)
-   - Discovers emerging signals from multiple sources
-   - Scores by activity, attention, and recency
-   - Classifies into typologies: Nascent, Hidden Gem, Hype, Established
+### Using Triage Mode
+- Open **War Room / Triage** from the UI.
+- Use shortcuts for rapid decisions:
+  - **A** → Archive
+  - **S** → Star
+  - **ESC** → Exit triage
 
-2. **Research Mode** (Synthesis)
-   - Aggregates 10-20 sources
-   - Uses OpenAI to synthesise one comprehensive Signal Card
-   - Best for deep-dive analysis
+### Using Network Graph
+- Switch from grid view to map view.
+- Inspect clusters and linked signals to identify narrative convergence.
 
-3. **Policy Mode** (Targeted)
-   - Searches global government sources (.gov, .gov.uk, .gov.au, etc.)
-   - Focuses on policy documents and official publications
-   - High-trust filtering
+---
 
-### Triage Workflow
+## Project Structure
 
-1. Run a scan to populate signals
-2. Click "Triage" button
-3. Use keyboard shortcuts:
-   - **←** Archive (not relevant)
-   - **↑** Star (high priority)
-   - **→** Keep (relevant, review later)
-4. Signals are automatically saved to database
+```plaintext
+app/
+├── api/           # Routes and endpoints
+├── core/          # Configuration, logging, security, prompts
+├── domain/        # Models and taxonomy
+└── services/      # Business logic (search, sheets, ML, analytics)
 
-### Auto-Clustering
+static/
+├── js/
+│   └── modules/   # ES6 frontend modules
+└── css/           # Stylesheets
+```
 
-1. After scanning, click "Auto-cluster"
-2. AI groups signals into narrative themes
-3. View themes in side drawer
-4. Useful for identifying patterns across signals
+---
 
-## Monitoring
+## Contributing
 
-- **Logs**: All operations logged with structured JSON
-- **Errors**: Critical errors send 503 status with sanitised messages
-- **Performance**: API calls cached for 24 hours
-- **Database**: Background sync prevents blocking
+Contributions are welcome.
 
-## Maintenance
+Please read:
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
-### Updating Mission Areas
-
-Edit `app/keywords.py` to add new mission areas or expand topic keywords.
-
-### Modifying Scoring
-
-Edit `app/services/analytics_svc.py` to adjust scoring weights and thresholds.
-
-### Customising LLM Prompts
-
-Edit `app/core/prompts.py` for system prompts and synthesis instructions.
-
-## Troubleshooting
-
-### App Won't Start
-
-**Symptom**: "ValidationError" on startup  
-**Solution**: Check that ALL required environment variables are set correctly
-
-### Research Mode Returns Empty
-
-**Symptom**: No synthesis card generated  
-**Solution**: Check OpenAI API key is valid and has credits
-
-### Policy Mode Only Returns UK Results
-
-**Symptom**: Only seeing .gov.uk sources  
-**Solution**: This was fixed - update to latest code
-
-### Database OOM Crashes
-
-**Symptom**: Server crashes when loading database  
-**Solution**: Use `get_rows_by_mission()` instead of `get_all()` in sheet_svc.py
-
-## Support
-
-For issues or questions:
-1. Check logs in Render dashboard
-2. Verify environment variables are set correctly
-3. Ensure Google Sheets service account has editor permissions
-4. Contact: [Your Team Email]
+---
 
 ## Licence
 
-Copyright © 2026 Nesta. All rights reserved.
+This project is licensed under the MIT Licence. See [LICENSE](LICENSE).

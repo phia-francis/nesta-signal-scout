@@ -1,39 +1,17 @@
-# Nesta Signal Scout - Python Dependencies
-# Production-ready horizon scanning agent
-
-# Web Framework
 fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.7
-
-# AI/ML
-openai==1.10.0
-scikit-learn==1.5.0
-numpy==1.26.4
-
-# Data Processing
-pandas==2.2.0
-
-# HTTP & API
-httpx==0.26.0
-aiohttp==3.9.3
-
-# Google Services
+uvicorn==0.27.0
 gspread==5.12.4
-google-auth==2.27.0
-google-auth-oauthlib==1.2.0
-google-auth-httplib2==0.2.0
-
-# Date/Time
+google-auth==2.26.2
+openai==1.10.0
+python-dotenv==1.0.1
+httpx==0.26.0
+beautifulsoup4==4.12.3
 python-dateutil==2.8.2
-
-# Configuration
+pandas==2.2.0
+tenacity==8.2.3
 pydantic==2.6.0
 pydantic-settings==2.1.0
-python-dotenv==1.0.1
-
-# Utilities
-requests==2.31.0
-
-# Production Server
-gunicorn==21.2.0
+async-lru==2.0.4
+scikit-learn==1.5.0
+numpy==1.26.3
+aiohttp==3.9.3
