@@ -1,13 +1,15 @@
+import { escapeHtml } from './ui.js';
+
 function buildTriageCard(signal) {
   return `
     <article class="bg-white shadow-hard p-8 border border-slate-200 space-y-4">
       <div class="flex items-center justify-between">
-        <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-blue">${signal.mission || 'General'}</span>
-        <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-navy">${signal.typology || 'Unsorted'}</span>
+        <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-blue">${escapeHtml(signal.mission || 'General')}</span>
+        <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-navy">${escapeHtml(signal.typology || 'Unsorted')}</span>
       </div>
-      <h3 class="font-display text-2xl text-nesta-navy leading-tight">${signal.title || 'Untitled Signal'}</h3>
-      <p class="text-sm text-nesta-dark-grey leading-relaxed">${signal.summary || ''}</p>
-      <a href="${signal.url || '#'}" target="_blank" rel="noopener noreferrer" class="text-xs text-nesta-blue underline">Open source</a>
+      <h3 class="font-display text-2xl text-nesta-navy leading-tight">${escapeHtml(signal.title || 'Untitled Signal')}</h3>
+      <p class="text-sm text-nesta-dark-grey leading-relaxed">${escapeHtml(signal.summary || '')}</p>
+      <a href="${escapeHtml(signal.url || '#')}" target="_blank" rel="noopener noreferrer" class="text-xs text-nesta-blue underline">Open source</a>
     </article>
   `;
 }
