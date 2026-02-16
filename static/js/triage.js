@@ -21,8 +21,8 @@ export function initialiseTriage({
   onStar,
 }) {
   const modal = document.getElementById('triage-modal');
-  const closeButton = document.getElementById('triage-close');
-  const cardContainer = document.getElementById('triage-card-container');
+  const closeButton = document.getElementById('close-triage');
+  const cardContainer = document.getElementById('triage-content');
   const progressBar = document.getElementById('triage-progress');
   const actionButtons = document.querySelectorAll('[data-triage-action]');
 
