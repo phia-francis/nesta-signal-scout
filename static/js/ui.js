@@ -8,7 +8,7 @@ import { state } from './state.js';
 /**
  * Escape HTML to prevent XSS
  */
-function escapeHtml(text) {
+export function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;

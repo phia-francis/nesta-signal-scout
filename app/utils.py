@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
@@ -16,7 +16,7 @@ from dateutil import parser
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "level": record.levelname,
             "module": record.name,
             "message": record.getMessage(),
