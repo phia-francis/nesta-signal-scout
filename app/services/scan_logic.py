@@ -62,6 +62,7 @@ class ScanOrchestrator:
         self.analytics_service = analytics_service
         self.taxonomy = taxonomy
         self._fetch_cache: dict[str, tuple[float, list[RawSignal], list[str]]] = {}
+        self._warnings: list[str] = []
 
     @property
     def cutoff_date(self) -> datetime:
@@ -145,6 +146,176 @@ class ScanOrchestrator:
         
         return prioritized
 
+    async def _fetch_from_all_sources(
+        self, 
+        queries: dict[str, str], 
+        mission: str,
+        cutoff_date: datetime
+    ) -> list[RawSignal]:
+        """
+        Fetch from all sources in parallel with error handling.
+        Returns partial results even if some sources fail.
+        """
+        self._warnings.clear()
+        results = await asyncio.gather(
+            self.search_service.search(queries.get("social", ""), num=10, freshness="month"),
+            self.search_service.search(queries.get("blog", ""), num=8, freshness="year"),
+            self.search_service.search(queries.get("general", ""), num=5, freshness="year"),
+            self.gateway_service.fetch_projects(queries.get("topic", ""), min_start_date=cutoff_date),
+            return_exceptions=True,
+        )
+        
+        return self._normalize_results(results, mission)
+
+    def _normalize_results(self, results: tuple, mission: str) -> list[RawSignal]:
+        """Normalize results from all sources, handling failures gracefully."""
+        social_res, blog_res, general_res, gtr_res = results
+        raw_signals: list[RawSignal] = []
+        
+        # Handle each source with error checking
+        if not isinstance(social_res, Exception):
+            raw_signals.extend(self._normalise_google(social_res, mission=mission, source_label="Social/Forum", is_novel=True))
+        else:
+            self._warnings.append("Social media sources unavailable")
+            logging.warning("Social search failed: %s", social_res)
+        
+        if not isinstance(blog_res, Exception):
+            raw_signals.extend(self._normalise_google(blog_res, mission=mission, source_label="Niche/Blog", is_novel=True))
+        else:
+            self._warnings.append("Blog sources unavailable")
+            logging.warning("Blog search failed: %s", blog_res)
+        
+        if not isinstance(general_res, Exception):
+            raw_signals.extend(self._normalise_google(general_res, mission=mission, source_label="Web", is_novel=False))
+        else:
+            self._warnings.append("Web search unavailable")
+            logging.warning("General search failed: %s", general_res)
+        
+        if not isinstance(gtr_res, Exception):
+            raw_signals.extend(self._normalise_gtr(gtr_res, mission=mission))
+        else:
+            self._warnings.append("Academic sources unavailable")
+            logging.warning("Academic search failed: %s", gtr_res)
+        
+        return raw_signals
+
+    def _score_signal(self, raw_signal: RawSignal, effective_cutoff: datetime) -> ScoredSignal | None:
+        """Score a single signal. Returns None if signal is too old."""
+        if raw_signal.date < effective_cutoff:
+            return None
+        
+        activity = self._calculate_activity(raw_signal)
+        attention = self._calculate_attention(raw_signal)
+        recency = self.analytics_service.calculate_recency_score(raw_signal.date)
+        
+        final = (
+            (activity * ACTIVITY_WEIGHT)
+            + (attention * ATTENTION_WEIGHT)
+            + (recency * RECENCY_WEIGHT)
+        )
+        typology = self.analytics_service.classify_sweet_spot(activity, attention)
+        
+        return ScoredSignal(
+            **raw_signal.model_dump(),
+            score_activity=round(activity, 2),
+            score_attention=round(attention, 2),
+            score_recency=round(recency, 2),
+            final_score=round(final, 2),
+            typology=typology,
+        )
+
+    def _filter_by_threshold(self, signals: list[SignalCard], min_score: float) -> list[SignalCard]:
+        """Filter signals by minimum score threshold."""
+        return [s for s in signals if s.final_score >= min_score]
+
+    def _sort_by_score(self, signals: list[SignalCard]) -> list[SignalCard]:
+        """Sort signals by final score in descending order."""
+        return sorted(signals, key=lambda s: s.final_score, reverse=True)
+
+    async def _execute_quick_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute quick scan (radar mode) with source diversity."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for quick scan.")
+        
+        # Generate related keywords
+        try:
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+        except Exception as e:
+            logging.warning("Keyword enrichment failed: %s", e)
+            related_terms = []
+        
+        # Construct queries for different sources
+        queries = {
+            "social": f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)",
+            "blog": f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")",
+            "general": clean_topic,
+            "topic": clean_topic
+        }
+        
+        # Fetch from all sources with partial failure handling
+        raw_signals = await self._fetch_from_all_sources(queries, mission, self.cutoff_date)
+        raw_signals = self._prioritize_by_source_diversity(raw_signals)
+        
+        return {
+            "signals": raw_signals,
+            "related_terms": related_terms,
+            "warnings": self._warnings if self._warnings else None,
+            "mode": "quick"
+        }
+
+    async def _execute_deep_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute deep scan (research mode) focusing on academic sources."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for deep scan.")
+        
+        self._warnings.clear()
+        # Deep scan uses research method
+        try:
+            cards = await self.fetch_research_deep_dive(clean_topic)
+            return {
+                "signals": cards,
+                "related_terms": [],
+                "warnings": self._warnings if self._warnings else None,
+                "mode": "deep"
+            }
+        except Exception as e:
+            self._warnings.append(f"Deep scan failed: {str(e)}")
+            logging.error("Deep scan failed: %s", e)
+            return {
+                "signals": [],
+                "related_terms": [],
+                "warnings": self._warnings,
+                "mode": "deep"
+            }
+
+    async def _execute_monitor_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute monitor scan (policy mode) for policy documents."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for monitor scan.")
+        
+        self._warnings.clear()
+        # Monitor scan uses policy method
+        try:
+            cards = await self.fetch_policy_scan(clean_topic)
+            return {
+                "signals": cards,
+                "related_terms": [],
+                "warnings": self._warnings if self._warnings else None,
+                "mode": "monitor"
+            }
+        except Exception as e:
+            self._warnings.append(f"Monitor scan failed: {str(e)}")
+            logging.error("Monitor scan failed: %s", e)
+            return {
+                "signals": [],
+                "related_terms": [],
+                "warnings": self._warnings,
+                "mode": "monitor"
+            }
+
     async def fetch_signals(
         self,
         topic: str,
@@ -225,35 +396,14 @@ class ScanOrchestrator:
         related_terms: list[str],
         override_cutoff_date: datetime | None = None,
     ) -> Generator[SignalCard, None, None]:
-        """Scoring logic updated to favour 'Attention' (Social/Web) over 'Activity' (Grants)."""
+        """Process and score signals using extracted scoring method."""
         effective_cutoff = override_cutoff_date or self.cutoff_date
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:
-            if raw_signal.date < effective_cutoff:
-                continue
-
-            activity = self._calculate_activity(raw_signal)
-            attention = self._calculate_attention(raw_signal)
-            recency = self.analytics_service.calculate_recency_score(raw_signal.date)
-
-            # Weighted Score
-            final = (
-                (activity * ACTIVITY_WEIGHT)
-                + (attention * ATTENTION_WEIGHT)
-                + (recency * RECENCY_WEIGHT)
-            )
-            typology = self.analytics_service.classify_sweet_spot(activity, attention)
-
-            scored = ScoredSignal(
-                **raw_signal.model_dump(),
-                score_activity=round(activity, 2),
-                score_attention=round(attention, 2),
-                score_recency=round(recency, 2),
-                final_score=round(final, 2),
-                typology=typology,
-            )
-            candidate_cards.append(self._to_signal_card(scored, related_terms=related_terms))
+            scored = self._score_signal(raw_signal, effective_cutoff)
+            if scored:
+                candidate_cards.append(self._to_signal_card(scored, related_terms=related_terms))
 
         # Dedupe and Yield
         for card in self._deduplicate_signals(candidate_cards):
