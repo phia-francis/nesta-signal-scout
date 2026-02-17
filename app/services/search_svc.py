@@ -119,8 +119,12 @@ class SearchService:
                         )
                     
                     if response.status_code == 429:
-                        # Rate limit exceeded
-                        retry_after = int(response.headers.get("Retry-After", 2 ** attempt))
+                        # Rate limit exceeded — parse Retry-After defensively
+                        raw_retry = response.headers.get("Retry-After")
+                        try:
+                            retry_after = int(raw_retry) if raw_retry else 2 ** attempt
+                        except (ValueError, TypeError):
+                            retry_after = 2 ** attempt
                         logger.warning(f"Rate limit exceeded (429). Attempt {attempt + 1}/{max_retries}. Retrying after {retry_after}s...")
                         
                         if attempt < max_retries - 1:
@@ -155,12 +159,6 @@ class SearchService:
             except httpx.TimeoutException as e:
                 logger.error(f"Search timeout after 30s: {e}")
                 raise SearchAPIError("Google Search API request timed out after 30 seconds. Please try again.") from e
-            except httpx.HTTPStatusError as e:
-                logger.error(f"Search HTTP Error {e.response.status_code}: {e.response.text}")
-                raise SearchAPIError(
-                    f"Google Search API request failed with status {e.response.status_code}",
-                    status_code=e.response.status_code,
-                ) from e
             except httpx.RequestError as e:
                 logger.error(f"Search Connection Error: {e}")
                 raise SearchAPIError("Failed to connect to Google Search API. Please check your internet connection.") from e
