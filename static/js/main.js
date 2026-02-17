@@ -6,12 +6,14 @@
 let API_BASE_URL = window.location.origin;
 const hostname = window.location.hostname;
 
+// URLs for different environments
+const RENDER_BACKEND_URL = 'https://nesta-signal-backend.onrender.com';
+const LOCAL_BACKEND_URL = 'http://localhost:8000';
+
 if (hostname.endsWith('.github.io')) {
-  // Point to Render when running on GitHub Pages
-  API_BASE_URL = 'https://nesta-signal-backend.onrender.com';
+  API_BASE_URL = RENDER_BACKEND_URL;
 } else if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-  // Point to local Python server when developing locally
-  API_BASE_URL = 'http://localhost:8000';
+  API_BASE_URL = LOCAL_BACKEND_URL;
 }
 console.log(`[Scout] API configured: ${API_BASE_URL}`);
 
