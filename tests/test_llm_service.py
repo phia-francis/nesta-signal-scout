@@ -109,9 +109,16 @@ def test_format_results_for_llm(llm_service_with_key):
     
     formatted = llm_service_with_key._format_results_for_llm(results)
     
+    # Standard assertions
     assert "[1] Title 1" in formatted
     assert "[2] Title 2" in formatted
-    assert "source1.com" in formatted
+    
+    # More specific assertions for CodeQL compliance
+    # We check for the explicit format "(source1.com)" or "(source2)" 
+    # to ensure we aren't matching substrings like "evilsource1.com"
+    assert "(source1.com)" in formatted
+    assert "(source2)" in formatted
+    
     assert "Abstract 2" in formatted
 
 
