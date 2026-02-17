@@ -74,9 +74,26 @@ async function runScan() {
 
 function switchMode(mode) {
   state.currentMode = mode;
-  document.querySelectorAll('.nav-item[data-mode]').forEach((button) => {
+  document.querySelectorAll('.mode-toggle').forEach((button) => {
     button.classList.toggle('active', button.dataset.mode === mode);
   });
+}
+
+function switchView(view) {
+  const radarView = document.getElementById('view-radar');
+  const databaseView = document.getElementById('view-database');
+  const databaseBtn = document.getElementById('nav-database');
+  
+  if (view === 'database') {
+    radarView?.classList.add('hidden');
+    databaseView?.classList.remove('hidden');
+    databaseBtn?.classList.add('active');
+    refreshDatabase();
+  } else {
+    radarView?.classList.remove('hidden');
+    databaseView?.classList.add('hidden');
+    databaseBtn?.classList.remove('active');
+  }
 }
 
 function switchVisualMode(mode) {
@@ -133,8 +150,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
   });
 
-  document.querySelectorAll('.nav-item[data-mode]').forEach((button) => {
+  document.querySelectorAll('.mode-toggle').forEach((button) => {
     button.addEventListener('click', () => switchMode(button.dataset.mode));
+  });
+
+  document.getElementById('nav-database')?.addEventListener('click', () => switchView('database'));
+
+  document.querySelectorAll('.mode-toggle').forEach((button) => {
+    button.addEventListener('click', () => switchView('radar'));
   });
 
   document.getElementById('scan-btn')?.addEventListener('click', runScan);

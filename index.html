@@ -29,36 +29,6 @@
     <nav class="flex-1 overflow-y-auto py-6 space-y-8">
       <div class="px-4">
         <h3 class="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4 px-2">
-          Active Modes
-        </h3>
-
-        <button data-mode="radar" id="nav-radar" class="nav-item active group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/10 border-l-4 border-transparent">
-          <span class="text-xl group-hover:scale-110 transition-transform">📡</span>
-          <div class="text-left hidden lg:block">
-            <div class="text-sm font-bold text-white group-hover:text-nesta-blue transition-colors">Radar</div>
-            <div class="text-[9px] text-white/50">Broad horizon scanning</div>
-          </div>
-        </button>
-
-        <button data-mode="research" id="nav-research" class="nav-item group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/10 border-l-4 border-transparent">
-          <span class="text-xl group-hover:scale-110 transition-transform">🔬</span>
-          <div class="text-left hidden lg:block">
-            <div class="text-sm font-bold text-white group-hover:text-nesta-purple transition-colors">Research</div>
-            <div class="text-[9px] text-white/50">Academic & Deep Dive</div>
-          </div>
-        </button>
-
-        <button data-mode="policy" id="nav-policy" class="nav-item group w-full flex items-center gap-3 p-3 rounded-md transition-all duration-200 hover:bg-white/10 border-l-4 border-transparent">
-          <span class="text-xl group-hover:scale-110 transition-transform">⚖️</span>
-          <div class="text-left hidden lg:block">
-            <div class="text-sm font-bold text-white group-hover:text-nesta-yellow transition-colors">Policy</div>
-            <div class="text-[9px] text-white/50">Regulation & Gov. Trends</div>
-          </div>
-        </button>
-      </div>
-
-      <div class="px-4">
-        <h3 class="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4 px-2">
           Knowledge Base
         </h3>
 
@@ -93,9 +63,22 @@
 
     <div id="view-container" class="flex-1 overflow-y-auto p-8 scroll-smooth">
       <section id="view-radar" class="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h2 id="view-heading" class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
-          <p id="view-description" class="text-sm text-slate-600">Activity vs. Attention from GtR, OpenAlex, and search signals.</p>
+        <div class="mb-8">
+          <div class="flex items-center justify-center gap-2 mb-6">
+            <button data-mode="radar" class="mode-toggle active px-8 py-3 font-display text-lg font-bold tracking-wide transition-all duration-200">
+              Quick⚡
+            </button>
+            <button data-mode="research" class="mode-toggle px-8 py-3 font-display text-lg font-bold tracking-wide transition-all duration-200">
+              Deep🔬
+            </button>
+            <button data-mode="policy" class="mode-toggle px-8 py-3 font-display text-lg font-bold tracking-wide transition-all duration-200">
+              Monitor📡
+            </button>
+          </div>
+          <div>
+            <h2 id="view-heading" class="text-xl font-display text-nesta-navy">Innovation Sweet Spots</h2>
+            <p id="view-description" class="text-sm text-slate-600">Activity vs. Attention from GtR, OpenAlex, and search signals.</p>
+          </div>
         </div>
 
         <div class="bg-white p-8 border border-nesta-sand shadow-hard relative z-10 transition-all duration-300" id="search-panel">

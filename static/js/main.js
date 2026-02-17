@@ -28,8 +28,8 @@ const state = {
 const dom = {
   radarFeed: document.getElementById("radar-feed"),
   emptyState: document.getElementById("empty-state"),
-  scanStatus: document.getElementById("scan-status"),
-  queryInput: document.getElementById("query-input"),
+  scanStatus: document.getElementById("radar-status"),
+  queryInput: document.getElementById("topic-input"),
   missionSelect: document.getElementById("mission-select"),
   scanLoader: document.getElementById("scan-loader"),
   toastContainer: document.getElementById("toast-container"),
@@ -69,11 +69,32 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     btn.classList.add("active");
     state.currentMode = btn.dataset.mode;
 
+    // Switch to radar view when mode changes
+    const radarView = document.getElementById("view-radar");
+    const databaseView = document.getElementById("view-database");
+    const databaseBtn = document.getElementById("nav-database");
+    
+    radarView?.classList.remove("hidden");
+    databaseView?.classList.add("hidden");
+    databaseBtn?.classList.remove("active");
+
     state.globalSignalsArray = [];
     dom.radarFeed.innerHTML = "";
     dom.emptyState.classList.remove("hidden");
     dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
   });
+});
+
+// Database button handler
+document.getElementById("nav-database")?.addEventListener("click", () => {
+  const radarView = document.getElementById("view-radar");
+  const databaseView = document.getElementById("view-database");
+  const databaseBtn = document.getElementById("nav-database");
+  
+  radarView?.classList.add("hidden");
+  databaseView?.classList.remove("hidden");
+  databaseBtn?.classList.add("active");
+  refreshDatabase();
 });
 
 document.getElementById("scan-btn")?.addEventListener("click", runScan);

@@ -398,6 +398,31 @@ h3,
   color: #18a48c;
 }
 
+.nav-item.active#nav-database .text-sm {
+  color: #18a48c;
+}
+
+/* MODE TOGGLE STYLES */
+.mode-toggle {
+  background: #F3F4F5;
+  border: 2px solid #e2e8f0;
+  color: #0F2940;
+  cursor: pointer;
+  border-radius: 0.375rem;
+}
+
+.mode-toggle:hover {
+  border-color: #0000ff;
+  transform: translateY(-1px);
+}
+
+.mode-toggle.active {
+  background: #0000ff;
+  color: #ffffff;
+  border-color: #0000ff;
+  box-shadow: 0 4px 8px rgba(0, 0, 255, 0.3);
+}
+
 @media (min-width: 768px) {
   .masonry-grid {
     column-count: 2;
