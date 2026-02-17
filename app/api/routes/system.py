@@ -40,11 +40,29 @@ async def update_signal_status(
 
         # If 'Starred', also add to watchlist tab for safety
         if payload.status == "Starred":
-            # We assume the row exists, but we might not have the full object here.
-            # Ideally, the frontend sends the full object, but for now we just
-            # update the status column.
-            pass
+            # Check if the signal was actually updated by the previous call to update_status.
+            # If not, it means it's a new signal that needs to be persisted.
+            existing_signal = await sheet_service.get_signal_by_url(payload.url)
+            if not existing_signal:
+                # Create a minimal RawSignal object for persistence.
+                # This addresses the P1 issue of new starred signals not being persisted.
+                from datetime import datetime, timezone
+                from app.domain.models import RawSignal
+                minimal_signal = RawSignal(
+                    url=payload.url,
+                    status=payload.status,
+                    title=f"Starred: {payload.url}",
+                    summary="Signal starred by user, full details not available at time of starring.",
+                    source="User Action",
+                    mission="General",
+                    date=datetime.now(timezone.utc),
+                    raw_score=0.0,
+                    metadata={"starred_from_frontend": True},
+                    is_novel=False
+                )
+                await sheet_service.add_signal(minimal_signal)
 
         return {"status": "success", "message": f"Signal marked as {payload.status}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to update signal status for URL: %s", payload.url)
+        raise HTTPException(status_code=500, detail="An internal error occurred while updating signal status.")

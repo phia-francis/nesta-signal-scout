@@ -93,7 +93,8 @@ class ScanOrchestrator:
         # Generate related keywords (Layer 0)
         try:
             related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
-        except Exception:
+        except Exception as e:
+            logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []
 
         # Construct Layered Queries
@@ -217,7 +218,23 @@ class ScanOrchestrator:
         raw_signals = self._normalise_google(results, mission="Policy", source_label="Policy/Intl", is_novel=False)
         return list(self.process_signals(raw_signals, mission="Policy", related_terms=[]))
 
-    # --- Normalisers ---
+    async def fetch_intelligence_brief(self, topic: str) -> list[SignalCard]:
+        """Fast high-level brief combining GtR and OpenAlex."""
+        if not topic.strip():
+            raise ValueError("Intelligence topic is required.")
+
+        cutoff_date = self.cutoff_date
+        from_publication_date = cutoff_date.date().isoformat()
+        gtr_result, openalex_result = await asyncio.gather(
+            self.gateway_service.fetch_projects(topic, min_start_date=cutoff_date),
+            self.openalex_service.search_works(topic, from_publication_date=from_publication_date),
+            return_exceptions=True,
+        )
+        raw_signals = [
+            *self._normalise_gtr(gtr_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
+            *self._normalise_openalex(openalex_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
+        ]
+        return list(self.process_signals(raw_signals, mission="Intelligence", related_terms=[]))
 
     def _normalise_gtr(self, result: Any, *, mission: str) -> list[RawSignal]:
         if isinstance(result, Exception) or not isinstance(result, list):
@@ -298,12 +315,27 @@ class ScanOrchestrator:
     @staticmethod
     def _parse_date(value: Any) -> datetime | None:
         if not value: return None
-        try: return date_parser.parse(str(value)).replace(tzinfo=timezone.utc)
-        except: return None
+        try:
+            parsed = date_parser.parse(str(value))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError, date_parser.ParserError):
+            return None
 
     @staticmethod
     def _build_sparkline(scored: ScoredSignal) -> list[int]:
-        return [5, 6, 8, 5, 7, 9, 6]  # Simplified sparkline
+        base = max(0, min(100, int(round(scored.final_score * 10))))
+        activity = max(0, min(100, int(round(scored.score_activity * 10))))
+        attention = max(0, min(100, int(round(scored.score_attention * 10))))
+        recency = max(0, min(100, int(round(scored.score_recency * 10))))
+        return [
+            max(0, base - 8),
+            max(0, base - 4),
+            base,
+            min(100, base + 3),
+            min(100, base + 6),
+            activity,
+            max(attention, recency),
+        ]
 
     @staticmethod
     def _to_signal_card(scored: ScoredSignal, *, related_terms: list[str]) -> SignalCard:

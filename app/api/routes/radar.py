@@ -77,8 +77,9 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
         yield _msg("complete", f"Scan complete. {count} signals visualized.")
 
     except Exception as e:
-        logger.exception("Radar scan failed")
-        yield _msg("error", f"Scan failed: {str(e)}")
+        request_id = "radar-scan-failed"
+        logger.exception("Radar scan failed. Request ID: %s", request_id)
+        yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
 async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
@@ -102,8 +103,9 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
         yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
 
     except Exception as e:
-        logger.exception("Policy scan failed")
-        yield _msg("error", f"Policy scan failed: {str(e)}")
+        request_id = "policy-scan-failed"
+        logger.exception("Policy scan failed. Request ID: %s", request_id)
+        yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
 def _msg(status: str, text: str) -> str:
