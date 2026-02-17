@@ -23,6 +23,7 @@ console.log(`[Scout] API configured: ${API_BASE_URL}`);
 const state = {
   currentMode: "radar",
   globalSignalsArray: [],
+  currentScanId: null,  // Track current scan ID for persistence
 };
 
 const dom = {
@@ -579,6 +580,20 @@ async function clusterAndRenderThemes(signals) {
     const result = await response.json();
     currentThemes = result.themes || [];
     
+    // Save scan_id and update URL if returned
+    if (result.scan_id) {
+      state.currentScanId = result.scan_id;
+      updateUrlWithScanId(result.scan_id);
+      
+      // Show share button
+      const shareBtn = document.getElementById('share-scan-btn');
+      if (shareBtn) {
+        shareBtn.style.display = 'inline-flex';
+      }
+      
+      console.log(`Scan saved with ID: ${result.scan_id}`);
+    }
+    
     if (currentThemes.length > 0) {
       console.log(`Found ${currentThemes.length} themes`);
       
@@ -682,6 +697,138 @@ function autoClusterAfterScan() {
   }
 }
 
+/**
+ * Load a saved scan from storage
+ */
+async function loadScan(scanId) {
+  try {
+    console.log(`Loading scan ${scanId}...`);
+    showToast('Loading saved scan...', 'info');
+    
+    const response = await fetch(`${API_BASE_URL}/api/mode/scan/${scanId}`);
+    
+    if (!response.ok) {
+      throw new Error('Scan not found');
+    }
+    
+    const scanData = await response.json();
+    
+    // Update state
+    state.currentScanId = scanId;
+    state.globalSignalsArray = scanData.signals || [];
+    
+    // Update query input
+    if (dom.queryInput) {
+      dom.queryInput.value = scanData.query || '';
+    }
+    
+    // Render signals
+    dom.radarFeed.innerHTML = '';
+    scanData.signals.forEach((signal, index) => {
+      const cardHtml = import('./ui.js').then(uiModule => {
+        const card = uiModule.createSignalCard(signal, index);
+        dom.radarFeed.appendChild(card);
+      });
+    });
+    
+    // Render themes if available
+    if (scanData.themes && scanData.themes.length > 0) {
+      currentThemes = scanData.themes;
+      const container = document.getElementById('theme-chips-container');
+      if (container) {
+        import('./ui.js').then(uiModule => {
+          uiModule.renderThemeChips(scanData.themes, container, handleThemeFilter);
+        });
+      }
+    }
+    
+    // Hide empty state
+    dom.emptyState.classList.add('hidden');
+    
+    showToast(`Loaded scan: ${scanData.query}`, 'success');
+    console.log(`Scan ${scanId} loaded with ${scanData.signals.length} signals and ${scanData.themes.length} themes`);
+    
+  } catch (error) {
+    console.error('Failed to load scan:', error);
+    showToast('Failed to load scan', 'error');
+  }
+}
+
+/**
+ * Get share URL for current scan
+ */
+function getShareUrl() {
+  if (!state.currentScanId) {
+    showToast('No scan to share yet', 'warning');
+    return null;
+  }
+  return `${window.location.origin}${window.location.pathname}?scan=${state.currentScanId}`;
+}
+
+/**
+ * Copy share URL to clipboard
+ */
+async function shareCurrentScan() {
+  const shareUrl = getShareUrl();
+  if (!shareUrl) return;
+  
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    showToast('Share link copied to clipboard!', 'success');
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error);
+    showToast('Failed to copy link', 'error');
+  }
+}
+
+/**
+ * Check URL for scan parameter on page load
+ */
+function checkUrlForScan() {
+  const params = new URLSearchParams(window.location.search);
+  const scanId = params.get('scan');
+  
+  if (scanId) {
+    console.log(`Found scan ID in URL: ${scanId}`);
+    loadScan(scanId);
+  }
+}
+
+/**
+ * Update URL with scan ID
+ */
+function updateUrlWithScanId(scanId) {
+  const newUrl = new URL(window.location.href);
+  newUrl.searchParams.set('scan', scanId);
+  window.history.pushState({ scanId }, '', newUrl.toString());
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  setupViewToggle();
+  checkUrlForScan();
+  
+  // Add share button if not exists
+  const resultsHeader = document.querySelector('.results-header');
+  if (resultsHeader && !document.getElementById('share-scan-btn')) {
+    const shareBtn = document.createElement('button');
+    shareBtn.id = 'share-scan-btn';
+    shareBtn.className = 'btn btn-secondary';
+    shareBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+      </svg>
+      Share Scan
+    `;
+    shareBtn.addEventListener('click', shareCurrentScan);
+    shareBtn.style.display = 'none'; // Hide until scan completes
+    resultsHeader.appendChild(shareBtn);
+  }
+});
+
 // Expose functions globally
 window.autoClusterAfterScan = autoClusterAfterScan;
 window.handleThemeFilter = handleThemeFilter;
+window.loadScan = loadScan;
+window.shareCurrentScan = shareCurrentScan;
