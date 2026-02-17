@@ -49,13 +49,13 @@ def normalize_url(url: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
 
 
-def normalize_url_for_deduplication(url: str) -> str:
+def normalize_url_for_deduplication(url: Optional[str]) -> str:
     """
     Normalize URL for deduplication purposes by removing protocol, www prefix,
     converting to lowercase, and removing trailing slashes.
     
     Args:
-        url: The URL to normalize
+        url: The URL to normalize (can be None)
         
     Returns:
         Normalized URL string suitable for deduplication
@@ -65,6 +65,8 @@ def normalize_url_for_deduplication(url: str) -> str:
         'example.com/path'
         >>> normalize_url_for_deduplication("HTTP://Example.COM")
         'example.com'
+        >>> normalize_url_for_deduplication(None)
+        ''
     """
     cleaned = (url or "").strip().lower()
     for prefix in ("https://", "http://"):
