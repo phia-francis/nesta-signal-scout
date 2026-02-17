@@ -26,7 +26,7 @@ def get_taxonomy() -> TaxonomyService:
 
 @lru_cache(maxsize=1)
 def get_search_service() -> SearchService:
-    return SearchService(get_settings(), get_taxonomy())
+    return SearchService(get_settings())
 
 
 @lru_cache(maxsize=1)
@@ -64,6 +64,7 @@ def get_scan_orchestrator() -> ScanOrchestrator:
         search_service=get_search_service(),
         analytics_service=get_analytics_service(),
         taxonomy=get_taxonomy(),
+        llm_service=get_llm_service(),
     )
 
 

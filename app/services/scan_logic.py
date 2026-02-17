@@ -10,7 +10,8 @@ from typing import Any
 
 from dateutil import parser as date_parser
 
-from app import keywords
+import keywords
+from utils import normalize_url_for_deduplication
 from app.core.config import SCAN_RESULT_LIMIT
 from app.domain.models import RawSignal, ScoredSignal, SignalCard
 from app.domain.taxonomy import TaxonomyService
@@ -32,6 +33,14 @@ GOOGLE_BASELINE_ATTENTION = 6.0
 FETCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 DEDUPE_SIMILARITY_THRESHOLD = 0.85
 
+# Source diversity allocation percentages
+SOURCE_DIVERSITY_TARGET = {
+    "social": 0.40,  # 40% Social media (Reddit, Twitter, HackerNews)
+    "blog": 0.30,    # 30% Blogs (Medium, Substack)
+    "international": 0.20,  # 20% International + Grey literature
+    "academic": 0.10  # 10% Academic (lowest priority)
+}
+
 
 class ScanOrchestrator:
     """
@@ -46,13 +55,16 @@ class ScanOrchestrator:
         search_service: SearchService,
         analytics_service: HorizonAnalyticsService,
         taxonomy: TaxonomyService,
+        llm_service: Any = None,
     ) -> None:
         self.gateway_service = gateway_service
         self.openalex_service = openalex_service
         self.search_service = search_service
         self.analytics_service = analytics_service
         self.taxonomy = taxonomy
+        self.llm_service = llm_service
         self._fetch_cache: dict[str, tuple[float, list[RawSignal], list[str]]] = {}
+        self._warnings: list[str] = []
 
     @property
     def cutoff_date(self) -> datetime:
@@ -64,6 +76,248 @@ class ScanOrchestrator:
     def _clone_raw_signals(self, signals: list[RawSignal]) -> list[RawSignal]:
         return [signal.model_copy(deep=True) for signal in signals]
 
+    def _classify_source(self, signal: RawSignal) -> str:
+        """
+        Classify a signal into source categories for diversity management.
+        
+        Returns:
+            One of: "social", "blog", "international", "academic"
+        """
+        source = signal.source.lower()
+        url = signal.url.lower()
+        
+        # Academic sources
+        if any(keyword in source for keyword in ["gtr", "openalex", "arxiv", "academic", "journal"]):
+            return "academic"
+        
+        # Social media sources
+        if any(domain in url for domain in ["reddit.com", "twitter.com", "x.com", "news.ycombinator.com", "producthunt.com"]):
+            return "social"
+        
+        # Blog sources  
+        if any(domain in url for domain in ["medium.com", "substack.com", "blog"]) or "blog" in source:
+            return "blog"
+        
+        # Everything else is international/web
+        return "international"
+
+    def _prioritize_by_source_diversity(self, signals: list[RawSignal]) -> list[RawSignal]:
+        """
+        Reorder signals to ensure source diversity matches target allocations:
+        - 40% Social media
+        - 30% Blogs
+        - 20% International/Web
+        - 10% Academic
+        """
+        if not signals:
+            return signals
+        
+        # Categorize all signals
+        categorized: dict[str, list[RawSignal]] = {
+            "social": [],
+            "blog": [],
+            "international": [],
+            "academic": []
+        }
+        
+        for signal in signals:
+            category = self._classify_source(signal)
+            categorized[category].append(signal)
+        
+        # Calculate target counts based on total signals
+        total_signals = len(signals)
+        target_counts = {
+            category: int(total_signals * allocation)
+            for category, allocation in SOURCE_DIVERSITY_TARGET.items()
+        }
+        
+        # Build prioritized list
+        prioritized: list[RawSignal] = []
+        
+        # Take signals from each category up to target count
+        for category in ["social", "blog", "international", "academic"]:
+            available = categorized[category]
+            target = target_counts[category]
+            prioritized.extend(available[:target])
+        
+        # Add remaining signals if we haven't hit the total yet
+        for category in ["social", "blog", "international", "academic"]:
+            available = categorized[category]
+            target = target_counts[category]
+            prioritized.extend(available[target:])
+        
+        return prioritized
+
+    async def _fetch_from_all_sources(
+        self, 
+        queries: dict[str, str], 
+        mission: str,
+        cutoff_date: datetime
+    ) -> list[RawSignal]:
+        """
+        Fetch from all sources in parallel with error handling.
+        Returns partial results even if some sources fail.
+        """
+        self._warnings.clear()
+        results = await asyncio.gather(
+            self.search_service.search(queries.get("social", ""), num=10, freshness="month"),
+            self.search_service.search(queries.get("blog", ""), num=8, freshness="year"),
+            self.search_service.search(queries.get("general", ""), num=5, freshness="year"),
+            self.gateway_service.fetch_projects(queries.get("topic", ""), min_start_date=cutoff_date),
+            return_exceptions=True,
+        )
+        
+        return self._normalize_results(results, mission)
+
+    def _normalize_results(self, results: tuple[Any, ...], mission: str) -> list[RawSignal]:
+        """Normalize results from all sources, handling failures gracefully."""
+        social_res, blog_res, general_res, gtr_res = results
+        raw_signals: list[RawSignal] = []
+        
+        # Handle each source with error checking
+        if not isinstance(social_res, Exception):
+            raw_signals.extend(self._normalise_google(social_res, mission=mission, source_label="Social/Forum", is_novel=True))
+        else:
+            self._warnings.append("Social media sources unavailable")
+            logging.warning("Social search failed: %s", social_res)
+        
+        if not isinstance(blog_res, Exception):
+            raw_signals.extend(self._normalise_google(blog_res, mission=mission, source_label="Niche/Blog", is_novel=True))
+        else:
+            self._warnings.append("Blog sources unavailable")
+            logging.warning("Blog search failed: %s", blog_res)
+        
+        if not isinstance(general_res, Exception):
+            raw_signals.extend(self._normalise_google(general_res, mission=mission, source_label="Web", is_novel=False))
+        else:
+            self._warnings.append("Web search unavailable")
+            logging.warning("General search failed: %s", general_res)
+        
+        if not isinstance(gtr_res, Exception):
+            raw_signals.extend(self._normalise_gtr(gtr_res, mission=mission))
+        else:
+            self._warnings.append("Academic sources unavailable")
+            logging.warning("Academic search failed: %s", gtr_res)
+        
+        return raw_signals
+
+    def _score_signal(self, raw_signal: RawSignal, effective_cutoff: datetime) -> ScoredSignal | None:
+        """Score a single signal. Returns None if signal is too old."""
+        if raw_signal.date < effective_cutoff:
+            return None
+        
+        activity = self._calculate_activity(raw_signal)
+        attention = self._calculate_attention(raw_signal)
+        recency = self.analytics_service.calculate_recency_score(raw_signal.date)
+        
+        final = (
+            (activity * ACTIVITY_WEIGHT)
+            + (attention * ATTENTION_WEIGHT)
+            + (recency * RECENCY_WEIGHT)
+        )
+        typology = self.analytics_service.classify_sweet_spot(activity, attention)
+        
+        return ScoredSignal(
+            **raw_signal.model_dump(),
+            score_activity=round(activity, 2),
+            score_attention=round(attention, 2),
+            score_recency=round(recency, 2),
+            final_score=round(final, 2),
+            typology=typology,
+        )
+
+    def _filter_by_threshold(self, signals: list[SignalCard], min_score: float) -> list[SignalCard]:
+        """Filter signals by minimum score threshold."""
+        return [s for s in signals if s.final_score >= min_score]
+
+    def _sort_by_score(self, signals: list[SignalCard]) -> list[SignalCard]:
+        """Sort signals by final score in descending order."""
+        return sorted(signals, key=lambda s: s.final_score, reverse=True)
+
+    async def _execute_quick_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute quick scan (radar mode) with source diversity."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for quick scan.")
+        
+        # Generate related keywords
+        try:
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
+        except Exception as e:
+            logging.warning("Keyword enrichment failed: %s", e)
+            related_terms = []
+        
+        # Construct queries for different sources
+        queries = {
+            "social": f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)",
+            "blog": f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")",
+            "general": clean_topic,
+            "topic": clean_topic
+        }
+        
+        # Fetch from all sources with partial failure handling
+        raw_signals = await self._fetch_from_all_sources(queries, mission, self.cutoff_date)
+        raw_signals = self._prioritize_by_source_diversity(raw_signals)
+        
+        return {
+            "signals": raw_signals,
+            "related_terms": related_terms,
+            "warnings": self._warnings if self._warnings else None,
+            "mode": "quick"
+        }
+
+    async def _execute_deep_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute deep scan (research mode) focusing on academic sources."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for deep scan.")
+        
+        self._warnings.clear()
+        # Deep scan uses research method
+        try:
+            cards = await self.fetch_research_deep_dive(clean_topic)
+            return {
+                "signals": cards,
+                "related_terms": [],
+                "warnings": self._warnings if self._warnings else None,
+                "mode": "deep"
+            }
+        except Exception as e:
+            self._warnings.append(f"Deep scan failed: {str(e)}")
+            logging.error("Deep scan failed: %s", e)
+            return {
+                "signals": [],
+                "related_terms": [],
+                "warnings": self._warnings,
+                "mode": "deep"
+            }
+
+    async def _execute_monitor_scan(self, query: str, mission: str) -> dict[str, Any]:
+        """Execute monitor scan (policy mode) for policy documents."""
+        clean_topic = query.strip()
+        if not clean_topic:
+            raise ValueError("Query is required for monitor scan.")
+        
+        self._warnings.clear()
+        # Monitor scan uses policy method
+        try:
+            cards = await self.fetch_policy_scan(clean_topic)
+            return {
+                "signals": cards,
+                "related_terms": [],
+                "warnings": self._warnings if self._warnings else None,
+                "mode": "monitor"
+            }
+        except Exception as e:
+            self._warnings.append(f"Monitor scan failed: {str(e)}")
+            logging.error("Monitor scan failed: %s", e)
+            return {
+                "signals": [],
+                "related_terms": [],
+                "warnings": self._warnings,
+                "mode": "monitor"
+            }
+
     async def fetch_signals(
         self,
         topic: str,
@@ -73,11 +327,11 @@ class ScanOrchestrator:
         friction_mode: bool = False,
     ) -> tuple[list[RawSignal], list[str]]:
         """
-        Layered Fetch Strategy:
-        - Layer 5: Social & Forums (Reddit, HN, ProductHunt)
-        - Layer 4: Niche Blogs (Substack, Medium, RSS)
-        - Layer 3: International/General Web
-        - Layer 1: Academic (Deprioritised)
+        Layered Fetch Strategy with Source Diversity:
+        - Layer 5: Social & Forums (Reddit, HN, ProductHunt) - 40% target
+        - Layer 4: Niche Blogs (Substack, Medium, RSS) - 30% target  
+        - Layer 3: International/General Web - 20% target
+        - Layer 1: Academic (Deprioritised) - 10% target
         """
         clean_topic = topic.strip()
         if not clean_topic:
@@ -92,27 +346,28 @@ class ScanOrchestrator:
 
         # Generate related keywords (Layer 0)
         try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
         except Exception as e:
             logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []
 
-        # Construct Layered Queries
-        # Layer 5: Social / Forums
+        # Construct Layered Queries with adjusted result counts for diversity
+        # Layer 5: Social / Forums (40% of results)
         social_query = f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)"
 
-        # Layer 4: Niche Blogs / Thought Leadership
+        # Layer 4: Niche Blogs / Thought Leadership (30% of results)
         blog_query = f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")"
 
-        # Layer 3: General Web (Broad)
+        # Layer 3: General Web (20% of results)
         general_query = clean_topic
 
-        # Execute Concurrently
+        # Execute Concurrently with adjusted result counts
+        # Total ~25 results: 10 social (40%), 7 blog (30%), 5 general (20%), 3 academic (10%)
         results = await asyncio.gather(
-            self.search_service.search(social_query, num=8, freshness="month"),  # Layer 5
-            self.search_service.search(blog_query, num=8, freshness="year"),     # Layer 4
-            self.search_service.search(general_query, num=6, freshness="year"),  # Layer 3
-            # Layer 1 (Academic) - Fetch fewer, lower priority
+            self.search_service.search(social_query, num=10, freshness="month"),  # Layer 5 - 40%
+            self.search_service.search(blog_query, num=8, freshness="year"),      # Layer 4 - 30%
+            self.search_service.search(general_query, num=5, freshness="year"),   # Layer 3 - 20%
+            # Layer 1 (Academic) - Fetch fewer, lower priority - 10%
             self.gateway_service.fetch_projects(clean_topic, min_start_date=cutoff_date),
             return_exceptions=True,
         )
@@ -129,6 +384,9 @@ class ScanOrchestrator:
         # Deprioritised Academic
         raw_signals.extend(self._normalise_gtr(gtr_res, mission=mission))
 
+        # Apply source diversity prioritization
+        raw_signals = self._prioritize_by_source_diversity(raw_signals)
+
         self._fetch_cache[cache_key] = (time.monotonic(), self._clone_raw_signals(raw_signals), list(related_terms))
         return raw_signals, related_terms
 
@@ -140,48 +398,33 @@ class ScanOrchestrator:
         related_terms: list[str],
         override_cutoff_date: datetime | None = None,
     ) -> Generator[SignalCard, None, None]:
-        """Scoring logic updated to favour 'Attention' (Social/Web) over 'Activity' (Grants)."""
+        """Process and score signals using extracted scoring method."""
         effective_cutoff = override_cutoff_date or self.cutoff_date
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:
-            if raw_signal.date < effective_cutoff:
-                continue
-
-            activity = self._calculate_activity(raw_signal)
-            attention = self._calculate_attention(raw_signal)
-            recency = self.analytics_service.calculate_recency_score(raw_signal.date)
-
-            # Weighted Score
-            final = (
-                (activity * ACTIVITY_WEIGHT)
-                + (attention * ATTENTION_WEIGHT)
-                + (recency * RECENCY_WEIGHT)
-            )
-            typology = self.analytics_service.classify_sweet_spot(activity, attention)
-
-            scored = ScoredSignal(
-                **raw_signal.model_dump(),
-                score_activity=round(activity, 2),
-                score_attention=round(attention, 2),
-                score_recency=round(recency, 2),
-                final_score=round(final, 2),
-                typology=typology,
-            )
-            candidate_cards.append(self._to_signal_card(scored, related_terms=related_terms))
+            scored = self._score_signal(raw_signal, effective_cutoff)
+            if scored:
+                candidate_cards.append(self._to_signal_card(scored, related_terms=related_terms))
 
         # Dedupe and Yield
         for card in self._deduplicate_signals(candidate_cards):
             yield card
 
     async def fetch_research_deep_dive(self, query: str) -> list[SignalCard]:
-        """Deep Dive uses OpenAlex + Niche Blogs to find synthesis."""
+        """
+        Deep Dive uses OpenAlex + Niche Blogs to find synthesis.
+        
+        1. Fetches data (Search + OpenAlex)
+        2. Injects data into LLM for synthesis
+        3. Returns synthesised cards
+        """
         if not query.strip():
             raise ValueError("Research query is required.")
 
-        # Mix of academic and blog sources for synthesis
+        # Step 1: Fetch Raw Data (The Context)
         blog_query = f"{query} (site:substack.com OR site:medium.com OR \"white paper\")"
-
+        
         results = await asyncio.gather(
             self.openalex_service.search_works(query),
             self.search_service.search(blog_query, num=10, freshness="year"),
@@ -193,14 +436,59 @@ class ScanOrchestrator:
         raw_signals.extend(self._normalise_openalex(openalex_res, mission="Research"))
         raw_signals.extend(self._normalise_google(google_res, mission="Research", source_label="Web", is_novel=False))
 
-        return list(
+        # If no LLM service available, fall back to traditional processing
+        if not self.llm_service:
+            return list(
+                self.process_signals(
+                    raw_signals,
+                    mission="Research",
+                    related_terms=[],
+                    override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
+                )
+            )
+
+        # Step 2: Convert to LLM input format
+        llm_input_data = [
+            {
+                "title": s.title,
+                "snippet": s.abstract,
+                "displayLink": s.source
+            }
+            for s in raw_signals
+        ]
+
+        # Step 3: Call LLM with fresh context
+        synthesis_result = await self.llm_service.synthesize_research(query, llm_input_data)
+
+        # Step 4: Convert LLM Output to SignalCard
+        synthesized_card = SignalCard(
+            title=f"Synthesis: {query.title()}",
+            url="",
+            summary=synthesis_result.get("synthesis", "No synthesis available."),
+            source="AI Analysis",
+            mission="Research",
+            date=datetime.now(timezone.utc).date().isoformat(),
+            score_activity=0.0,
+            score_attention=0.0,
+            score_recency=10.0,
+            final_score=9.5,
+            typology="Synthesis",
+            is_novel=True,
+            related_keywords=[]
+        )
+
+        # Create signal cards from individual results
+        individual_cards = list(
             self.process_signals(
-                raw_signals,
+                raw_signals[:10],  # Limit to top 10 for display
                 mission="Research",
                 related_terms=[],
                 override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
             )
         )
+
+        # Return synthesis first, then individual results
+        return [synthesized_card] + individual_cards
 
     async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
         """Policy Monitor: International & Grey Literature (PDFs)."""
@@ -289,24 +577,13 @@ class ScanOrchestrator:
             ))
         return signals
 
-    def _normalise_url(self, url: str) -> str:
-        cleaned = (url or "").strip().lower()
-        for prefix in ("https://", "http://"):
-            if cleaned.startswith(prefix):
-                cleaned = cleaned[len(prefix):]
-        if cleaned.startswith("www."):
-            cleaned = cleaned[4:]
-        return cleaned.rstrip("/")
-
-    # --- Helpers ---
-
     def _deduplicate_signals(self, signals: list[SignalCard]) -> list[SignalCard]:
         """Remove duplicate signals by canonical URL and fuzzy title similarity."""
         seen_urls: set[str] = set()
         kept: list[SignalCard] = []
 
         for signal in signals:
-            normalised_url = self._normalise_url(signal.url)
+            normalised_url = normalize_url_for_deduplication(signal.url)
             if normalised_url and normalised_url in seen_urls:
                 continue
 
@@ -346,7 +623,7 @@ class ScanOrchestrator:
     def _parse_date(value: Any) -> datetime | None:
         if not value: return None
         try:
-            parsed = date_parser.parse(str(value))
+            parsed: Any = date_parser.parse(str(value))
             return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
         except (ValueError, TypeError, date_parser.ParserError):
             return None

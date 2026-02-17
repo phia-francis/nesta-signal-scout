@@ -23,13 +23,14 @@ console.log(`[Scout] API configured: ${API_BASE_URL}`);
 const state = {
   currentMode: "radar",
   globalSignalsArray: [],
+  currentScanId: null,  // Track current scan ID for persistence
 };
 
 const dom = {
   radarFeed: document.getElementById("radar-feed"),
   emptyState: document.getElementById("empty-state"),
-  scanStatus: document.getElementById("scan-status"),
-  queryInput: document.getElementById("query-input"),
+  scanStatus: document.getElementById("radar-status"),
+  queryInput: document.getElementById("topic-input"),
   missionSelect: document.getElementById("mission-select"),
   scanLoader: document.getElementById("scan-loader"),
   toastContainer: document.getElementById("toast-container"),
@@ -69,11 +70,32 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     btn.classList.add("active");
     state.currentMode = btn.dataset.mode;
 
+    // Switch to radar view when mode changes
+    const radarView = document.getElementById("view-radar");
+    const databaseView = document.getElementById("view-database");
+    const databaseBtn = document.getElementById("nav-database");
+    
+    radarView?.classList.remove("hidden");
+    databaseView?.classList.add("hidden");
+    databaseBtn?.classList.remove("active");
+
     state.globalSignalsArray = [];
     dom.radarFeed.innerHTML = "";
     dom.emptyState.classList.remove("hidden");
     dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
   });
+});
+
+// Database button handler
+document.getElementById("nav-database")?.addEventListener("click", () => {
+  const radarView = document.getElementById("view-radar");
+  const databaseView = document.getElementById("view-database");
+  const databaseBtn = document.getElementById("nav-database");
+  
+  radarView?.classList.add("hidden");
+  databaseView?.classList.remove("hidden");
+  databaseBtn?.classList.add("active");
+  refreshDatabase();
 });
 
 document.getElementById("scan-btn")?.addEventListener("click", runScan);
@@ -149,6 +171,11 @@ async function runScan() {
         }
       }
       showToast("Scan complete.", "success");
+      
+      // Auto-trigger clustering after scan
+      if (typeof window.autoClusterAfterScan === 'function') {
+        window.autoClusterAfterScan();
+      }
     }
   } catch (error) {
     console.error(error);
@@ -320,3 +347,488 @@ function escapeHtml(value) {
 function escapeAttribute(value) {
   return escapeHtml(value || "");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Slide-Over Detail Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Open detail panel with signal information
+ */
+function openDetailPanel(signal) {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+  
+  if (!panel || !overlay || !content) return;
+  
+  // Populate content
+  content.innerHTML = `
+    <div class="space-y-6">
+      <div>
+        <h3 class="text-3xl font-display font-bold text-nesta-navy mb-2">${escapeHtml(signal.title || 'Untitled')}</h3>
+        <div class="flex flex-wrap gap-2 mb-4">
+          ${signal.mission ? `<span class="mission-badge ${getMissionBadgeClassForDetail(signal.mission)}">${escapeHtml(signal.mission)}</span>` : ''}
+          ${signal.typology ? `<span class="px-3 py-1 bg-nesta-blue text-white text-xs font-bold uppercase rounded-full">${escapeHtml(signal.typology)}</span>` : ''}
+        </div>
+      </div>
+      
+      <div>
+        <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Summary</h4>
+        <p class="text-base text-slate-700 leading-relaxed">${escapeHtml(signal.summary || 'No description available.')}</p>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Activity</div>
+          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_activity || 0).toFixed(1)}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Attention</div>
+          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_attention || 0).toFixed(1)}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Recency</div>
+          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_recency || 0).toFixed(1)}</div>
+        </div>
+      </div>
+      
+      <div>
+        <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Source</h4>
+        <p class="text-sm text-slate-600 mb-2">${escapeHtml(signal.source || 'Unknown')}</p>
+        ${signal.url ? `<a href="${escapeAttribute(signal.url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
+          <span>View Source</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+        </a>` : ''}
+      </div>
+      
+      ${signal.date ? `<div class="text-xs text-slate-500">Published: ${escapeHtml(signal.date)}</div>` : ''}
+    </div>
+  `;
+  
+  // Open panel
+  panel.classList.add('open');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Close detail panel
+ */
+function closeDetailPanel() {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  
+  if (!panel || !overlay) return;
+  
+  panel.classList.remove('open');
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/**
+ * Get mission badge class for detail view
+ */
+function getMissionBadgeClassForDetail(mission) {
+  const classes = {
+    'A Sustainable Future': 'mission-badge-green',
+    'A Healthy Life': 'mission-badge-pink',
+    'A Fairer Start': 'mission-badge-yellow',
+  };
+  return classes[mission] || 'mission-badge-green';
+}
+
+// Set up panel event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  const closeBtn = document.getElementById('close-detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeDetailPanel);
+  }
+  
+  if (overlay) {
+    overlay.addEventListener('click', closeDetailPanel);
+  }
+  
+  // Listen for card clicks
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.signal-card');
+    if (card && !e.target.closest('a') && !e.target.closest('button')) {
+      // Get signal data from card (you'll need to store this in dataset or similar)
+      const title = card.querySelector('h3')?.textContent || '';
+      const summary = card.querySelector('p')?.textContent || '';
+      const url = card.dataset.url || '';
+      
+      openDetailPanel({ title, summary, url });
+    }
+    
+    // Handle action button clicks
+    const actionBtn = e.target.closest('.action-btn');
+    if (actionBtn) {
+      e.stopPropagation();
+      const action = actionBtn.dataset.action;
+      const url = actionBtn.dataset.url;
+      
+      switch (action) {
+        case 'star':
+          toggleStar(url);
+          showToast('Signal starred!', 'success');
+          break;
+        case 'archive':
+          archiveSignal(url);
+          showToast('Signal archived', 'info');
+          break;
+        case 'view':
+          // Get full signal data and open detail panel
+          openDetailPanel({ url });
+          break;
+      }
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Enhanced Toast Notification System
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Enhanced toast notification with bottom-right stacking
+ */
+function showEnhancedToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast-notification ${type}`;
+  
+  const icons = {
+    success: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>',
+    error: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>',
+    warning: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>',
+    info: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>',
+  };
+  
+  toast.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div class="flex-shrink-0">
+        ${icons[type] || icons.info}
+      </div>
+      <div class="flex-1 text-sm font-medium text-nesta-navy">
+        ${escapeHtml(message)}
+      </div>
+      <button class="toast-close flex-shrink-0 text-slate-400 hover:text-nesta-navy transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+  `;
+  
+  // Add close button handler
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn?.addEventListener('click', () => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  });
+  
+  container.appendChild(toast);
+  
+  // Auto remove after duration
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add('toast-exit');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, duration);
+}
+
+// Replace the old showToast with the enhanced version for new calls
+window.showEnhancedToast = showEnhancedToast;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Smart Clustering & Matrix Visualization
+// ─────────────────────────────────────────────────────────────────────────────
+
+let currentThemes = [];
+let currentThemeFilter = null;
+
+/**
+ * Call clustering API and render theme chips
+ */
+async function clusterAndRenderThemes(signals) {
+  if (!signals || signals.length < 3) {
+    console.log('Not enough signals for clustering (minimum 3 required)');
+    return;
+  }
+  
+  try {
+    console.log(`Clustering ${signals.length} signals...`);
+    
+    const response = await fetch(`${API_BASE_URL}/api/mode/cluster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signals: signals })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Clustering failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    currentThemes = result.themes || [];
+    
+    // Save scan_id and update URL if returned
+    if (result.scan_id) {
+      state.currentScanId = result.scan_id;
+      updateUrlWithScanId(result.scan_id);
+      
+      // Show share button
+      const shareBtn = document.getElementById('share-scan-btn');
+      if (shareBtn) {
+        shareBtn.style.display = 'inline-flex';
+      }
+      
+      console.log(`Scan saved with ID: ${result.scan_id}`);
+    }
+    
+    if (currentThemes.length > 0) {
+      console.log(`Found ${currentThemes.length} themes`);
+      
+      // Import and render theme chips
+      import('./ui.js').then(uiModule => {
+        const container = document.getElementById('theme-chips-container');
+        uiModule.renderThemeChips(currentThemes, container, handleThemeFilter);
+      });
+    } else {
+      console.log('No themes found');
+    }
+  } catch (error) {
+    console.error('Clustering failed:', error);
+  }
+}
+
+/**
+ * Handle theme filter selection
+ */
+function handleThemeFilter(theme) {
+  currentThemeFilter = theme;
+  
+  // Re-render signals with filter
+  const feed = document.getElementById('radar-feed');
+  if (!feed) return;
+  
+  feed.innerHTML = '';
+  
+  let filteredSignals = state.globalSignalsArray;
+  
+  if (theme && theme.signal_ids) {
+    filteredSignals = state.globalSignalsArray.filter((signal, index) => {
+      return theme.signal_ids.includes(index);
+    });
+  }
+  
+  // Re-render filtered signals
+  import('./ui.js').then(uiModule => {
+    filteredSignals.forEach((signal, index) => {
+      const card = uiModule.createSignalCard(signal);
+      if (card) {
+        card.style.setProperty('--card-index', index);
+        feed.appendChild(card);
+      }
+    });
+  });
+  
+  console.log(`Filtered to ${filteredSignals.length} signals`);
+}
+
+/**
+ * Setup view toggle buttons
+ */
+function setupViewToggle() {
+  const gridBtn = document.getElementById('gridViewBtn');
+  const matrixBtn = document.getElementById('matrixViewBtn');
+  const gridView = document.getElementById('radar-feed');
+  const matrixView = document.getElementById('matrixContainer');
+  
+  if (!gridBtn || !matrixBtn || !gridView || !matrixView) return;
+  
+  gridBtn.addEventListener('click', () => {
+    gridBtn.classList.add('active');
+    matrixBtn.classList.remove('active');
+    gridView.classList.remove('hidden');
+    matrixView.classList.add('hidden');
+  });
+  
+  matrixBtn.addEventListener('click', () => {
+    matrixBtn.classList.add('active');
+    gridBtn.classList.remove('active');
+    gridView.classList.add('hidden');
+    matrixView.classList.remove('hidden');
+    
+    // Render matrix
+    import('./matrix.js').then(matrixModule => {
+      let signalsToShow = state.globalSignalsArray;
+      if (currentThemeFilter && currentThemeFilter.signal_ids) {
+        signalsToShow = state.globalSignalsArray.filter((signal, index) => {
+          return currentThemeFilter.signal_ids.includes(index);
+        });
+      }
+      matrixModule.renderHorizonMatrix(signalsToShow);
+    });
+  });
+}
+
+// Initialize view toggle on page load
+document.addEventListener('DOMContentLoaded', () => {
+  setupViewToggle();
+});
+
+/**
+ * Auto-trigger clustering after scan completes
+ */
+function autoClusterAfterScan() {
+  if (state.globalSignalsArray.length >= 3) {
+    setTimeout(() => {
+      clusterAndRenderThemes(state.globalSignalsArray);
+    }, 500);
+  }
+}
+
+/**
+ * Load a saved scan from storage
+ */
+async function loadScan(scanId) {
+  try {
+    console.log(`Loading scan ${scanId}...`);
+    showToast('Loading saved scan...', 'info');
+    
+    const response = await fetch(`${API_BASE_URL}/api/mode/scan/${scanId}`);
+    
+    if (!response.ok) {
+      throw new Error('Scan not found');
+    }
+    
+    const scanData = await response.json();
+    
+    // Update state
+    state.currentScanId = scanId;
+    state.globalSignalsArray = scanData.signals || [];
+    
+    // Update query input
+    if (dom.queryInput) {
+      dom.queryInput.value = scanData.query || '';
+    }
+    
+    // Render signals
+    dom.radarFeed.innerHTML = '';
+    scanData.signals.forEach((signal, index) => {
+      const cardHtml = import('./ui.js').then(uiModule => {
+        const card = uiModule.createSignalCard(signal, index);
+        dom.radarFeed.appendChild(card);
+      });
+    });
+    
+    // Render themes if available
+    if (scanData.themes && scanData.themes.length > 0) {
+      currentThemes = scanData.themes;
+      const container = document.getElementById('theme-chips-container');
+      if (container) {
+        import('./ui.js').then(uiModule => {
+          uiModule.renderThemeChips(scanData.themes, container, handleThemeFilter);
+        });
+      }
+    }
+    
+    // Hide empty state
+    dom.emptyState.classList.add('hidden');
+    
+    showToast(`Loaded scan: ${scanData.query}`, 'success');
+    console.log(`Scan ${scanId} loaded with ${scanData.signals.length} signals and ${scanData.themes.length} themes`);
+    
+  } catch (error) {
+    console.error('Failed to load scan:', error);
+    showToast('Failed to load scan', 'error');
+  }
+}
+
+/**
+ * Get share URL for current scan
+ */
+function getShareUrl() {
+  if (!state.currentScanId) {
+    showToast('No scan to share yet', 'warning');
+    return null;
+  }
+  return `${window.location.origin}${window.location.pathname}?scan=${state.currentScanId}`;
+}
+
+/**
+ * Copy share URL to clipboard
+ */
+async function shareCurrentScan() {
+  const shareUrl = getShareUrl();
+  if (!shareUrl) return;
+  
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    showToast('Share link copied to clipboard!', 'success');
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error);
+    showToast('Failed to copy link', 'error');
+  }
+}
+
+/**
+ * Check URL for scan parameter on page load
+ */
+function checkUrlForScan() {
+  const params = new URLSearchParams(window.location.search);
+  const scanId = params.get('scan');
+  
+  if (scanId) {
+    console.log(`Found scan ID in URL: ${scanId}`);
+    loadScan(scanId);
+  }
+}
+
+/**
+ * Update URL with scan ID
+ */
+function updateUrlWithScanId(scanId) {
+  const newUrl = new URL(window.location.href);
+  newUrl.searchParams.set('scan', scanId);
+  window.history.pushState({ scanId }, '', newUrl.toString());
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  setupViewToggle();
+  checkUrlForScan();
+  
+  // Add share button if not exists
+  const resultsHeader = document.querySelector('.results-header');
+  if (resultsHeader && !document.getElementById('share-scan-btn')) {
+    const shareBtn = document.createElement('button');
+    shareBtn.id = 'share-scan-btn';
+    shareBtn.className = 'btn btn-secondary';
+    shareBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+      </svg>
+      Share Scan
+    `;
+    shareBtn.addEventListener('click', shareCurrentScan);
+    shareBtn.style.display = 'none'; // Hide until scan completes
+    resultsHeader.appendChild(shareBtn);
+  }
+});
+
+// Expose functions globally
+window.autoClusterAfterScan = autoClusterAfterScan;
+window.handleThemeFilter = handleThemeFilter;
+window.loadScan = loadScan;
+window.shareCurrentScan = shareCurrentScan;
