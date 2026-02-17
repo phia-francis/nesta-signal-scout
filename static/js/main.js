@@ -1,5 +1,25 @@
 "use strict";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Dynamic API Configuration (CRITICAL for GitHub Pages)
+// ─────────────────────────────────────────────────────────────────────────────
+let API_BASE_URL = window.location.origin;
+const hostname = window.location.hostname;
+
+// URLs for different environments
+const RENDER_BACKEND_URL = 'https://nesta-signal-backend.onrender.com';
+const LOCAL_BACKEND_URL = 'http://localhost:8000';
+
+if (hostname.endsWith('.github.io')) {
+  API_BASE_URL = RENDER_BACKEND_URL;
+} else if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+  API_BASE_URL = LOCAL_BACKEND_URL;
+}
+console.log(`[Scout] API configured: ${API_BASE_URL}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. State & DOM
+// ─────────────────────────────────────────────────────────────────────────────
 const state = {
   currentMode: "radar",
   globalSignalsArray: [],
@@ -15,6 +35,9 @@ const dom = {
   toastContainer: document.getElementById("toast-container"),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Navigation & Mode Switching
+// ─────────────────────────────────────────────────────────────────────────────
 function switchMainView(viewName) {
   const scanView = document.getElementById("view-scan");
   const dbView = document.getElementById("view-database");
@@ -61,6 +84,9 @@ dom.queryInput?.addEventListener("keydown", (event) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. Scan Logic
+// ─────────────────────────────────────────────────────────────────────────────
 async function runScan() {
   const query = dom.queryInput.value.trim();
   if (!query) {
@@ -77,20 +103,24 @@ async function runScan() {
 
   try {
     if (state.currentMode === "research") {
-      const res = await fetch("/api/mode/research", {
+      // Deep Scan (JSON)
+      const res = await fetch(`${API_BASE_URL}/api/mode/research`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, mission }),
       });
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      
       const signals = await res.json();
       signals.forEach((signal) => {
         state.globalSignalsArray.push(signal);
         renderSignalCard(signal);
       });
       showToast(`Deep Scan complete. ${signals.length} synthesis found.`, "success");
+    
     } else {
-      const res = await fetch(`/api/mode/${state.currentMode}`, {
+      // Quick Scan / Monitor (Streaming)
+      const res = await fetch(`${API_BASE_URL}/api/mode/${state.currentMode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, topic: query, mission, mode: state.currentMode }),
@@ -111,12 +141,17 @@ async function runScan() {
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          handleStreamEvent(JSON.parse(line));
+          try {
+            handleStreamEvent(JSON.parse(line));
+          } catch (e) {
+            console.warn("Stream parse error", e);
+          }
         }
       }
       showToast("Scan complete.", "success");
     }
   } catch (error) {
+    console.error(error);
     showToast(`Scan failed: ${error.message}`, "error");
   } finally {
     dom.scanLoader.classList.add("hidden");
@@ -135,6 +170,9 @@ function handleStreamEvent(event) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Rendering & UI
+// ─────────────────────────────────────────────────────────────────────────────
 function renderSignalCard(signal) {
   const el = document.createElement("article");
   el.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-slide-in relative";
@@ -143,8 +181,8 @@ function renderSignalCard(signal) {
     <div class="flex justify-between items-start mb-3 gap-3">
       <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase px-2 py-1 rounded tracking-wider">${escapeHtml(signal.mission || "General")}</span>
       <div class="flex gap-2">
-        <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-yellow text-nesta-navy hover:opacity-90" data-action="star">★ Star</button>
-        <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
+        <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-yellow text-nesta-navy hover:opacity-90 transition-opacity" data-action="star">★ Star</button>
+        <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90 transition-opacity" data-action="archive">Archive</button>
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
@@ -152,7 +190,7 @@ function renderSignalCard(signal) {
     </h3>
     <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(signal.summary || "")}</p>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
-      <div class="text-xs text-slate-500 truncate pr-3">${escapeHtml(signal.source || "Web")}</div>
+      <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
         <div class="text-[10px] font-bold uppercase text-slate-400">Score</div>
         <div class="font-display font-bold text-nesta-blue">${Number(signal.final_score || 0).toFixed(2)}</div>
@@ -173,13 +211,16 @@ function renderSignalCard(signal) {
   dom.radarFeed.prepend(el);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Database & System Actions
+// ─────────────────────────────────────────────────────────────────────────────
 async function refreshDatabase() {
   const grid = document.getElementById("database-grid");
   if (!grid) return;
 
   grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
   try {
-    const res = await fetch("/api/saved");
+    const res = await fetch(`${API_BASE_URL}/api/saved`); // Updated to use API_BASE_URL
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
     const items = await res.json();
 
@@ -202,13 +243,14 @@ async function refreshDatabase() {
            <span class="text-xs font-bold bg-nesta-blue text-white px-2 py-1 rounded">${escapeHtml(mission)}</span>
            <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
         </div>
-        <h4 class="font-bold text-nesta-navy mb-2">${escapeHtml(title)}</h4>
-        <div class="text-xs text-slate-500 mb-4">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "..." : ""}</div>
+        <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(title)}</h4>
+        <div class="text-xs text-slate-500 mb-4 line-clamp-3">${escapeHtml(summary.slice(0, 150))}</div>
         <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
       `;
       card.querySelector('[data-action="archive"]')?.addEventListener("click", async () => {
         await archiveSignal(url);
         card.remove();
+        if (grid.children.length === 0) grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Database is empty.</div>';
       });
       grid.appendChild(card);
     });
@@ -230,16 +272,26 @@ async function archiveSignal(url) {
 }
 
 async function updateSignalStatus(url, status) {
-  const res = await fetch("/api/saved", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, status }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to set status: ${status}`);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/saved`, { // Updated to use API_BASE_URL
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, status }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to set status: ${status}`);
+    }
+    return true;
+  } catch (e) {
+    console.error(e);
+    showToast(`Action failed: ${e.message}`, "error");
+    return false;
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Utilities
+// ─────────────────────────────────────────────────────────────────────────────
 function showToast(message, type = "info") {
   if (!dom.toastContainer) return;
 
@@ -250,7 +302,7 @@ function showToast(message, type = "info") {
   };
 
   const toast = document.createElement("div");
-  toast.className = `p-3 rounded shadow-lg text-sm font-bold ${colors[type] || colors.info}`;
+  toast.className = `p-3 rounded shadow-lg text-sm font-bold ${colors[type] || colors.info} animate-slide-in`;
   toast.textContent = message;
   dom.toastContainer.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
