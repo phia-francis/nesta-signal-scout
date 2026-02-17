@@ -9,6 +9,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.dependencies import get_scan_orchestrator, get_llm_service
+from app.core.exceptions import (
+    RateLimitError,
+    SearchAPIError,
+    LLMServiceError,
+    ValidationError,
+    SignalScoutError,
+)
 from app.services.scan_logic import ScanOrchestrator
 from app.services.llm_svc import LLMService
 from app.storage.scan_storage import get_scan_storage, ScanStorage
@@ -78,7 +85,20 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
 
         yield _msg("complete", f"Scan complete. {count} signals visualized.")
 
-    except Exception as e:
+    except ValidationError as e:
+        logger.warning("Radar validation error: %s", e)
+        yield _msg("error", "Invalid request. Please check your query and try again.")
+    except RateLimitError as e:
+        logger.warning("Radar rate limit hit: %s", e)
+        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
+        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
+    except SearchAPIError as e:
+        logger.error("Radar search API error: %s", e)
+        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
+    except SignalScoutError as e:
+        logger.error("Radar scan error: %s", e)
+        yield _msg("error", "An error occurred during scanning. Please try again later.")
+    except Exception:
         request_id = "radar-scan-failed"
         logger.exception("Radar scan failed. Request ID: %s", request_id)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
@@ -104,7 +124,20 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
 
         yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
 
-    except Exception as e:
+    except ValidationError as e:
+        logger.warning("Policy validation error: %s", e)
+        yield _msg("error", "Invalid request. Please check your query and try again.")
+    except RateLimitError as e:
+        logger.warning("Policy rate limit hit: %s", e)
+        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
+        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
+    except SearchAPIError as e:
+        logger.error("Policy search API error: %s", e)
+        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
+    except SignalScoutError as e:
+        logger.error("Policy scan error: %s", e)
+        yield _msg("error", "An error occurred during scanning. Please try again later.")
+    except Exception:
         request_id = "policy-scan-failed"
         logger.exception("Policy scan failed. Request ID: %s", request_id)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
@@ -128,14 +161,6 @@ async def cluster_signals(
 ):
     """
     Cluster signals into 3-5 themes using LLM analysis.
-    
-    Args:
-        body: ClusterRequest with signals list
-        llm_service: Injected LLM service
-        storage: Scan storage instance
-        
-    Returns:
-        JSON with themes array and scan_id
     """
     try:
         if not body.signals or len(body.signals) == 0:
@@ -150,7 +175,6 @@ async def cluster_signals(
         logger.info(f"Clustering complete: {len(themes)} themes found")
         
         # Save scan with themes to storage
-        # Extract query from first signal if available
         query = body.signals[0].get('title', 'Unknown query') if body.signals else 'Unknown query'
         mode = 'cluster'
         
@@ -169,12 +193,14 @@ async def cluster_signals(
             }
         except Exception as save_error:
             logger.error(f"Failed to save scan: {save_error}")
-            # Return themes even if save fails
             return {
                 "themes": themes,
                 "warning": "Failed to save scan to storage"
             }
         
+    except LLMServiceError:
+        logger.exception("Clustering LLM call failed")
+        return {"themes": [], "error": "LLM clustering failed due to an internal error"}
     except Exception as e:
         logger.exception("Clustering failed")
         return {"themes": [], "error": "Clustering failed due to an internal error"}
@@ -187,13 +213,6 @@ async def get_scan(
 ):
     """
     Retrieve a saved scan by ID.
-    
-    Args:
-        scan_id: UUID of the scan
-        storage: Scan storage instance
-        
-    Returns:
-        Scan data including signals and themes
     """
     try:
         scan_data = storage.get_scan(scan_id)
@@ -208,7 +227,8 @@ async def get_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to retrieve scan {scan_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e), replaced with generic message
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/scans")
@@ -218,20 +238,14 @@ async def list_scans(
 ):
     """
     List recent scans.
-    
-    Args:
-        limit: Maximum number of scans to return
-        storage: Scan storage instance
-        
-    Returns:
-        List of scan metadata
     """
     try:
         scans = storage.list_scans(limit=limit)
         return {"scans": scans, "count": len(scans)}
     except Exception as e:
         logger.exception("Failed to list scans")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e), replaced with generic message
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.delete("/scan/{scan_id}")
@@ -241,13 +255,6 @@ async def delete_scan(
 ):
     """
     Delete a scan.
-    
-    Args:
-        scan_id: UUID of the scan
-        storage: Scan storage instance
-        
-    Returns:
-        Success message
     """
     try:
         success = storage.delete_scan(scan_id)
@@ -260,7 +267,8 @@ async def delete_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to delete scan {scan_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e), replaced with generic message
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/cleanup")
@@ -270,13 +278,6 @@ async def cleanup_old_scans(
 ):
     """
     Cleanup scans older than specified days.
-    
-    Args:
-        days: Delete scans older than this many days
-        storage: Scan storage instance
-        
-    Returns:
-        Number of scans deleted
     """
     try:
         deleted_count = storage.cleanup_old_scans(days=days)
@@ -286,4 +287,5 @@ async def cleanup_old_scans(
         }
     except Exception as e:
         logger.exception("Failed to cleanup old scans")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e), replaced with generic message
+        raise HTTPException(status_code=500, detail="Internal Server Error")

@@ -86,7 +86,9 @@ async def test_synthesize_research_success(llm_service_with_key):
 
 @pytest.mark.asyncio
 async def test_synthesize_research_error_handling(llm_service_with_key):
-    """Test that synthesize_research handles API errors gracefully."""
+    """Test that synthesize_research raises LLMServiceError on API errors."""
+    from app.core.exceptions import LLMServiceError
+
     llm_service_with_key.client = AsyncMock()
     llm_service_with_key.client.chat.completions.create = AsyncMock(
         side_effect=Exception("API Error")
@@ -94,10 +96,11 @@ async def test_synthesize_research_error_handling(llm_service_with_key):
     
     search_results = [{"title": "Test", "snippet": "Summary"}]
     
-    result = await llm_service_with_key.synthesize_research("test", search_results)
+    with pytest.raises(LLMServiceError) as exc_info:
+        await llm_service_with_key.synthesize_research("test", search_results)
     
-    assert "synthesis" in result
-    assert "Error" in result["synthesis"]
+    assert "LLM synthesis failed" in str(exc_info.value)
+    assert exc_info.value.model == "gpt-4o-mini"
 
 
 def test_format_results_for_llm(llm_service_with_key):

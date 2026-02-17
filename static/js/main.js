@@ -29,8 +29,9 @@ const state = {
 const dom = {
   radarFeed: document.getElementById("radar-feed"),
   emptyState: document.getElementById("empty-state"),
-  scanStatus: document.getElementById("radar-status"),
-  queryInput: document.getElementById("topic-input"),
+  scanStatus: document.getElementById("scan-status"),
+  queryInput: document.getElementById("query-input"),
+  researchInput: document.getElementById("research-input"),
   missionSelect: document.getElementById("mission-select"),
   scanLoader: document.getElementById("scan-loader"),
   toastContainer: document.getElementById("toast-container"),
@@ -39,6 +40,27 @@ const dom = {
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Navigation & Mode Switching
 // ─────────────────────────────────────────────────────────────────────────────
+const MODE_CONFIG = {
+  radar: {
+    desc: '<strong>Quick Scan:</strong> Fast web sweep for surface-level signals.',
+    btnText: 'RUN QUICK SCAN',
+    btnClass: 'bg-nesta-blue',
+    borderClass: 'border-nesta-blue'
+  },
+  research: {
+    desc: '<strong>Deep Scan:</strong> AI synthesis of blogs & papers. Takes longer.',
+    btnText: 'START DEEP RESEARCH',
+    btnClass: 'bg-nesta-purple',
+    borderClass: 'border-nesta-purple'
+  },
+  policy: {
+    desc: '<strong>Topic Monitor:</strong> International policy & grey literature scan.',
+    btnText: 'SCAN POLICY LANDSCAPE',
+    btnClass: 'bg-nesta-yellow',
+    borderClass: 'border-nesta-yellow'
+  }
+};
+
 function switchMainView(viewName) {
   const scanView = document.getElementById("view-scan");
   const dbView = document.getElementById("view-database");
@@ -68,34 +90,42 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".mode-toggle").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    state.currentMode = btn.dataset.mode;
+    const mode = btn.dataset.mode;
+    state.currentMode = mode;
 
-    // Switch to radar view when mode changes
-    const radarView = document.getElementById("view-radar");
-    const databaseView = document.getElementById("view-database");
-    const databaseBtn = document.getElementById("nav-database");
-    
-    radarView?.classList.remove("hidden");
-    databaseView?.classList.add("hidden");
-    databaseBtn?.classList.remove("active");
+    // Update mode description
+    const descBox = document.getElementById("mode-description");
+    const config = MODE_CONFIG[mode];
+    if (descBox && config) {
+      descBox.innerHTML = config.desc;
+      descBox.className = "text-sm text-nesta-navy bg-slate-50 p-3 rounded border-l-4 " + config.borderClass;
+    }
+
+    // Update scan button text and colour
+    const scanBtn = document.getElementById("scan-btn");
+    if (scanBtn && config) {
+      scanBtn.textContent = config.btnText;
+      scanBtn.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-yellow");
+      scanBtn.classList.add(config.btnClass);
+    }
+
+    // Toggle input visibility (textarea for Deep, input for others)
+    if (mode === "research") {
+      dom.queryInput?.classList.add("hidden");
+      dom.researchInput?.classList.remove("hidden");
+    } else {
+      dom.queryInput?.classList.remove("hidden");
+      dom.researchInput?.classList.add("hidden");
+    }
+
+    // Switch to scan view when mode changes
+    switchMainView("scan");
 
     state.globalSignalsArray = [];
     dom.radarFeed.innerHTML = "";
     dom.emptyState.classList.remove("hidden");
-    dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
+    if (dom.scanStatus) dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
   });
-});
-
-// Database button handler
-document.getElementById("nav-database")?.addEventListener("click", () => {
-  const radarView = document.getElementById("view-radar");
-  const databaseView = document.getElementById("view-database");
-  const databaseBtn = document.getElementById("nav-database");
-  
-  radarView?.classList.add("hidden");
-  databaseView?.classList.remove("hidden");
-  databaseBtn?.classList.add("active");
-  refreshDatabase();
 });
 
 document.getElementById("scan-btn")?.addEventListener("click", runScan);
@@ -105,12 +135,31 @@ dom.queryInput?.addEventListener("keydown", (event) => {
     runScan();
   }
 });
+dom.researchInput?.addEventListener("keydown", (event) => {
+  // Use Ctrl+Enter (Windows/Linux) or Cmd+Enter (macOS) to trigger scan
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    runScan();
+  }
+});
+document.getElementById("help-btn")?.addEventListener("click", () => {
+  alert(
+    "User Guide:\n\n" +
+    "1. Select a Mode (Quick, Deep, Topic Monitor)\n" +
+    "2. Choose a Mission (or 'Any')\n" +
+    "3. Enter your topic\n" +
+    "4. Click Scan\n\n" +
+    "Use 'Star' to save signals to Database."
+  );
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Scan Logic
 // ─────────────────────────────────────────────────────────────────────────────
 async function runScan() {
-  const query = dom.queryInput.value.trim();
+  const query = state.currentMode === 'research'
+    ? (dom.researchInput?.value.trim() || '')
+    : (dom.queryInput?.value.trim() || '');
   if (!query) {
     showToast("Please enter a topic", "error");
     return;
@@ -120,8 +169,8 @@ async function runScan() {
   state.globalSignalsArray = [];
   dom.radarFeed.innerHTML = "";
   dom.emptyState.classList.add("hidden");
-  dom.scanLoader.classList.remove("hidden");
-  dom.scanStatus.textContent = "Scanning active...";
+  dom.scanLoader?.classList.remove("hidden");
+  if (dom.scanStatus) dom.scanStatus.textContent = "Scanning active...";
 
   try {
     if (state.currentMode === "research") {
@@ -181,8 +230,8 @@ async function runScan() {
     console.error(error);
     showToast(`Scan failed: ${error.message}`, "error");
   } finally {
-    dom.scanLoader.classList.add("hidden");
-    dom.scanStatus.textContent = "Scan finished.";
+    dom.scanLoader?.classList.add("hidden");
+    if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
     if (state.globalSignalsArray.length === 0) dom.emptyState.classList.remove("hidden");
   }
 }
