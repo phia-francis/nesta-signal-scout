@@ -131,6 +131,9 @@ class SearchService:
             except httpx.RequestError as e:
                 logger.error(f"Search Connection Error: {e}")
                 raise ServiceError("Failed to connect to Google Search API. Please check your internet connection.")
+            except (ServiceError, RateLimitError):
+                # Re-raise our own exceptions without wrapping
+                raise
             except Exception as e:
                 logger.exception(f"Unexpected error during search: {e}")
                 raise ServiceError(f"Search failed: {str(e)}")
