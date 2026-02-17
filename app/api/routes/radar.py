@@ -88,7 +88,11 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
     except ValidationError as e:
         yield _msg("error", f"Invalid request: {str(e)}")
     except RateLimitError as e:
-        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+        base_msg = f"Rate limit exceeded for {e.service}."
+        retry_after = getattr(e, "retry_after", None)
+        if retry_after is not None:
+            base_msg += f" Please retry after {retry_after}s."
+        yield _msg("error", base_msg)
     except SearchAPIError as e:
         yield _msg("error", f"Search service unavailable: {str(e)}")
     except SignalScoutError as e:
