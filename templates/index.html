@@ -3,281 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Nesta Signal Scout - AI-powered horizon scanning for emerging innovations">
-    <title>Signal Scout | Nesta Discovery Hub</title>
-    
-    <!-- Tailwind CSS -->
+    <title>Nesta Signal Scout v2.0</title>
+
+    <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/static/js/tailwind-theme.js"></script>
-    
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="/static/css/styles.css">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+    <style>
+        @font-face { font-family: 'Averta'; src: url('/static/fonts/Averta-Regular.otf'); }
+        @font-face { font-family: 'Averta-Bold'; src: url('/static/fonts/Averta-Semibold.otf'); font-weight: bold; }
+        @font-face { font-family: 'Zosia'; src: url('/static/fonts/Zosia-Display.woff2'); }
+        body { font-family: 'Averta', sans-serif; }
+        h1, h2, h3, .font-display { font-family: 'Zosia', serif; }
+        .mode-toggle.active { background-color: #0000FF; color: white; border-color: #0000FF; }
+    </style>
 </head>
-<body class="bg-nesta-off-white min-h-screen">
-    
-    <!-- Header -->
-    <header class="bg-nesta-navy border-b-4 border-nesta-blue shadow-lg sticky top-0 z-50">
-        <div class="container mx-auto px-6 py-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <h1 class="font-display text-3xl lg:text-4xl font-bold text-white">
-                        Signal Scout
-                    </h1>
-                    <span class="hidden lg:inline-block px-3 py-1 bg-nesta-blue text-white text-xs font-bold uppercase tracking-wider rounded">
-                        Discovery Hub
-                    </span>
+<body class="bg-slate-50 text-nesta-navy h-screen flex flex-col overflow-hidden">
+
+    <nav class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-20">
+        <div class="flex items-center gap-4">
+            <div class="w-8 h-8 bg-nesta-purple rounded-full"></div>
+            <h1 class="text-xl font-bold tracking-tight">Signal Scout</h1>
+        </div>
+
+        <div class="flex bg-slate-100 p-1 rounded-lg">
+            <button id="nav-scan" class="px-6 py-2 rounded-md text-sm font-bold transition-all bg-white shadow-sm text-nesta-navy" onclick="switchMainView('scan')">Scanner</button>
+            <button id="nav-db" class="px-6 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:text-nesta-navy" onclick="switchMainView('database')">Database</button>
+        </div>
+
+        <div class="flex items-center gap-3">
+             <button id="refresh-db-btn" class="text-xs font-bold uppercase text-slate-400 hover:text-nesta-blue">Refresh DB</button>
+             <div class="w-px h-4 bg-slate-300"></div>
+             <span class="text-xs font-bold text-nesta-purple">v2.0 Layered</span>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex overflow-hidden relative">
+
+        <div id="view-scan" class="flex-1 flex flex-col w-full h-full">
+            <div class="bg-white border-b border-slate-200 p-8 shadow-sm z-10">
+                <div class="max-w-4xl mx-auto space-y-6">
+
+                    <div class="flex justify-center gap-4">
+                        <button class="mode-toggle active border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-blue transition-colors" data-mode="radar">
+                            ⚡ Quick Scan
+                        </button>
+                        <button class="mode-toggle border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-purple transition-colors" data-mode="research">
+                            🧠 Deep Scan
+                        </button>
+                        <button class="mode-toggle border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-yellow transition-colors" data-mode="policy">
+                            🌍 Topic Monitor
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <select id="mission-select" class="w-48 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 font-bold text-sm text-nesta-navy focus:border-nesta-blue outline-none">
+                            <option value="General">All Missions</option>
+                            <option value="A Sustainable Future">Sustainable Future</option>
+                            <option value="A Healthy Life">Healthy Life</option>
+                            <option value="A Fairer Start">Fairer Start</option>
+                        </select>
+                        <input type="text" id="query-input" placeholder="Enter an emerging topic (e.g., 'Biotech in Agriculture')"
+                               class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-6 text-lg font-bold text-nesta-navy placeholder:text-slate-400 focus:border-nesta-blue outline-none transition-colors">
+                        <button id="scan-btn" class="bg-nesta-blue text-white px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
+                            SCAN
+                        </button>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        <span id="scan-status">Ready to scan.</span>
+                        <div class="flex gap-2" id="advanced-options">
+                            </div>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <button id="btn-help" class="text-white hover:text-nesta-aqua transition-colors" title="Help">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto bg-slate-50 p-6 relative">
+                <div id="scan-loader" class="hidden absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+                    <div class="w-12 h-12 border-4 border-nesta-blue border-t-transparent rounded-full animate-spin"></div>
+                    <p class="mt-4 font-bold text-nesta-navy animate-pulse">Scanning Layers 1-5...</p>
                 </div>
+
+                <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center opacity-40">
+                    <div class="text-6xl mb-4">🔭</div>
+                    <h2 class="text-2xl font-display font-bold">Start a Scan</h2>
+                    <p class="max-w-md mt-2">Select a mode above. Quick Scan covers social media & web. Deep Scan synthesises blogs & papers.</p>
+                </div>
+
+                <div id="radar-feed" class="max-w-4xl mx-auto space-y-6 pb-20"></div>
             </div>
         </div>
-    </header>
 
-    <!-- Main Container -->
-    <div class="flex min-h-[calc(100vh-88px)]">
-        
-        <!-- Sidebar Navigation -->
-        <aside class="w-64 lg:w-80 bg-nesta-navy border-r-4 border-nesta-dark-grey hidden md:block">
-            <nav class="p-6 space-y-2">
-                <!-- Radar Mode -->
-                <button data-mode="radar" id="nav-radar" class="nav-item w-full flex items-center gap-4 px-4 py-4 border-l-4 border-transparent transition-all text-left group">
-                    <div class="w-10 h-10 rounded-lg bg-nesta-blue/20 flex items-center justify-center group-hover:bg-nesta-blue/30 transition-colors">
-                        <svg class="w-6 h-6 text-nesta-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <div class="text-sm font-bold text-white">Radar</div>
-                        <div class="text-xs text-nesta-aqua">Discovery scanning</div>
-                    </div>
-                </button>
-
-                <!-- Research Mode -->
-                <button data-mode="research" id="nav-research" class="nav-item w-full flex items-center gap-4 px-4 py-4 border-l-4 border-transparent transition-all text-left group">
-                    <div class="w-10 h-10 rounded-lg bg-nesta-violet/20 flex items-center justify-center group-hover:bg-nesta-violet/30 transition-colors">
-                        <svg class="w-6 h-6 text-nesta-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <div class="text-sm font-bold text-white">Research</div>
-                        <div class="text-xs text-nesta-aqua">Deep synthesis</div>
-                    </div>
-                </button>
-
-                <!-- Policy Mode -->
-                <button data-mode="policy" id="nav-policy" class="nav-item w-full flex items-center gap-4 px-4 py-4 border-l-4 border-transparent transition-all text-left group">
-                    <div class="w-10 h-10 rounded-lg bg-nesta-yellow/20 flex items-center justify-center group-hover:bg-nesta-yellow/30 transition-colors">
-                        <svg class="w-6 h-6 text-nesta-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <div class="text-sm font-bold text-white">Policy</div>
-                        <div class="text-xs text-nesta-aqua">Government focus</div>
-                    </div>
-                </button>
-
-                <!-- Database View -->
-                <button data-mode="database" id="nav-database" class="nav-item w-full flex items-center gap-4 px-4 py-4 border-l-4 border-transparent transition-all text-left group">
-                    <div class="w-10 h-10 rounded-lg bg-nesta-green/20 flex items-center justify-center group-hover:bg-nesta-green/30 transition-colors">
-                        <svg class="w-6 h-6 text-nesta-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <div class="text-sm font-bold text-white">Database</div>
-                        <div class="text-xs text-nesta-aqua">Saved signals</div>
-                    </div>
-                </button>
-            </nav>
-
-            <!-- Mission Selector (for Radar/Research/Policy) -->
-            <div id="mission-selector-container" class="px-6 pb-6">
-                <label class="block text-xs font-bold text-nesta-aqua uppercase tracking-wider mb-2">
-                    Mission Area
-                </label>
-                <select id="mission-select" class="w-full px-4 py-3 bg-nesta-dark-grey text-white border-2 border-nesta-blue/30 rounded-lg focus:outline-none focus:border-nesta-blue transition-colors">
-                    <option value="All Missions">All Missions</option>
-                    <option value="A Sustainable Future">A Sustainable Future</option>
-                    <option value="A Fairer Start">A Fairer Start</option>
-                    <option value="A Healthy Life">A Healthy Life</option>
-                </select>
-            </div>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto">
-            
-            <!-- Radar/Research/Policy Content -->
-            <div id="scan-view" class="hidden">
-                <!-- Search Input Section -->
-                <div class="bg-white border-b-4 border-nesta-blue shadow-lg">
-                    <div class="container mx-auto px-6 py-8">
-                        <div class="max-w-4xl mx-auto">
-                            <h2 id="mode-title" class="font-display text-2xl lg:text-3xl font-bold text-nesta-navy mb-4">
-                                Radar Scanning
-                            </h2>
-                            <p id="mode-description" class="text-nesta-dark-grey mb-6">
-                                Discover emerging signals at the innovation frontier
-                            </p>
-
-                            <!-- Search Bar -->
-                            <div class="flex gap-3">
-                                <input 
-                                    type="text" 
-                                    id="topic-input" 
-                                    placeholder="Enter topic to scan (e.g., 'lab-grown meat', 'green hydrogen')" 
-                                    class="flex-1 px-6 py-4 border-2 border-nesta-dark-grey rounded-lg focus:outline-none focus:border-nesta-blue transition-colors font-body text-lg"
-                                />
-                                <button 
-                                    id="scan-btn" 
-                                    class="btn-nesta px-8 py-4 bg-nesta-blue text-white font-bold uppercase tracking-wider rounded-lg hover:bg-nesta-navy transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <span id="scan-btn-text">Scan</span>
-                                    <span id="scan-btn-loader" class="hidden">
-                                        <svg class="animate-spin h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                    </span>
-                                </button>
-                            </div>
-
-                            <!-- Advanced Options -->
-                            <div class="mt-4 flex items-center gap-4">
-                                <label class="flex items-center gap-2 text-sm text-nesta-dark-grey cursor-pointer">
-                                    <input type="checkbox" id="friction-mode" class="w-4 h-4 text-nesta-blue border-nesta-dark-grey rounded focus:ring-nesta-blue">
-                                    <span>Enable friction mode (experimental signals)</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Console Output -->
-                <div id="console-container" class="container mx-auto px-6 py-6 max-w-4xl hidden">
-                    <div id="console" class="p-4 max-h-48 overflow-y-auto space-y-2"></div>
-                </div>
-
-                <!-- Control Bar -->
-                <div id="control-bar" class="bg-nesta-silver border-b border-nesta-dark-grey/20 hidden">
-                    <div class="container mx-auto px-6 py-4">
-                        <div class="flex flex-wrap items-center justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <button id="btn-triage" class="px-4 py-2 bg-nesta-blue text-white font-bold text-sm uppercase tracking-wider rounded-lg hover:bg-nesta-navy transition-all hidden">
-                                    <span>Triage</span>
-                                    <span id="new-signal-count" class="ml-2 px-2 py-1 bg-nesta-red rounded-full text-xs">0</span>
-                                </button>
-                                <button id="btn-cluster" class="px-4 py-2 bg-white border-2 border-nesta-dark-grey text-nesta-navy font-bold text-sm uppercase tracking-wider rounded-lg hover:border-nesta-blue transition-all">
-                                    <span>Auto-cluster</span>
-                                </button>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs text-nesta-dark-grey uppercase font-bold">View:</span>
-                                <button id="btn-view-grid" class="px-4 py-2 bg-white border-2 border-nesta-dark-grey text-nesta-navy font-bold text-xs uppercase tracking-wider rounded-lg hover:border-nesta-blue transition-all">
-                                    Grid
-                                </button>
-                                <button id="btn-view-network" class="px-4 py-2 bg-transparent border-2 border-nesta-dark-grey text-nesta-navy font-bold text-xs uppercase tracking-wider rounded-lg hover:border-nesta-blue transition-all">
-                                    Network
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Results Feed -->
-                <div class="container mx-auto px-6 py-8">
-                    <!-- Empty State -->
-                    <div id="empty-state" class="max-w-2xl mx-auto text-center py-16">
-                        <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-nesta-blue/10 flex items-center justify-center">
-                            <svg class="w-12 h-12 text-nesta-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                        </div>
-                        <h3 class="font-display text-2xl font-bold text-nesta-navy mb-3">Ready to discover</h3>
-                        <p class="text-nesta-dark-grey">Enter a topic above and run a scan to discover emerging signals at the innovation frontier.</p>
-                    </div>
-
-                    <!-- Signal Cards Grid -->
-                    <div id="radar-feed" class="masonry-grid"></div>
-
-                    <!-- Network Visualisation (Hidden by Default) -->
-                    <div id="view-network-container" class="hidden">
-                        <div id="signal-network" class="w-full h-[600px] bg-white rounded-lg border-4 border-nesta-navy"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Database View -->
-            <div id="database-view" class="hidden">
-                <div class="container mx-auto px-6 py-8">
-                    <div class="flex items-center justify-between mb-6">
-                        <h2 class="font-display text-3xl font-bold text-nesta-navy">Saved Signals</h2>
-                        <div class="flex items-center gap-4">
-                            <select id="database-group" class="px-4 py-2 border-2 border-nesta-dark-grey rounded-lg focus:outline-none focus:border-nesta-blue">
-                                <option value="none">No grouping</option>
-                                <option value="mission">Group by mission</option>
-                                <option value="typology">Group by typology</option>
-                                <option value="status">Group by status</option>
-                            </select>
-                            <button id="refresh-db-btn" class="btn-nesta px-6 py-2 bg-nesta-green text-white font-bold uppercase tracking-wider rounded-lg">
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-                    <div id="database-grid" class="masonry-grid"></div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Triage Modal -->
-    <div id="triage-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div class="bg-nesta-navy p-6 flex items-center justify-between border-b-4 border-nesta-blue">
-                <h3 class="font-display text-2xl font-bold text-white">Signal Triage</h3>
-                <button id="triage-close" class="text-white hover:text-nesta-aqua transition-colors">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            <div id="triage-card-container" class="p-8 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <!-- Triage cards will be injected here -->
-            </div>
-            <div class="bg-nesta-silver p-6 border-t-2 border-nesta-dark-grey/20 flex items-center justify-between">
-                <div class="text-sm text-nesta-dark-grey">
-                    Use keyboard: <kbd class="px-2 py-1 bg-white border border-nesta-dark-grey rounded text-xs font-mono">←</kbd> Archive
-                    <kbd class="px-2 py-1 bg-white border border-nesta-dark-grey rounded text-xs font-mono">→</kbd> Keep
-                    <kbd class="px-2 py-1 bg-white border border-nesta-dark-grey rounded text-xs font-mono">↑</kbd> Star
-                </div>
-                <span id="triage-progress" class="text-sm font-bold text-nesta-navy">0 / 0</span>
+        <div id="view-database" class="hidden flex-1 flex flex-col w-full h-full bg-slate-100">
+            <div class="p-8 overflow-y-auto">
+                <h2 class="text-3xl font-display font-bold mb-6 text-nesta-navy">Signal Database</h2>
+                <div id="database-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </div>
         </div>
-    </div>
 
-    <!-- Narrative Cluster Drawer -->
-    <div id="narrative-drawer" class="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out z-50 hidden">
-        <div class="p-6 bg-nesta-navy border-b-4 border-nesta-violet">
-            <h3 class="font-display text-xl font-bold text-white">Narrative Clusters</h3>
-            <p class="text-xs text-nesta-aqua mt-1">Auto-detected themes</p>
-        </div>
-        <div id="narrative-container" class="p-6 space-y-4 overflow-y-auto h-[calc(100%-120px)]"></div>
-    </div>
+    </main>
 
-    <!-- Toast Notification Container -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-[70] space-y-3"></div>
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Scripts -->
-    <script type="module" src="/static/js/app.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html>

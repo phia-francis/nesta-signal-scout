@@ -2,40 +2,49 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
+from pydantic import BaseModel
 
 from app.api.dependencies import get_sheet_service
-from app.domain.models import UpdateSignalRequest
-from app.services.search_svc import ServiceError
 from app.services.sheet_svc import SheetService
 
 router = APIRouter(prefix="/api", tags=["system"])
 
 
+class UpdateStatusRequest(BaseModel):
+    url: str
+    status: str  # e.g., "Starred", "Archived", "Read"
+
+
 @router.get("/saved")
-async def get_saved(sheet_service: SheetService = Depends(get_sheet_service)) -> dict[str, Any]:
-    """Return all persisted signals from the sheet datastore."""
+async def get_saved_signals(
+    sheet_service: SheetService = Depends(get_sheet_service)
+) -> list[dict[str, Any]]:
+    """Fetch all signals from the database."""
+    return await sheet_service.get_all()
+
+
+@router.post("/saved")
+async def update_signal_status(
+    payload: UpdateStatusRequest,
+    sheet_service: SheetService = Depends(get_sheet_service)
+):
+    """
+    Update the status of a signal (e.g. Star/Archive).
+    """
+    if not payload.url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
     try:
-        return {"signals": await sheet_service.get_all()}
-    except ServiceError as service_error:
-        raise HTTPException(
-            status_code=503,
-            detail="Service unavailable. Please try again later.",
-        ) from service_error
+        await sheet_service.update_status(payload.url, payload.status)
 
+        # If 'Starred', also add to watchlist tab for safety
+        if payload.status == "Starred":
+            # We assume the row exists, but we might not have the full object here.
+            # Ideally, the frontend sends the full object, but for now we just
+            # update the status column.
+            pass
 
-@router.post("/update_signal")
-async def update_signal(
-    request: UpdateSignalRequest,
-    sheet_service: SheetService = Depends(get_sheet_service),
-) -> dict[str, str]:
-    """Update a signal triage status in the datastore."""
-    await sheet_service.update_status(request.url, request.status)
-    return {"status": "success"}
-
-
-@router.post("/feedback")
-async def feedback(payload: dict[str, Any]) -> dict[str, str]:
-    """Accept feedback payload without blocking user flow."""
-    _ = payload
-    return {"status": "recorded"}
+        return {"status": "success", "message": f"Signal marked as {payload.status}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

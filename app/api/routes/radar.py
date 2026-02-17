@@ -2,104 +2,110 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncGenerator
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from app.api.dependencies import get_scan_orchestrator, get_sheet_service
-from app.domain.models import RadarRequest
+from app.api.dependencies import get_scan_orchestrator
 from app.services.scan_logic import ScanOrchestrator
-from app.services.search_svc import ServiceError
-from app.services.sheet_svc import SheetService
 
-router = APIRouter(prefix="/api", tags=["radar"])
+logger = logging.getLogger(__name__)
 
-
-def ndjson_line(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, ensure_ascii=False) + "\n"
+router = APIRouter(prefix="/api/mode", tags=["radar"])
 
 
-@router.post("/mode/radar")
+class RadarRequest(BaseModel):
+    query: str
+    mission: str = "General"
+
+
+@router.post("/radar")
 async def radar_scan(
-    request: RadarRequest,
-    background_tasks: BackgroundTasks,
+    body: RadarRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
-    sheet_service: SheetService = Depends(get_sheet_service),
-) -> StreamingResponse:
-    """Thin controller: validate input, delegate scan orchestration, stream results."""
+):
+    """
+    Streaming Endpoint for Radar Mode (Layered Scan).
+    Yields NDJSON lines: { "status": "blip", "blip": {...} }
+    """
+    return StreamingResponse(
+        _radar_stream_generator(body.query, body.mission, orchestrator),
+        media_type="application/x-ndjson",
+    )
 
-    effective_topic = (request.topic or "").strip() or (request.query or "").strip()
-    if not effective_topic:
-        logging.warning("Scan attempted without topic or query.")
 
-        async def invalid_input_generator() -> AsyncGenerator[str, None]:
-            yield ndjson_line(
-                {
-                    "status": "error",
-                    "msg": "Please provide a valid topic or search query to start the scan.",
-                }
-            )
+@router.post("/policy")
+async def policy_scan(
+    body: RadarRequest,
+    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
+):
+    """
+    Streaming Endpoint for Policy Mode.
+    """
+    return StreamingResponse(
+        _policy_stream_generator(body.query, body.mission, orchestrator),
+        media_type="application/x-ndjson",
+    )
 
-        return StreamingResponse(invalid_input_generator(), media_type="application/x-ndjson")
 
-    request.topic = effective_topic
+async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
+    try:
+        yield _msg("info", f"Initiating Layered Scan for '{query}'...")
 
-    async def generator() -> AsyncGenerator[str, None]:
-        try:
-            mission = request.mission or "All Missions"
-            yield ndjson_line({"status": "info", "msg": "Authenticating with Google Sheets..."})
-            existing_urls = await sheet_service.get_existing_urls()
-            yield ndjson_line(
-                {
-                    "status": "success",
-                    "msg": f"Database Connected. {len(existing_urls)} existing records loaded.",
-                }
-            )
+        # 1. Fetch Raw Signals (Layers 1-5)
+        raw_signals, related_terms = await orchestrator.fetch_signals(
+            topic=query, mission=mission, mode="radar"
+        )
 
-            raw_signals, related_terms = await orchestrator.fetch_signals(
-                request.topic,
-                mission=mission,
-                mode=request.mode,
-                friction_mode=request.friction_mode,
-            )
-            scored_signals = list(
-                orchestrator.process_signals(
-                    raw_signals,
-                    mission=mission,
-                    related_terms=related_terms,
-                )
-            )
+        if not raw_signals:
+            yield _msg("warning", "No signals found. Try a broader topic.")
+            yield _msg("complete", "Scan finished.")
+            return
 
-            if not scored_signals:
-                yield ndjson_line(
-                    {
-                        "status": "error",
-                        "msg": "No live signals matched the 1 month to 1 year sweet-spot window.",
-                    }
-                )
-                return
+        yield _msg("success", f"Found {len(raw_signals)} potential signals. Scoring...")
 
-            pending_signals: list[dict[str, Any]] = []
-            for signal in scored_signals:
-                if signal.url in existing_urls:
-                    continue
-                payload = {"mode": "Radar", **signal.model_dump()}
-                pending_signals.append(payload)
-                yield ndjson_line({"status": "blip", "blip": payload})
+        # 2. Score & Yield Cards
+        count = 0
+        for card in orchestrator.process_signals(raw_signals, mission=mission, related_terms=related_terms):
+            # Send the card as a 'blip'
+            data = {"status": "blip", "blip": card.model_dump()}
+            yield json.dumps(data) + "\n"
+            count += 1
 
-            if pending_signals:
-                background_tasks.add_task(sheet_service.queue_signals_for_sync, pending_signals)
+        yield _msg("complete", f"Scan complete. {count} signals visualized.")
 
-            yield ndjson_line({"status": "complete", "msg": "Scan Routine Finished."})
-        except ServiceError as service_error:
-            logging.error("Service error in radar scan: %s", service_error, exc_info=True)
-            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-service"})
-        except ValueError as validation_error:
-            logging.error("Validation error in radar scan: %s", validation_error, exc_info=True)
-            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-validation"})
-        except Exception as unexpected_error:
-            logging.error("Unhandled error in radar scan: %s", unexpected_error, exc_info=True)
-            yield ndjson_line({"status": "error", "msg": "An internal error occurred. Request ID: radar-unhandled"})
+    except Exception as e:
+        logger.exception("Radar scan failed")
+        yield _msg("error", f"Scan failed: {str(e)}")
 
-    return StreamingResponse(generator(), media_type="application/x-ndjson")
+
+async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
+    try:
+        yield _msg("info", f"Scanning Policy Documents for '{query}'...")
+
+        # 1. Fetch Policy Signals
+        # Note: fetch_policy_scan returns Scored Cards directly in v2 logic
+        cards = await orchestrator.fetch_policy_scan(query)
+
+        if not cards:
+            yield _msg("warning", "No policy documents found.")
+            yield _msg("complete", "Scan finished.")
+            return
+
+        for card in cards:
+            card.mission = mission  # Ensure mission alignment
+            data = {"status": "blip", "blip": card.model_dump()}
+            yield json.dumps(data) + "\n"
+
+        yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
+
+    except Exception as e:
+        logger.exception("Policy scan failed")
+        yield _msg("error", f"Policy scan failed: {str(e)}")
+
+
+def _msg(status: str, text: str) -> str:
+    """Helper to format a status message for the stream."""
+    return json.dumps({"status": status, "msg": text}) + "\n"
