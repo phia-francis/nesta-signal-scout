@@ -104,21 +104,21 @@ async def test_search_endpoint(
         logger.error(f"Google Search API test failed: {e}")
         return {
             "status": "error",
-            "message": str(e),
+            "message": "Google Search service is currently unavailable. Please try again later.",
             "error_type": "ServiceError"
         }
     except RateLimitError as e:
         logger.error(f"Rate limit error during test: {e}")
         return {
             "status": "error",
-            "message": str(e),
+            "message": "Google Search rate limit exceeded. Please wait before retrying.",
             "error_type": "RateLimitError"
         }
     except Exception as e:
         logger.exception("Unexpected error during search test")
         return {
             "status": "error",
-            "message": f"Unexpected error: {str(e)}",
+            "message": "An unexpected error occurred during the search test.",
             "error_type": "UnexpectedError"
         }
 
