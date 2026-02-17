@@ -151,14 +151,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.querySelectorAll('.mode-toggle').forEach((button) => {
-    button.addEventListener('click', () => switchMode(button.dataset.mode));
+    button.addEventListener('click', () => {
+      switchMode(button.dataset.mode);
+      switchView('radar');
+    });
   });
 
   document.getElementById('nav-database')?.addEventListener('click', () => switchView('database'));
-
-  document.querySelectorAll('.mode-toggle').forEach((button) => {
-    button.addEventListener('click', () => switchView('radar'));
-  });
 
   document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
