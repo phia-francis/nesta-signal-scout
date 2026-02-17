@@ -10,7 +10,7 @@ from typing import Any
 
 from dateutil import parser as date_parser
 
-from app import keywords
+import keywords
 from app.core.config import SCAN_RESULT_LIMIT
 from app.domain.models import RawSignal, ScoredSignal, SignalCard
 from app.domain.taxonomy import TaxonomyService
