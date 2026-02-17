@@ -135,6 +135,13 @@ dom.queryInput?.addEventListener("keydown", (event) => {
     runScan();
   }
 });
+dom.researchInput?.addEventListener("keydown", (event) => {
+  // Use Ctrl+Enter (Windows/Linux) or Cmd+Enter (macOS) to trigger scan
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    runScan();
+  }
+});
 document.getElementById("help-btn")?.addEventListener("click", () => {
   alert(
     "User Guide:\n\n" +
