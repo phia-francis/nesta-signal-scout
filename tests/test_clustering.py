@@ -143,7 +143,9 @@ async def test_cluster_signals_with_signal_card_objects():
 
 @pytest.mark.asyncio
 async def test_cluster_signals_api_error():
-    """Test clustering when API call fails"""
+    """Test clustering raises LLMServiceError when API call fails."""
+    from app.core.exceptions import LLMServiceError
+
     mock_settings = Mock()
     mock_settings.OPENAI_API_KEY = "test-key"
     mock_settings.CHAT_MODEL = "gpt-4o-mini"
@@ -158,15 +160,18 @@ async def test_cluster_signals_api_error():
     
     signals = [{"title": "Test", "summary": "Test"}]
     
-    result = await service.cluster_signals(signals)
+    with pytest.raises(LLMServiceError) as exc_info:
+        await service.cluster_signals(signals)
     
-    # Should return empty themes on error
-    assert result == {"themes": []}
+    assert "LLM clustering failed" in str(exc_info.value)
+    assert exc_info.value.model == "gpt-4o-mini"
 
 
 @pytest.mark.asyncio
 async def test_cluster_signals_invalid_json_response():
-    """Test clustering with invalid JSON response"""
+    """Test clustering raises LLMServiceError with invalid JSON response."""
+    from app.core.exceptions import LLMServiceError
+
     mock_settings = Mock()
     mock_settings.OPENAI_API_KEY = "test-key"
     mock_settings.CHAT_MODEL = "gpt-4o-mini"
@@ -185,7 +190,5 @@ async def test_cluster_signals_invalid_json_response():
     
     signals = [{"title": "Test", "summary": "Test"}]
     
-    result = await service.cluster_signals(signals)
-    
-    # Should return empty themes on parse error
-    assert result == {"themes": []}
+    with pytest.raises(LLMServiceError):
+        await service.cluster_signals(signals)

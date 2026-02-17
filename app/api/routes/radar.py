@@ -9,6 +9,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.dependencies import get_scan_orchestrator, get_llm_service
+from app.core.exceptions import (
+    RateLimitError,
+    SearchAPIError,
+    LLMServiceError,
+    ValidationError,
+    SignalScoutError,
+)
 from app.services.scan_logic import ScanOrchestrator
 from app.services.llm_svc import LLMService
 from app.storage.scan_storage import get_scan_storage, ScanStorage
@@ -78,6 +85,14 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
 
         yield _msg("complete", f"Scan complete. {count} signals visualized.")
 
+    except ValidationError as e:
+        yield _msg("error", f"Invalid request: {str(e)}")
+    except RateLimitError as e:
+        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+    except SearchAPIError as e:
+        yield _msg("error", f"Search service unavailable: {str(e)}")
+    except SignalScoutError as e:
+        yield _msg("error", f"Scan error: {str(e)}")
     except Exception as e:
         request_id = "radar-scan-failed"
         logger.exception("Radar scan failed. Request ID: %s", request_id)
@@ -104,6 +119,14 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
 
         yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
 
+    except ValidationError as e:
+        yield _msg("error", f"Invalid request: {str(e)}")
+    except RateLimitError as e:
+        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+    except SearchAPIError as e:
+        yield _msg("error", f"Search service unavailable: {str(e)}")
+    except SignalScoutError as e:
+        yield _msg("error", f"Scan error: {str(e)}")
     except Exception as e:
         request_id = "policy-scan-failed"
         logger.exception("Policy scan failed. Request ID: %s", request_id)
@@ -175,6 +198,9 @@ async def cluster_signals(
                 "warning": "Failed to save scan to storage"
             }
         
+    except LLMServiceError as e:
+        logger.exception("Clustering LLM call failed")
+        return {"themes": [], "error": f"LLM clustering failed: {str(e)}"}
     except Exception as e:
         logger.exception("Clustering failed")
         return {"themes": [], "error": "Clustering failed due to an internal error"}

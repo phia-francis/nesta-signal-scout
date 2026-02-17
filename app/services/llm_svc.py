@@ -7,6 +7,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
+from app.core.exceptions import LLMServiceError
 from app.core.prompts import (
     SYSTEM_INSTRUCTIONS, 
     build_analysis_prompt,
@@ -19,11 +20,22 @@ logger = logging.getLogger(__name__)
 
 class LLMService:
     """
-    Stateless Service for AI Synthesis.
-    Each call is a fresh 'Zero-Shot' interaction with full context injection.
+    OpenAI LLM integration for signal synthesis and clustering.
+
+    Provides stateless AI analysis of search results, including theme
+    extraction and narrative synthesis. Each call includes full context
+    as the service maintains no conversation history.
     """
 
     def __init__(self, settings: Any = None) -> None:
+        """
+        Initialise the LLM service.
+
+        Args:
+            settings: Application settings containing the OpenAI API key
+                      and model configuration. Falls back to global settings
+                      if not provided.
+        """
         self.settings = settings or get_settings()
         # Only initialize OpenAI client if API key is available
         if self.settings.OPENAI_API_KEY:
@@ -35,14 +47,23 @@ class LLMService:
 
     async def synthesize_research(self, query: str, search_results: list[dict[str, Any]]) -> dict[str, Any]:
         """
-        Takes raw search results -> Formats into Context -> Calls LLM -> Returns JSON.
-        
+        Synthesise raw search results into a structured research summary.
+
+        Takes raw search results, formats them into a context window, and
+        calls the LLM to produce a JSON synthesis with extracted signals.
+
         Args:
-            query: The research query/topic
-            search_results: List of search result dictionaries
-            
+            query: The research query or topic to synthesise around.
+            search_results: List of search result dictionaries, each
+                            containing at least 'title' and 'snippet' keys.
+
         Returns:
-            Dictionary with 'synthesis' and 'signals' keys
+            Dictionary with:
+                - synthesis: Narrative summary text
+                - signals: List of extracted signal objects
+
+        Raises:
+            LLMServiceError: If the OpenAI API call fails.
         """
         # Check if OpenAI client is available
         if not self.client:
@@ -78,17 +99,24 @@ class LLMService:
 
         except Exception as e:
             logger.error(f"LLM Synthesis failed: {e}", exc_info=True)
-            return {"synthesis": "Error generating insight.", "signals": []}
+            raise LLMServiceError(
+                f"LLM synthesis failed: {str(e)}",
+                model=self.model,
+            ) from e
 
     def _format_results_for_llm(self, results: list[dict[str, Any]]) -> str:
         """
-        Converts complex JSON search results into a dense text block for the AI.
-        
+        Convert search result dictionaries into a dense text block for the AI.
+
+        Formats up to 15 results into numbered entries containing title,
+        source, and snippet for token-efficient context injection.
+
         Args:
-            results: List of search result dictionaries
-            
+            results: List of search result dictionaries, each containing
+                     'title', 'snippet'/'abstract', and 'displayLink'/'source'.
+
         Returns:
-            Formatted string with numbered results
+            Formatted string with numbered results separated by blank lines.
         """
         buffer = []
         for i, item in enumerate(results[:15], 1):  # Limit to top 15 to save tokens
@@ -100,23 +128,32 @@ class LLMService:
 
     async def cluster_signals(self, signals: list[Any]) -> dict[str, Any]:
         """
-        Groups signals into 3-5 emerging themes using LLM analysis.
-        
+        Group signals into 3–5 thematic clusters using LLM analysis.
+
+        Analyses signal titles and summaries to identify emerging themes
+        across the dataset. Each theme includes a name, description, and
+        list of associated signal IDs.
+
         Args:
-            signals: List of SignalCard objects to cluster
-            
+            signals: List of SignalCard objects or dictionaries to cluster
+                     (max 50 recommended for quality).
+
         Returns:
-            Dictionary with 'themes' key containing list of theme objects:
-            {
-                "themes": [
-                    {
-                        "name": "Bio-based Materials",
-                        "description": "Emerging sustainable construction...",
-                        "signal_ids": [0, 3, 7],
-                        "relevance_score": 8.5
-                    }
-                ]
-            }
+            Dictionary containing:
+                - themes: List of theme dictionaries, each with:
+                    - name: 2–4 word theme name
+                    - description: One sentence explanation
+                    - signal_ids: List of signal indices in this theme
+                    - relevance_score: 0–10 strength indicator
+
+        Raises:
+            LLMServiceError: If the OpenAI API call fails.
+
+        Example:
+            >>> llm = LLMService(settings)
+            >>> themes = await llm.cluster_signals(signal_list)
+            >>> print(themes["themes"][0]["name"])
+            "Bio-based Materials"
         """
         # Check if OpenAI client is available
         if not self.client:
@@ -177,4 +214,7 @@ class LLMService:
                 
         except Exception as e:
             logger.error(f"LLM Clustering failed: {e}", exc_info=True)
-            return {"themes": []}
+            raise LLMServiceError(
+                f"LLM clustering failed: {str(e)}",
+                model=self.model,
+            ) from e

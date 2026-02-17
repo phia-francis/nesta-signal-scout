@@ -13,12 +13,13 @@ from dateutil import parser as date_parser
 import keywords
 from utils import normalize_url_for_deduplication
 from app.core.config import SCAN_RESULT_LIMIT
+from app.core.exceptions import ValidationError, SearchAPIError
 from app.domain.models import RawSignal, ScoredSignal, SignalCard
 from app.domain.taxonomy import TaxonomyService
 from app.services.analytics_svc import HorizonAnalyticsService
 from app.services.gtr_svc import GatewayResearchService
 from app.services.openalex_svc import OpenAlexService
-from app.services.search_svc import SearchService, ServiceError
+from app.services.search_svc import SearchService
 
 ACTIVITY_WEIGHT = 0.2  # Lowered to reduce academic bias
 ATTENTION_WEIGHT = 0.5  # Increased to favour social/web buzz
@@ -44,8 +45,12 @@ SOURCE_DIVERSITY_TARGET = {
 
 class ScanOrchestrator:
     """
-    V2.0 Orchestrator: Implements 'Layered Scanning' to prioritise
-    diversity, odd gems, and non-academic sources.
+    Orchestrates multi-source horizon scanning operations.
+
+    Coordinates search across multiple providers (Google, OpenAlex, GtR),
+    applies scoring and filtering, and handles partial failures gracefully.
+    Implements layered scanning to prioritise diversity, odd gems, and
+    non-academic sources.
     """
 
     def __init__(
@@ -238,7 +243,7 @@ class ScanOrchestrator:
         """Execute quick scan (radar mode) with source diversity."""
         clean_topic = query.strip()
         if not clean_topic:
-            raise ValueError("Query is required for quick scan.")
+            raise ValidationError("Query is required for quick scan.")
         
         # Generate related keywords
         try:
@@ -270,7 +275,7 @@ class ScanOrchestrator:
         """Execute deep scan (research mode) focusing on academic sources."""
         clean_topic = query.strip()
         if not clean_topic:
-            raise ValueError("Query is required for deep scan.")
+            raise ValidationError("Query is required for deep scan.")
         
         self._warnings.clear()
         # Deep scan uses research method
@@ -296,7 +301,7 @@ class ScanOrchestrator:
         """Execute monitor scan (policy mode) for policy documents."""
         clean_topic = query.strip()
         if not clean_topic:
-            raise ValueError("Query is required for monitor scan.")
+            raise ValidationError("Query is required for monitor scan.")
         
         self._warnings.clear()
         # Monitor scan uses policy method
@@ -327,15 +332,34 @@ class ScanOrchestrator:
         friction_mode: bool = False,
     ) -> tuple[list[RawSignal], list[str]]:
         """
-        Layered Fetch Strategy with Source Diversity:
-        - Layer 5: Social & Forums (Reddit, HN, ProductHunt) - 40% target
-        - Layer 4: Niche Blogs (Substack, Medium, RSS) - 30% target  
-        - Layer 3: International/General Web - 20% target
-        - Layer 1: Academic (Deprioritised) - 10% target
+        Fetch signals from multiple sources using a layered strategy.
+
+        Implements source-diversity targeting:
+          - Layer 5: Social & Forums (Reddit, HN, ProductHunt) — 40%
+          - Layer 4: Niche Blogs (Substack, Medium, RSS) — 30%
+          - Layer 3: International / General Web — 20%
+          - Layer 1: Academic (deprioritised) — 10%
+
+        Results are cached for 24 hours to avoid redundant API calls.
+
+        Args:
+            topic: Search query or topic to scan.
+            mission: Nesta mission for tagging (e.g. 'A Healthy Life').
+            mode: Scan mode identifier ('radar', 'research', 'policy').
+            friction_mode: Legacy parameter, ignored.
+
+        Returns:
+            Tuple of (raw_signals, related_terms) where raw_signals is
+            a list of RawSignal objects and related_terms is a list of
+            keyword strings.
+
+        Raises:
+            ValidationError: If topic is empty.
+            SearchAPIError: If all search sources fail.
         """
         clean_topic = topic.strip()
         if not clean_topic:
-            raise ValueError("Topic is required to fetch signals.")
+            raise ValidationError("Topic is required to fetch signals.")
 
         cutoff_date = self.cutoff_date
         cache_key = self._cache_key(topic=clean_topic, mode=mode, friction_mode=friction_mode, cutoff=cutoff_date)
@@ -413,14 +437,24 @@ class ScanOrchestrator:
 
     async def fetch_research_deep_dive(self, query: str) -> list[SignalCard]:
         """
-        Deep Dive uses OpenAlex + Niche Blogs to find synthesis.
-        
-        1. Fetches data (Search + OpenAlex)
-        2. Injects data into LLM for synthesis
-        3. Returns synthesised cards
+        Perform a deep research dive combining OpenAlex and web sources.
+
+        Fetches data from academic (OpenAlex) and blog sources, then uses
+        the LLM service to produce a synthesised overview card followed
+        by individual scored signal cards.
+
+        Args:
+            query: Research query string.
+
+        Returns:
+            List of SignalCard objects — the first is the AI synthesis,
+            followed by individually scored results.
+
+        Raises:
+            ValidationError: If query is empty.
         """
         if not query.strip():
-            raise ValueError("Research query is required.")
+            raise ValidationError("Research query is required.")
 
         # Step 1: Fetch Raw Data (The Context)
         blog_query = f"{query} (site:substack.com OR site:medium.com OR \"white paper\")"
@@ -491,25 +525,50 @@ class ScanOrchestrator:
         return [synthesized_card] + individual_cards
 
     async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
-        """Policy Monitor: International & Grey Literature (PDFs)."""
+        """
+        Scan international and grey literature for policy-related signals.
+
+        Searches government, international organisation, and NGO sites for
+        policy documents (including PDFs) related to the given topic.
+
+        Args:
+            topic: Policy topic to scan.
+
+        Returns:
+            List of scored SignalCard objects from policy sources.
+
+        Raises:
+            ValidationError: If topic is empty.
+        """
         if not topic.strip():
-            raise ValueError("Policy topic is required.")
+            raise ValidationError("Policy topic is required.")
 
         # International + Grey Lit (PDFs)
         query = f"{topic} (site:.gov OR site:.int OR site:.org OR filetype:pdf) -site:gov.uk"
 
         try:
             results = await self.search_service.search(query, num=SCAN_RESULT_LIMIT, freshness="year")
-        except (ServiceError, Exception):
+        except (SearchAPIError, Exception):
             results = []
 
         raw_signals = self._normalise_google(results, mission="Policy", source_label="Policy/Intl", is_novel=False)
         return list(self.process_signals(raw_signals, mission="Policy", related_terms=[]))
 
     async def fetch_intelligence_brief(self, topic: str) -> list[SignalCard]:
-        """Fast high-level brief combining GtR and OpenAlex."""
+        """
+        Produce a fast high-level intelligence brief from GtR and OpenAlex.
+
+        Args:
+            topic: Intelligence topic to brief on.
+
+        Returns:
+            List of scored SignalCard objects from academic sources.
+
+        Raises:
+            ValidationError: If topic is empty.
+        """
         if not topic.strip():
-            raise ValueError("Intelligence topic is required.")
+            raise ValidationError("Intelligence topic is required.")
 
         cutoff_date = self.cutoff_date
         from_publication_date = cutoff_date.date().isoformat()
