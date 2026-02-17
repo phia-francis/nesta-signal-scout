@@ -126,7 +126,17 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
     except ValidationError as e:
         yield _msg("error", f"Invalid request: {str(e)}")
     except RateLimitError as e:
-        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+        retry_after = getattr(e, "retry_after", None)
+        if retry_after is not None:
+            yield _msg(
+                "error",
+                f"Rate limit exceeded for {e.service}. Please retry after {retry_after}s.",
+            )
+        else:
+            yield _msg(
+                "error",
+                f"Rate limit exceeded for {e.service}. Please try again later.",
+            )
     except SearchAPIError as e:
         yield _msg("error", f"Search service unavailable: {str(e)}")
     except SignalScoutError as e:
