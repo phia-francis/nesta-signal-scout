@@ -167,7 +167,7 @@ class ScanOrchestrator:
         
         return self._normalize_results(results, mission)
 
-    def _normalize_results(self, results: tuple, mission: str) -> list[RawSignal]:
+    def _normalize_results(self, results: tuple[Any, ...], mission: str) -> list[RawSignal]:
         """Normalize results from all sources, handling failures gracefully."""
         social_res, blog_res, general_res, gtr_res = results
         raw_signals: list[RawSignal] = []
@@ -240,7 +240,7 @@ class ScanOrchestrator:
         
         # Generate related keywords
         try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
         except Exception as e:
             logging.warning("Keyword enrichment failed: %s", e)
             related_terms = []
@@ -344,7 +344,7 @@ class ScanOrchestrator:
 
         # Generate related keywords (Layer 0)
         try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)
+            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
         except Exception as e:
             logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []
@@ -570,7 +570,7 @@ class ScanOrchestrator:
     def _parse_date(value: Any) -> datetime | None:
         if not value: return None
         try:
-            parsed = date_parser.parse(str(value))
+            parsed: Any = date_parser.parse(str(value))
             return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
         except (ValueError, TypeError, date_parser.ParserError):
             return None

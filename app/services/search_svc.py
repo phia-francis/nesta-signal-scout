@@ -29,7 +29,7 @@ class SearchService:
 
     BASE_URL = "https://www.googleapis.com/customsearch/v1"
 
-    def __init__(self, settings=None):
+    def __init__(self, settings: Any = None) -> None:
         self.settings = settings or get_settings()
         if not self.settings.GOOGLE_SEARCH_API_KEY or not self.settings.GOOGLE_SEARCH_CX:
             # We log a warning but don't crash init, in case only other modes are used.
