@@ -11,6 +11,7 @@ from typing import Any
 from dateutil import parser as date_parser
 
 import keywords
+from utils import normalize_url_for_deduplication
 from app.core.config import SCAN_RESULT_LIMIT
 from app.domain.models import RawSignal, ScoredSignal, SignalCard
 from app.domain.taxonomy import TaxonomyService
@@ -289,24 +290,13 @@ class ScanOrchestrator:
             ))
         return signals
 
-    def _normalise_url(self, url: str) -> str:
-        cleaned = (url or "").strip().lower()
-        for prefix in ("https://", "http://"):
-            if cleaned.startswith(prefix):
-                cleaned = cleaned[len(prefix):]
-        if cleaned.startswith("www."):
-            cleaned = cleaned[4:]
-        return cleaned.rstrip("/")
-
-    # --- Helpers ---
-
     def _deduplicate_signals(self, signals: list[SignalCard]) -> list[SignalCard]:
         """Remove duplicate signals by canonical URL and fuzzy title similarity."""
         seen_urls: set[str] = set()
         kept: list[SignalCard] = []
 
         for signal in signals:
-            normalised_url = self._normalise_url(signal.url)
+            normalised_url = normalize_url_for_deduplication(signal.url)
             if normalised_url and normalised_url in seen_urls:
                 continue
 

@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel
 
+from utils import normalize_url_for_deduplication
 from app.api.dependencies import (
     get_cluster_service,
     get_scan_orchestrator,
@@ -97,12 +98,16 @@ async def cluster_signals(
         for record in mission_records
     ]
 
+    # Deduplicate by normalized URL
     deduped_by_url: dict[str, dict[str, Any]] = {}
     for signal in [*db_signals, *signals]:
         url = str(signal.get("url") or "").strip()
         if not url:
             continue
-        deduped_by_url[url] = signal
+        # Use normalized URL as key for better deduplication
+        normalized = normalize_url_for_deduplication(url)
+        if normalized:
+            deduped_by_url[normalized] = signal
 
     combined_signals = list(deduped_by_url.values())
     if len(combined_signals) < 3:
