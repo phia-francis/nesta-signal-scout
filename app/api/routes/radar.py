@@ -88,18 +88,16 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
     except ValidationError as e:
         yield _msg("error", f"Invalid request: {str(e)}")
     except RateLimitError as e:
-        base_msg = f"Rate limit exceeded for {e.service}."
-        retry_after = getattr(e, "retry_after", None)
-        if retry_after is not None:
-            base_msg += f" Please retry after {retry_after}s."
-        yield _msg("error", base_msg)
+        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
     except SearchAPIError as e:
+        # Custom errors are usually safe, but ensuring no sensitive data leaks here is good practice
         yield _msg("error", f"Search service unavailable: {str(e)}")
     except SignalScoutError as e:
         yield _msg("error", f"Scan error: {str(e)}")
     except Exception as e:
         request_id = "radar-scan-failed"
         logger.exception("Radar scan failed. Request ID: %s", request_id)
+        # FIXED: Generic message instead of str(e)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
@@ -126,17 +124,7 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
     except ValidationError as e:
         yield _msg("error", f"Invalid request: {str(e)}")
     except RateLimitError as e:
-        retry_after = getattr(e, "retry_after", None)
-        if retry_after is not None:
-            yield _msg(
-                "error",
-                f"Rate limit exceeded for {e.service}. Please retry after {retry_after}s.",
-            )
-        else:
-            yield _msg(
-                "error",
-                f"Rate limit exceeded for {e.service}. Please try again later.",
-            )
+        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
     except SearchAPIError as e:
         yield _msg("error", f"Search service unavailable: {str(e)}")
     except SignalScoutError as e:
@@ -144,6 +132,7 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
     except Exception as e:
         request_id = "policy-scan-failed"
         logger.exception("Policy scan failed. Request ID: %s", request_id)
+        # FIXED: Generic message instead of str(e)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
@@ -165,14 +154,6 @@ async def cluster_signals(
 ):
     """
     Cluster signals into 3-5 themes using LLM analysis.
-    
-    Args:
-        body: ClusterRequest with signals list
-        llm_service: Injected LLM service
-        storage: Scan storage instance
-        
-    Returns:
-        JSON with themes array and scan_id
     """
     try:
         if not body.signals or len(body.signals) == 0:
@@ -187,7 +168,6 @@ async def cluster_signals(
         logger.info(f"Clustering complete: {len(themes)} themes found")
         
         # Save scan with themes to storage
-        # Extract query from first signal if available
         query = body.signals[0].get('title', 'Unknown query') if body.signals else 'Unknown query'
         mode = 'cluster'
         
@@ -206,7 +186,6 @@ async def cluster_signals(
             }
         except Exception as save_error:
             logger.error(f"Failed to save scan: {save_error}")
-            # Return themes even if save fails
             return {
                 "themes": themes,
                 "warning": "Failed to save scan to storage"
@@ -227,13 +206,6 @@ async def get_scan(
 ):
     """
     Retrieve a saved scan by ID.
-    
-    Args:
-        scan_id: UUID of the scan
-        storage: Scan storage instance
-        
-    Returns:
-        Scan data including signals and themes
     """
     try:
         scan_data = storage.get_scan(scan_id)
@@ -248,7 +220,7 @@ async def get_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to retrieve scan {scan_id}")
-        # FIXED: Removed detail=str(e)
+        # FIXED: Removed detail=str(e), replaced with generic message
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -259,20 +231,13 @@ async def list_scans(
 ):
     """
     List recent scans.
-    
-    Args:
-        limit: Maximum number of scans to return
-        storage: Scan storage instance
-        
-    Returns:
-        List of scan metadata
     """
     try:
         scans = storage.list_scans(limit=limit)
         return {"scans": scans, "count": len(scans)}
     except Exception as e:
         logger.exception("Failed to list scans")
-        # FIXED: Removed detail=str(e)
+        # FIXED: Removed detail=str(e), replaced with generic message
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -283,13 +248,6 @@ async def delete_scan(
 ):
     """
     Delete a scan.
-    
-    Args:
-        scan_id: UUID of the scan
-        storage: Scan storage instance
-        
-    Returns:
-        Success message
     """
     try:
         success = storage.delete_scan(scan_id)
@@ -302,7 +260,7 @@ async def delete_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to delete scan {scan_id}")
-        # FIXED: Removed detail=str(e)
+        # FIXED: Removed detail=str(e), replaced with generic message
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -313,13 +271,6 @@ async def cleanup_old_scans(
 ):
     """
     Cleanup scans older than specified days.
-    
-    Args:
-        days: Delete scans older than this many days
-        storage: Scan storage instance
-        
-    Returns:
-        Number of scans deleted
     """
     try:
         deleted_count = storage.cleanup_old_scans(days=days)
@@ -329,5 +280,5 @@ async def cleanup_old_scans(
         }
     except Exception as e:
         logger.exception("Failed to cleanup old scans")
-        # FIXED: Removed detail=str(e)
+        # FIXED: Removed detail=str(e), replaced with generic message
         raise HTTPException(status_code=500, detail="Internal Server Error")
