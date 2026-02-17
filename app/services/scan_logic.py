@@ -289,15 +289,45 @@ class ScanOrchestrator:
             ))
         return signals
 
+    def _normalise_url(self, url: str) -> str:
+        cleaned = (url or "").strip().lower()
+        for prefix in ("https://", "http://"):
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):]
+        if cleaned.startswith("www."):
+            cleaned = cleaned[4:]
+        return cleaned.rstrip("/")
+
     # --- Helpers ---
 
     def _deduplicate_signals(self, signals: list[SignalCard]) -> list[SignalCard]:
-        seen_urls = set()
-        kept = []
-        for s in signals:
-            if s.url and s.url not in seen_urls:
-                seen_urls.add(s.url)
-                kept.append(s)
+        """Remove duplicate signals by canonical URL and fuzzy title similarity."""
+        seen_urls: set[str] = set()
+        kept: list[SignalCard] = []
+
+        for signal in signals:
+            normalised_url = self._normalise_url(signal.url)
+            if normalised_url and normalised_url in seen_urls:
+                continue
+
+            is_fuzzy_duplicate = False
+            for existing in kept:
+                similarity = SequenceMatcher(
+                    None,
+                    signal.title.strip().lower(),
+                    existing.title.strip().lower(),
+                ).ratio()
+                if similarity > DEDUPE_SIMILARITY_THRESHOLD:
+                    is_fuzzy_duplicate = True
+                    break
+
+            if is_fuzzy_duplicate:
+                continue
+
+            if normalised_url:
+                seen_urls.add(normalised_url)
+            kept.append(signal)
+
         return kept
 
     def _calculate_activity(self, raw: RawSignal) -> float:
