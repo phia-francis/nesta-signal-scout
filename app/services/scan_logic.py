@@ -33,6 +33,14 @@ GOOGLE_BASELINE_ATTENTION = 6.0
 FETCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 DEDUPE_SIMILARITY_THRESHOLD = 0.85
 
+# Source diversity allocation percentages
+SOURCE_DIVERSITY_TARGET = {
+    "social": 0.40,  # 40% Social media (Reddit, Twitter, HackerNews)
+    "blog": 0.30,    # 30% Blogs (Medium, Substack)
+    "international": 0.20,  # 20% International + Grey literature
+    "academic": 0.10  # 10% Academic (lowest priority)
+}
+
 
 class ScanOrchestrator:
     """
@@ -65,6 +73,78 @@ class ScanOrchestrator:
     def _clone_raw_signals(self, signals: list[RawSignal]) -> list[RawSignal]:
         return [signal.model_copy(deep=True) for signal in signals]
 
+    def _classify_source(self, signal: RawSignal) -> str:
+        """
+        Classify a signal into source categories for diversity management.
+        
+        Returns:
+            One of: "social", "blog", "international", "academic"
+        """
+        source = signal.source.lower()
+        url = signal.url.lower()
+        
+        # Academic sources
+        if any(keyword in source for keyword in ["gtr", "openalex", "arxiv", "academic", "journal"]):
+            return "academic"
+        
+        # Social media sources
+        if any(domain in url for domain in ["reddit.com", "twitter.com", "x.com", "news.ycombinator.com", "producthunt.com"]):
+            return "social"
+        
+        # Blog sources  
+        if any(domain in url for domain in ["medium.com", "substack.com", "blog"]) or "blog" in source:
+            return "blog"
+        
+        # Everything else is international/web
+        return "international"
+
+    def _prioritize_by_source_diversity(self, signals: list[RawSignal]) -> list[RawSignal]:
+        """
+        Reorder signals to ensure source diversity matches target allocations:
+        - 40% Social media
+        - 30% Blogs
+        - 20% International/Web
+        - 10% Academic
+        """
+        if not signals:
+            return signals
+        
+        # Categorize all signals
+        categorized: dict[str, list[RawSignal]] = {
+            "social": [],
+            "blog": [],
+            "international": [],
+            "academic": []
+        }
+        
+        for signal in signals:
+            category = self._classify_source(signal)
+            categorized[category].append(signal)
+        
+        # Calculate target counts based on total signals
+        total_signals = len(signals)
+        target_counts = {
+            category: int(total_signals * allocation)
+            for category, allocation in SOURCE_DIVERSITY_TARGET.items()
+        }
+        
+        # Build prioritized list
+        prioritized: list[RawSignal] = []
+        
+        # Take signals from each category up to target count
+        for category in ["social", "blog", "international", "academic"]:
+            available = categorized[category]
+            target = target_counts[category]
+            prioritized.extend(available[:target])
+        
+        # Add remaining signals if we haven't hit the total yet
+        for category in ["social", "blog", "international", "academic"]:
+            available = categorized[category]
+            target = target_counts[category]
+            prioritized.extend(available[target:])
+        
+        return prioritized
+
     async def fetch_signals(
         self,
         topic: str,
@@ -74,11 +154,11 @@ class ScanOrchestrator:
         friction_mode: bool = False,
     ) -> tuple[list[RawSignal], list[str]]:
         """
-        Layered Fetch Strategy:
-        - Layer 5: Social & Forums (Reddit, HN, ProductHunt)
-        - Layer 4: Niche Blogs (Substack, Medium, RSS)
-        - Layer 3: International/General Web
-        - Layer 1: Academic (Deprioritised)
+        Layered Fetch Strategy with Source Diversity:
+        - Layer 5: Social & Forums (Reddit, HN, ProductHunt) - 40% target
+        - Layer 4: Niche Blogs (Substack, Medium, RSS) - 30% target  
+        - Layer 3: International/General Web - 20% target
+        - Layer 1: Academic (Deprioritised) - 10% target
         """
         clean_topic = topic.strip()
         if not clean_topic:
@@ -98,22 +178,23 @@ class ScanOrchestrator:
             logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []
 
-        # Construct Layered Queries
-        # Layer 5: Social / Forums
+        # Construct Layered Queries with adjusted result counts for diversity
+        # Layer 5: Social / Forums (40% of results)
         social_query = f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)"
 
-        # Layer 4: Niche Blogs / Thought Leadership
+        # Layer 4: Niche Blogs / Thought Leadership (30% of results)
         blog_query = f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")"
 
-        # Layer 3: General Web (Broad)
+        # Layer 3: General Web (20% of results)
         general_query = clean_topic
 
-        # Execute Concurrently
+        # Execute Concurrently with adjusted result counts
+        # Total ~25 results: 10 social (40%), 7 blog (30%), 5 general (20%), 3 academic (10%)
         results = await asyncio.gather(
-            self.search_service.search(social_query, num=8, freshness="month"),  # Layer 5
-            self.search_service.search(blog_query, num=8, freshness="year"),     # Layer 4
-            self.search_service.search(general_query, num=6, freshness="year"),  # Layer 3
-            # Layer 1 (Academic) - Fetch fewer, lower priority
+            self.search_service.search(social_query, num=10, freshness="month"),  # Layer 5 - 40%
+            self.search_service.search(blog_query, num=8, freshness="year"),      # Layer 4 - 30%
+            self.search_service.search(general_query, num=5, freshness="year"),   # Layer 3 - 20%
+            # Layer 1 (Academic) - Fetch fewer, lower priority - 10%
             self.gateway_service.fetch_projects(clean_topic, min_start_date=cutoff_date),
             return_exceptions=True,
         )
@@ -129,6 +210,9 @@ class ScanOrchestrator:
 
         # Deprioritised Academic
         raw_signals.extend(self._normalise_gtr(gtr_res, mission=mission))
+
+        # Apply source diversity prioritization
+        raw_signals = self._prioritize_by_source_diversity(raw_signals)
 
         self._fetch_cache[cache_key] = (time.monotonic(), self._clone_raw_signals(raw_signals), list(related_terms))
         return raw_signals, related_terms
