@@ -7,6 +7,7 @@
   <script src="static/js/tailwind.js"></script>
   <script src="static/js/tailwind-theme.js"></script>
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="static/css/styles.css">
 </head>
 <body class="h-screen flex overflow-hidden font-body text-nesta-navy bg-nesta-off-white">
@@ -178,7 +179,24 @@
           </div>
         </div>
 
+        <!-- Theme Chips Container -->
+        <div id="theme-chips-container"></div>
+
+        <!-- View Toggle -->
+        <div class="flex justify-between items-center mb-4">
+          <div class="view-toggle">
+            <button id="gridViewBtn" class="active">📊 Grid View</button>
+            <button id="matrixViewBtn">📈 Matrix View</button>
+          </div>
+        </div>
+
+        <!-- Grid View (default) -->
         <div id="radar-feed" class="masonry-grid"></div>
+
+        <!-- Matrix View (hidden by default) -->
+        <div id="matrixContainer" class="hidden">
+          <canvas id="horizonCanvas"></canvas>
+        </div>
 
         <div id="empty-state" class="hidden col-span-full py-20 flex flex-col items-center justify-center text-center opacity-50">
           <div class="w-16 h-16 border-4 border-nesta-sand border-t-nesta-blue rounded-full animate-spin-slow mb-6"></div>

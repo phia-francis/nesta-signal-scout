@@ -7,7 +7,12 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
-from app.core.prompts import SYSTEM_INSTRUCTIONS, build_analysis_prompt
+from app.core.prompts import (
+    SYSTEM_INSTRUCTIONS, 
+    build_analysis_prompt,
+    CLUSTERING_INSTRUCTIONS,
+    build_clustering_prompt
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,3 +97,84 @@ class LLMService:
             source = item.get("displayLink", item.get("source", "Unknown Source"))
             buffer.append(f"[{i}] {title} ({source}): {snippet}")
         return "\n\n".join(buffer)
+
+    async def cluster_signals(self, signals: list[Any]) -> dict[str, Any]:
+        """
+        Groups signals into 3-5 emerging themes using LLM analysis.
+        
+        Args:
+            signals: List of SignalCard objects to cluster
+            
+        Returns:
+            Dictionary with 'themes' key containing list of theme objects:
+            {
+                "themes": [
+                    {
+                        "name": "Bio-based Materials",
+                        "description": "Emerging sustainable construction...",
+                        "signal_ids": [0, 3, 7],
+                        "relevance_score": 8.5
+                    }
+                ]
+            }
+        """
+        # Check if OpenAI client is available
+        if not self.client:
+            logger.warning("OpenAI client not initialized. Returning fallback response.")
+            return {"themes": []}
+        
+        if not signals or len(signals) == 0:
+            logger.info("No signals provided for clustering")
+            return {"themes": []}
+        
+        # Convert SignalCard objects to simple dictionaries for the prompt
+        signal_dicts = []
+        for i, signal in enumerate(signals):
+            # Handle both dict and object types
+            if hasattr(signal, 'model_dump'):
+                signal_data = signal.model_dump()
+            elif isinstance(signal, dict):
+                signal_data = signal
+            else:
+                signal_data = {
+                    'title': getattr(signal, 'title', 'Unknown'),
+                    'summary': getattr(signal, 'summary', '')
+                }
+            
+            signal_dicts.append({
+                'id': i,
+                'title': signal_data.get('title', 'Unknown'),
+                'summary': signal_data.get('summary', signal_data.get('abstract', ''))
+            })
+        
+        # Build clustering prompt
+        user_prompt = build_clustering_prompt(signal_dicts)
+        
+        messages = [
+            {"role": "system", "content": CLUSTERING_INSTRUCTIONS},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        try:
+            # Call OpenAI
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.4,  # Slightly higher for creative clustering
+            )
+            
+            content = response.choices[0].message.content
+            if content:
+                result = json.loads(content)
+                # Validate structure
+                if 'themes' not in result:
+                    logger.warning("LLM response missing 'themes' key")
+                    return {"themes": []}
+                return result
+            else:
+                return {"themes": []}
+                
+        except Exception as e:
+            logger.error(f"LLM Clustering failed: {e}", exc_info=True)
+            return {"themes": []}

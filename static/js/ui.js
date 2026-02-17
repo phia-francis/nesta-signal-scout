@@ -462,3 +462,108 @@ export function renderSynthesis(synthesisData, container) {
   
   container.insertBefore(card, container.firstChild);
 }
+
+/**
+ * Render theme chips for signal clustering
+ */
+export function renderThemeChips(themes, container, onFilterChange) {
+  if (!container || !themes || themes.length === 0) {
+    if (container) container.innerHTML = '';
+    return;
+  }
+  
+  // Create chip container
+  const chipsWrapper = document.createElement('div');
+  chipsWrapper.className = 'theme-chips-container flex flex-wrap items-center gap-3 p-4 bg-white rounded-lg shadow-sm mb-6';
+  chipsWrapper.innerHTML = '<span class="text-sm font-bold text-nesta-navy uppercase tracking-wider mr-2">Themes:</span>';
+  
+  // Add "All" chip
+  const allChip = document.createElement('button');
+  allChip.className = 'theme-chip active';
+  allChip.dataset.themeId = 'all';
+  allChip.innerHTML = `<span class="font-bold">All</span> <span class="ml-1 opacity-75">(${getTotalSignalCount(themes)})</span>`;
+  allChip.addEventListener('click', () => selectThemeChip(allChip, null, onFilterChange));
+  chipsWrapper.appendChild(allChip);
+  
+  // Add theme chips
+  themes.forEach((theme, index) => {
+    const chip = document.createElement('button');
+    chip.className = 'theme-chip';
+    chip.dataset.themeId = index;
+    chip.innerHTML = `
+      <span class="font-bold">${escapeHtml(theme.name)}</span>
+      <span class="ml-1 opacity-75">(${theme.signal_ids ? theme.signal_ids.length : 0})</span>
+    `;
+    chip.title = theme.description || '';
+    chip.addEventListener('click', () => selectThemeChip(chip, theme, onFilterChange));
+    chipsWrapper.appendChild(chip);
+  });
+  
+  container.innerHTML = '';
+  container.appendChild(chipsWrapper);
+}
+
+/**
+ * Select a theme chip and trigger filtering
+ */
+function selectThemeChip(clickedChip, theme, onFilterChange) {
+  // Remove active class from all chips
+  document.querySelectorAll('.theme-chip').forEach(chip => {
+    chip.classList.remove('active');
+  });
+  
+  // Add active to clicked chip
+  clickedChip.classList.add('active');
+  
+  // Update URL parameter
+  const url = new URL(window.location);
+  if (theme) {
+    url.searchParams.set('theme', theme.name.toLowerCase().replace(/\s+/g, '-'));
+  } else {
+    url.searchParams.delete('theme');
+  }
+  window.history.pushState({}, '', url);
+  
+  // Trigger filter callback
+  if (typeof onFilterChange === 'function') {
+    onFilterChange(theme);
+  }
+}
+
+/**
+ * Get total count of signals across all themes
+ */
+function getTotalSignalCount(themes) {
+  const uniqueIds = new Set();
+  themes.forEach(theme => {
+    if (theme.signal_ids) {
+      theme.signal_ids.forEach(id => uniqueIds.add(id));
+    }
+  });
+  return uniqueIds.size;
+}
+
+/**
+ * Filter signals by theme
+ */
+export function filterSignalsByTheme(signals, theme) {
+  if (!theme || !theme.signal_ids) {
+    // Show all signals
+    return signals;
+  }
+  
+  // Filter to only signals in this theme
+  return signals.filter((signal, index) => {
+    return theme.signal_ids.includes(index);
+  });
+}
+
+/**
+ * Escape HTML helper (if not already defined)
+ */
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}

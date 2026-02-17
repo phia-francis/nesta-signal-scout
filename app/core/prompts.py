@@ -75,3 +75,63 @@ RADAR_SYSTEM_PROMPT = (
     "\n\n"
     "Filter: Discard general news or well-known trends. We want edge cases."
 )
+
+
+# Clustering instructions for theme grouping
+CLUSTERING_INSTRUCTIONS = """
+You are the **Nesta Signal Scout** analysing innovation signals.
+Your task is to identify 3-5 emerging themes that group related signals together.
+
+**OPERATIONAL RULES:**
+1. Create **3-5 themes** (not more, not less)
+2. Each theme should have a clear focus area
+3. Theme names should be **2-4 words** (concise and descriptive)
+4. Use only the provided signals - no external knowledge
+5. Output must be valid JSON matching the schema
+"""
+
+
+def build_clustering_prompt(signals: list[dict[str, str]]) -> str:
+    """
+    Constructs the clustering prompt with signal data.
+    
+    Args:
+        signals: List of signal dictionaries with id, title, and summary
+        
+    Returns:
+        Formatted prompt string for clustering
+    """
+    signal_list = []
+    for sig in signals:
+        signal_list.append(
+            f"[{sig['id']}] {sig['title']}: {sig['summary'][:200]}"
+        )
+    
+    signals_text = "\n\n".join(signal_list)
+    
+    return f"""
+### CLUSTERING TASK
+Analyse these {len(signals)} signals and group them into 3-5 emerging themes.
+
+For each theme provide:
+- **name**: 2-4 word theme name (e.g., "Bio-based Materials", "AI Policy Frameworks")
+- **description**: 1-sentence explanation of what this theme represents
+- **signal_ids**: Array of signal IDs (from brackets above) that belong to this theme
+- **relevance_score**: 0-10 indicating how strong/coherent this theme is
+
+### SIGNALS
+{signals_text}
+
+### REQUIRED OUTPUT
+Return valid JSON only with this structure:
+{{
+    "themes": [
+        {{
+            "name": "Theme Name",
+            "description": "One sentence description",
+            "signal_ids": [0, 3, 7],
+            "relevance_score": 8.5
+        }}
+    ]
+}}
+"""

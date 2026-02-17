@@ -170,6 +170,11 @@ async function runScan() {
         }
       }
       showToast("Scan complete.", "success");
+      
+      // Auto-trigger clustering after scan
+      if (typeof window.autoClusterAfterScan === 'function') {
+        window.autoClusterAfterScan();
+      }
     }
   } catch (error) {
     console.error(error);
@@ -541,3 +546,142 @@ function showEnhancedToast(message, type = 'info', duration = 3000) {
 
 // Replace the old showToast with the enhanced version for new calls
 window.showEnhancedToast = showEnhancedToast;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Smart Clustering & Matrix Visualization
+// ─────────────────────────────────────────────────────────────────────────────
+
+let currentThemes = [];
+let currentThemeFilter = null;
+
+/**
+ * Call clustering API and render theme chips
+ */
+async function clusterAndRenderThemes(signals) {
+  if (!signals || signals.length < 3) {
+    console.log('Not enough signals for clustering (minimum 3 required)');
+    return;
+  }
+  
+  try {
+    console.log(`Clustering ${signals.length} signals...`);
+    
+    const response = await fetch(`${API_BASE_URL}/api/mode/cluster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signals: signals })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Clustering failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    currentThemes = result.themes || [];
+    
+    if (currentThemes.length > 0) {
+      console.log(`Found ${currentThemes.length} themes`);
+      
+      // Import and render theme chips
+      import('./ui.js').then(uiModule => {
+        const container = document.getElementById('theme-chips-container');
+        uiModule.renderThemeChips(currentThemes, container, handleThemeFilter);
+      });
+    } else {
+      console.log('No themes found');
+    }
+  } catch (error) {
+    console.error('Clustering failed:', error);
+  }
+}
+
+/**
+ * Handle theme filter selection
+ */
+function handleThemeFilter(theme) {
+  currentThemeFilter = theme;
+  
+  // Re-render signals with filter
+  const feed = document.getElementById('radar-feed');
+  if (!feed) return;
+  
+  feed.innerHTML = '';
+  
+  let filteredSignals = state.globalSignalsArray;
+  
+  if (theme && theme.signal_ids) {
+    filteredSignals = state.globalSignalsArray.filter((signal, index) => {
+      return theme.signal_ids.includes(index);
+    });
+  }
+  
+  // Re-render filtered signals
+  import('./ui.js').then(uiModule => {
+    filteredSignals.forEach((signal, index) => {
+      const card = uiModule.createSignalCard(signal);
+      if (card) {
+        card.style.setProperty('--card-index', index);
+        feed.appendChild(card);
+      }
+    });
+  });
+  
+  console.log(`Filtered to ${filteredSignals.length} signals`);
+}
+
+/**
+ * Setup view toggle buttons
+ */
+function setupViewToggle() {
+  const gridBtn = document.getElementById('gridViewBtn');
+  const matrixBtn = document.getElementById('matrixViewBtn');
+  const gridView = document.getElementById('radar-feed');
+  const matrixView = document.getElementById('matrixContainer');
+  
+  if (!gridBtn || !matrixBtn || !gridView || !matrixView) return;
+  
+  gridBtn.addEventListener('click', () => {
+    gridBtn.classList.add('active');
+    matrixBtn.classList.remove('active');
+    gridView.classList.remove('hidden');
+    matrixView.classList.add('hidden');
+  });
+  
+  matrixBtn.addEventListener('click', () => {
+    matrixBtn.classList.add('active');
+    gridBtn.classList.remove('active');
+    gridView.classList.add('hidden');
+    matrixView.classList.remove('hidden');
+    
+    // Render matrix
+    import('./matrix.js').then(matrixModule => {
+      let signalsToShow = state.globalSignalsArray;
+      if (currentThemeFilter && currentThemeFilter.signal_ids) {
+        signalsToShow = state.globalSignalsArray.filter((signal, index) => {
+          return currentThemeFilter.signal_ids.includes(index);
+        });
+      }
+      matrixModule.renderHorizonMatrix(signalsToShow);
+    });
+  });
+}
+
+// Initialize view toggle on page load
+document.addEventListener('DOMContentLoaded', () => {
+  setupViewToggle();
+});
+
+/**
+ * Auto-trigger clustering after scan completes
+ */
+function autoClusterAfterScan() {
+  if (state.globalSignalsArray.length >= 3) {
+    setTimeout(() => {
+      clusterAndRenderThemes(state.globalSignalsArray);
+    }, 500);
+  }
+}
+
+// Expose functions globally
+window.autoClusterAfterScan = autoClusterAfterScan;
+window.handleThemeFilter = handleThemeFilter;

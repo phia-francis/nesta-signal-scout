@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.api.dependencies import get_scan_orchestrator
+from app.api.dependencies import get_scan_orchestrator, get_llm_service
 from app.services.scan_logic import ScanOrchestrator
+from app.services.llm_svc import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +112,41 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
 def _msg(status: str, text: str) -> str:
     """Helper to format a status message for the stream."""
     return json.dumps({"status": status, "msg": text}) + "\n"
+
+
+class ClusterRequest(BaseModel):
+    """Request body for clustering signals."""
+    signals: list[dict[str, Any]]
+
+
+@router.post("/cluster")
+async def cluster_signals(
+    body: ClusterRequest,
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    """
+    Cluster signals into 3-5 themes using LLM analysis.
+    
+    Args:
+        body: ClusterRequest with signals list
+        llm_service: Injected LLM service
+        
+    Returns:
+        JSON with themes array
+    """
+    try:
+        if not body.signals or len(body.signals) == 0:
+            return {"themes": [], "error": "No signals provided"}
+        
+        logger.info(f"Clustering {len(body.signals)} signals")
+        
+        # Call LLM service to cluster
+        result = await llm_service.cluster_signals(body.signals)
+        
+        logger.info(f"Clustering complete: {len(result.get('themes', []))} themes found")
+        
+        return result
+        
+    except Exception as e:
+        logger.exception("Clustering failed")
+        return {"themes": [], "error": str(e)}
