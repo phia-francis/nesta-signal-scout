@@ -54,7 +54,7 @@ const MODE_CONFIG = {
     borderClass: 'border-nesta-purple'
   },
   policy: {
-    desc: '<strong>Topic Monitor:</strong> International policy & grey literature scan.',
+    desc: '<strong>Policy Scan:</strong> International policy &amp; grey literature scan.',
     btnText: 'SCAN POLICY LANDSCAPE',
     btnClass: 'bg-nesta-yellow',
     borderClass: 'border-nesta-yellow'
@@ -62,29 +62,41 @@ const MODE_CONFIG = {
 };
 
 function switchMainView(viewName) {
-  const scanView = document.getElementById("view-scan");
-  const dbView = document.getElementById("view-database");
-  const navScan = document.getElementById("nav-scan");
-  const navDb = document.getElementById("nav-db");
-
-  if (viewName === "scan") {
-    scanView.classList.remove("hidden");
-    dbView.classList.add("hidden");
-    navScan.classList.add("bg-white", "shadow-sm", "text-nesta-navy");
-    navScan.classList.remove("text-slate-500");
-    navDb.classList.remove("bg-white", "shadow-sm", "text-nesta-navy");
-    navDb.classList.add("text-slate-500");
-  } else {
-    scanView.classList.add("hidden");
-    dbView.classList.remove("hidden");
-    navDb.classList.add("bg-white", "shadow-sm", "text-nesta-navy");
-    navDb.classList.remove("text-slate-500");
-    navScan.classList.remove("bg-white", "shadow-sm", "text-nesta-navy");
-    navScan.classList.add("text-slate-500");
-    refreshDatabase();
-  }
+  // No-op: Scanner is always visible. Database is now a modal.
 }
 window.switchMainView = switchMainView;
+
+// ── Modal Logic ──────────────────────────────────────────────────────────────
+function toggleModal(name, show) {
+  const modals = {
+    db: {
+      overlay: document.getElementById('db-overlay'),
+      content: document.getElementById('db-modal')
+    },
+    help: {
+      overlay: document.getElementById('help-overlay'),
+      content: document.getElementById('help-modal')
+    }
+  };
+
+  const m = modals[name];
+  if (!m || !m.overlay || !m.content) return;
+  if (show) {
+    m.overlay.classList.add('open');
+    m.content.classList.add('open');
+    if (name === 'db') refreshDatabase();
+  } else {
+    m.overlay.classList.remove('open');
+    m.content.classList.remove('open');
+  }
+}
+
+document.getElementById('open-db-btn')?.addEventListener('click',
+  () => toggleModal('db', true));
+document.getElementById('close-db-btn')?.addEventListener('click',
+  () => toggleModal('db', false));
+document.getElementById('db-overlay')?.addEventListener('click',
+  () => toggleModal('db', false));
 
 document.querySelectorAll(".mode-toggle").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -143,14 +155,13 @@ dom.researchInput?.addEventListener("keydown", (event) => {
   }
 });
 document.getElementById("help-btn")?.addEventListener("click", () => {
-  alert(
-    "User Guide:\n\n" +
-    "1. Select a Mode (Quick, Deep, Topic Monitor)\n" +
-    "2. Choose a Mission (or 'Any')\n" +
-    "3. Enter your topic\n" +
-    "4. Click Scan\n\n" +
-    "Use 'Star' to save signals to Database."
-  );
+  toggleModal('help', true);
+});
+document.getElementById("close-help-btn")?.addEventListener("click", () => {
+  toggleModal('help', false);
+});
+document.getElementById("help-overlay")?.addEventListener("click", () => {
+  toggleModal('help', false);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
