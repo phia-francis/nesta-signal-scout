@@ -177,7 +177,7 @@ async def cluster_signals(
         
     except Exception as e:
         logger.exception("Clustering failed")
-        return {"themes": [], "error": str(e)}
+        return {"themes": [], "error": "Clustering failed due to an internal error"}
 
 
 @router.get("/scan/{scan_id}")
