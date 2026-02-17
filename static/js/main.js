@@ -281,9 +281,11 @@ async function updateSignalStatus(url, status) {
     if (!res.ok) {
       throw new Error(`Failed to set status: ${status}`);
     }
+    return true;
   } catch (e) {
     console.error(e);
     showToast(`Action failed: ${e.message}`, "error");
+    return false;
   }
 }
 
