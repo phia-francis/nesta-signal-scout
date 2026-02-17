@@ -25,12 +25,14 @@ class Settings(BaseSettings):
     CHAT_MODEL: str = "gpt-4o-mini"
 
     PROJECT_NAME: str = "Nesta Signal Scout"
-    # Set BACKEND_CORS_ORIGINS in .env as a JSON array, e.g.
-    # BACKEND_CORS_ORIGINS=["https://nesta-signal-scout.onrender.com"]
+    
+    # Set BACKEND_CORS_ORIGINS in .env as a JSON array if you want to override this
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:8000",
-            "https://nesta-signal-scout.onrender.com",
+            "http://127.0.0.1:8000",
+            "https://nesta-signal-backend.onrender.com", # Live backend
+            "https://phia-francis.github.io",            # Live frontend
         ],
         validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS"),
     )
