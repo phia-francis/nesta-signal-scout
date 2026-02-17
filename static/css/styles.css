@@ -3,16 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --nesta-black: #0F2940;
-  --nesta-teal: #00D2A2;
-  --nesta-coral: #F75E5E;
-  --nesta-silver: #F3F4F5;
+  --nesta-blue: #0000FF;      /* buttons, links */
+  --nesta-navy: #0F294A;      /* text, headers */
+  --nesta-green: #18A48C;     /* Sustainable Future */
+  --nesta-pink: #F6A4B7;      /* Healthy Life */
+  --nesta-yellow: #FDB633;    /* Fairer Start */
+  --nesta-red: #EB003B;       /* errors */
+  --nesta-silver: #F3F4F5;    /* light background */
   --nesta-white: #FFFFFF;
-  --font-main: 'Inter', system-ui, sans-serif;
 }
 
 * {
-  font-family: var(--font-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* TYPOGRAPHY */
+h1, h2, h3, .headline {
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
 }
 
 /* CORRECT RELATIVE PATHS */
@@ -45,38 +53,42 @@
 .tour-highlight {
   position: relative;
   z-index: 65;
-  box-shadow: 0 0 0 4px #0000ff, 0 0 0 8px #e6007c;
-  border-radius: 0.5rem;
+  box-shadow: 0 0 0 4px var(--nesta-blue), 0 0 0 8px var(--nesta-red);
+  border-radius: 0;  /* Sharp angles, no rounded corners */
 }
 
 body {
   background-color: var(--nesta-silver);
-  color: var(--nesta-black);
-  font-family: var(--font-main);
+  color: var(--nesta-navy);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 h1,
 h2,
 h3,
 .brand-font {
-  color: var(--nesta-black);
-  font-family: var(--font-main);
+  color: var(--nesta-navy);
+  font-family: 'Noto Serif', serif;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
+/* Sharp, bold button design */
 .btn-nesta {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 4px 4px 0px 0px #0f294a;
+  box-shadow: 4px 4px 0px 0px var(--nesta-navy);
+  border-radius: 0;  /* Sharp angles */
+  border: 3px solid var(--nesta-navy);  /* Bold 3px borders */
 }
 
 .btn-nesta:hover {
   transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0px 0px #0f294a;
+  box-shadow: 6px 6px 0px 0px var(--nesta-navy);
 }
 
 .btn-nesta:active {
   transform: translate(0px, 0px);
-  box-shadow: 2px 2px 0px 0px #0f294a;
+  box-shadow: 2px 2px 0px 0px var(--nesta-navy);
 }
 
 .nav-button {
@@ -467,7 +479,7 @@ h3,
   border-radius: 999px;
   background: var(--nesta-silver);
   border: 1px solid rgba(15, 41, 64, 0.2);
-  color: var(--nesta-black);
+  color: var(--nesta-navy);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -485,8 +497,8 @@ h3,
 .filter-btn.active,
 #btn-view-grid.bg-white,
 #btn-view-network.bg-white {
-  background: var(--nesta-black);
-  color: var(--nesta-teal);
+  background: var(--nesta-navy);
+  color: var(--nesta-blue);
   border: none;
 }
 
@@ -507,9 +519,9 @@ h3,
   bottom: 1.5rem;
   max-width: 360px;
   width: calc(100% - 3rem);
-  background: var(--nesta-black);
+  background: var(--nesta-navy);
   color: var(--nesta-white);
-  border-left: 4px solid var(--nesta-teal);
+  border-left: 4px solid var(--nesta-blue);
   box-shadow: 0 18px 40px rgba(15, 41, 64, 0.35);
   padding: 0.875rem 1rem;
   border-radius: 0.5rem;
@@ -518,7 +530,7 @@ h3,
 }
 
 .modern-toast.error {
-  border-left-color: var(--nesta-coral);
+  border-left-color: var(--nesta-red);
 }
 
 @keyframes spin {

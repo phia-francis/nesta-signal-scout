@@ -32,6 +32,18 @@ function formatDate(dateString) {
 }
 
 /**
+ * Get mission color based on mission name
+ */
+function getMissionColor(mission) {
+  const colors = {
+    'A Sustainable Future': 'text-[#18A48C]',  // Green
+    'A Healthy Life': 'text-[#F6A4B7]',        // Pink
+    'A Fairer Start': 'text-[#FDB633]',        // Yellow
+  };
+  return colors[mission] || 'text-nesta-blue';
+}
+
+/**
  * Get typology colour class
  */
 function getTypologyColor(typology) {
@@ -112,7 +124,7 @@ export function createSignalCard(signal, context = 'feed') {
     </div>
     <div class="text-xs">
       <span>${formatDate(signal.date)}</span>
-      ${signal.mission ? `<span class="ml-2 text-nesta-blue font-bold">${escapeHtml(signal.mission)}</span>` : ''}
+      ${signal.mission ? `<span class="ml-2 ${getMissionColor(signal.mission)} font-bold">${escapeHtml(signal.mission)}</span>` : ''}
     </div>
   `;
 
