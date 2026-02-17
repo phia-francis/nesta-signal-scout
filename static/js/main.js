@@ -31,6 +31,7 @@ const dom = {
   emptyState: document.getElementById("empty-state"),
   scanStatus: document.getElementById("scan-status"),
   queryInput: document.getElementById("query-input"),
+  researchInput: document.getElementById("research-input"),
   missionSelect: document.getElementById("mission-select"),
   scanLoader: document.getElementById("scan-loader"),
   toastContainer: document.getElementById("toast-container"),
@@ -110,11 +111,11 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
 
     // Toggle input visibility (textarea for Deep, input for others)
     if (mode === "research") {
-      document.getElementById("query-input").classList.add("hidden");
-      document.getElementById("research-input").classList.remove("hidden");
+      dom.queryInput?.classList.add("hidden");
+      dom.researchInput?.classList.remove("hidden");
     } else {
-      document.getElementById("query-input").classList.remove("hidden");
-      document.getElementById("research-input").classList.add("hidden");
+      dom.queryInput?.classList.remove("hidden");
+      dom.researchInput?.classList.add("hidden");
     }
 
     // Switch to scan view when mode changes
@@ -150,8 +151,8 @@ document.getElementById("help-btn")?.addEventListener("click", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 async function runScan() {
   const query = state.currentMode === 'research'
-    ? document.getElementById('research-input').value.trim()
-    : document.getElementById('query-input').value.trim();
+    ? (dom.researchInput?.value.trim() || '')
+    : (dom.queryInput?.value.trim() || '');
   if (!query) {
     showToast("Please enter a topic", "error");
     return;
