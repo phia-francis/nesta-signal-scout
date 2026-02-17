@@ -86,18 +86,21 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
         yield _msg("complete", f"Scan complete. {count} signals visualized.")
 
     except ValidationError as e:
-        yield _msg("error", f"Invalid request: {str(e)}")
+        logger.warning("Radar validation error: %s", e)
+        yield _msg("error", "Invalid request. Please check your query and try again.")
     except RateLimitError as e:
-        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+        logger.warning("Radar rate limit hit: %s", e)
+        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
+        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
     except SearchAPIError as e:
-        # Custom errors are usually safe, but ensuring no sensitive data leaks here is good practice
-        yield _msg("error", f"Search service unavailable: {str(e)}")
+        logger.error("Radar search API error: %s", e)
+        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
     except SignalScoutError as e:
-        yield _msg("error", f"Scan error: {str(e)}")
-    except Exception as e:
+        logger.error("Radar scan error: %s", e)
+        yield _msg("error", "An error occurred during scanning. Please try again later.")
+    except Exception:
         request_id = "radar-scan-failed"
         logger.exception("Radar scan failed. Request ID: %s", request_id)
-        # FIXED: Generic message instead of str(e)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
@@ -122,17 +125,21 @@ async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanO
         yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
 
     except ValidationError as e:
-        yield _msg("error", f"Invalid request: {str(e)}")
+        logger.warning("Policy validation error: %s", e)
+        yield _msg("error", "Invalid request. Please check your query and try again.")
     except RateLimitError as e:
-        yield _msg("error", f"Rate limit exceeded for {e.service}. Please retry after {e.retry_after}s.")
+        logger.warning("Policy rate limit hit: %s", e)
+        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
+        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
     except SearchAPIError as e:
-        yield _msg("error", f"Search service unavailable: {str(e)}")
+        logger.error("Policy search API error: %s", e)
+        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
     except SignalScoutError as e:
-        yield _msg("error", f"Scan error: {str(e)}")
-    except Exception as e:
+        logger.error("Policy scan error: %s", e)
+        yield _msg("error", "An error occurred during scanning. Please try again later.")
+    except Exception:
         request_id = "policy-scan-failed"
         logger.exception("Policy scan failed. Request ID: %s", request_id)
-        # FIXED: Generic message instead of str(e)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
