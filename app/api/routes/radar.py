@@ -234,7 +234,8 @@ async def get_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to retrieve scan {scan_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/scans")
@@ -257,7 +258,8 @@ async def list_scans(
         return {"scans": scans, "count": len(scans)}
     except Exception as e:
         logger.exception("Failed to list scans")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.delete("/scan/{scan_id}")
@@ -286,7 +288,8 @@ async def delete_scan(
         raise
     except Exception as e:
         logger.exception(f"Failed to delete scan {scan_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/cleanup")
@@ -312,4 +315,5 @@ async def cleanup_old_scans(
         }
     except Exception as e:
         logger.exception("Failed to cleanup old scans")
-        raise HTTPException(status_code=500, detail=str(e))
+        # FIXED: Removed detail=str(e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
