@@ -31,8 +31,8 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost:8000",
             "http://127.0.0.1:8000",
-            "https://nesta-signal-backend.onrender.com", # Your Live Backend
-            "https://phia-francis.github.io"               # Your Live Frontend
+            "https://nesta-signal-backend.onrender.com", # Live backend
+            "https://phia-francis.github.io",            # Live frontend
         ],
         validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS"),
     )
