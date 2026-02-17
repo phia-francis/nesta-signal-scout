@@ -11,9 +11,6 @@
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
     <style>
-        @font-face { font-family: 'Averta'; src: url('/static/fonts/Averta-Regular.otf'); }
-        @font-face { font-family: 'Averta-Bold'; src: url('/static/fonts/Averta-Semibold.otf'); font-weight: bold; }
-        @font-face { font-family: 'Zosia'; src: url('/static/fonts/Zosia-Display.woff2'); }
         body { font-family: 'Averta', sans-serif; }
         h1, h2, h3, .font-display { font-family: 'Zosia', serif; }
         .mode-toggle.active { background-color: #0000FF; color: white; border-color: #0000FF; }
@@ -33,6 +30,15 @@
         </div>
 
         <div class="flex items-center gap-3">
+             <button id="help-btn"
+                     class="text-slate-400 hover:text-nesta-blue transition-colours"
+                     title="User Guide">
+                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                           d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                     </path>
+                 </svg>
+             </button>
              <button id="refresh-db-btn" class="text-xs font-bold uppercase text-slate-400 hover:text-nesta-blue">Refresh DB</button>
              <div class="w-px h-4 bg-slate-300"></div>
              <span class="text-xs font-bold text-nesta-purple">v2.0 Layered</span>
@@ -57,19 +63,29 @@
                         </button>
                     </div>
 
+                    <div id="mode-description"
+                         class="text-sm text-nesta-navy bg-slate-50 p-3 rounded border-l-4 border-nesta-blue">
+                        <strong>Quick Scan:</strong> Fast web sweep for surface-level signals.
+                    </div>
+
                     <div class="flex gap-2">
                         <select id="mission-select" class="w-48 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 font-bold text-sm text-nesta-navy focus:border-nesta-blue outline-none">
-                            <option value="General">All Missions</option>
-                            <option value="A Sustainable Future">Sustainable Future</option>
-                            <option value="A Healthy Life">Healthy Life</option>
-                            <option value="A Fairer Start">Fairer Start</option>
+                            <option value="Any">Cross-cutting / Any Mission</option>
+                            <option value="A Sustainable Future">A Sustainable Future</option>
+                            <option value="A Healthy Life">A Healthy Life</option>
+                            <option value="A Fairer Start">A Fairer Start</option>
                         </select>
                         <input type="text" id="query-input" placeholder="Enter an emerging topic (e.g., 'Biotech in Agriculture')"
                                class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-6 text-lg font-bold text-nesta-navy placeholder:text-slate-400 focus:border-nesta-blue outline-none transition-colors">
                         <button id="scan-btn" class="bg-nesta-blue text-white px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
-                            SCAN
+                            RUN QUICK SCAN
                         </button>
                     </div>
+
+                    <textarea id="research-input"
+                              rows="4"
+                              class="hidden w-full bg-slate-50 border-2 border-slate-200 rounded-lg p-4 text-lg font-bold text-nesta-navy placeholder:text-slate-400 focus:border-nesta-blue outline-none transition-colors"
+                              placeholder="Describe the research hypothesis or detailed question..."></textarea>
 
                     <div class="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
                         <span id="scan-status">Ready to scan.</span>
