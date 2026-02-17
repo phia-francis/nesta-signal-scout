@@ -62,7 +62,7 @@ const MODE_CONFIG = {
 };
 
 function switchMainView(viewName) {
-  // No-op: Scanner is always visible. Database is now a modal.
+  // Kept for backward compatibility; scanner is always visible now.
 }
 window.switchMainView = switchMainView;
 
