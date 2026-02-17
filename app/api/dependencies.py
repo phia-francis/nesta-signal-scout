@@ -26,7 +26,7 @@ def get_taxonomy() -> TaxonomyService:
 
 @lru_cache(maxsize=1)
 def get_search_service() -> SearchService:
-    return SearchService(get_settings(), get_taxonomy())
+    return SearchService(get_settings())
 
 
 @lru_cache(maxsize=1)
