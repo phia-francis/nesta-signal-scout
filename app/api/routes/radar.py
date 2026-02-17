@@ -198,9 +198,9 @@ async def cluster_signals(
                 "warning": "Failed to save scan to storage"
             }
         
-    except LLMServiceError as e:
+    except LLMServiceError:
         logger.exception("Clustering LLM call failed")
-        return {"themes": [], "error": f"LLM clustering failed: {str(e)}"}
+        return {"themes": [], "error": "LLM clustering failed due to an internal error"}
     except Exception as e:
         logger.exception("Clustering failed")
         return {"themes": [], "error": "Clustering failed due to an internal error"}
