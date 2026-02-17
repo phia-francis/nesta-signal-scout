@@ -55,12 +55,14 @@ class ScanOrchestrator:
         search_service: SearchService,
         analytics_service: HorizonAnalyticsService,
         taxonomy: TaxonomyService,
+        llm_service: Any = None,
     ) -> None:
         self.gateway_service = gateway_service
         self.openalex_service = openalex_service
         self.search_service = search_service
         self.analytics_service = analytics_service
         self.taxonomy = taxonomy
+        self.llm_service = llm_service
         self._fetch_cache: dict[str, tuple[float, list[RawSignal], list[str]]] = {}
         self._warnings: list[str] = []
 
@@ -410,13 +412,19 @@ class ScanOrchestrator:
             yield card
 
     async def fetch_research_deep_dive(self, query: str) -> list[SignalCard]:
-        """Deep Dive uses OpenAlex + Niche Blogs to find synthesis."""
+        """
+        Deep Dive uses OpenAlex + Niche Blogs to find synthesis.
+        
+        1. Fetches data (Search + OpenAlex)
+        2. Injects data into LLM for synthesis
+        3. Returns synthesised cards
+        """
         if not query.strip():
             raise ValueError("Research query is required.")
 
-        # Mix of academic and blog sources for synthesis
+        # Step 1: Fetch Raw Data (The Context)
         blog_query = f"{query} (site:substack.com OR site:medium.com OR \"white paper\")"
-
+        
         results = await asyncio.gather(
             self.openalex_service.search_works(query),
             self.search_service.search(blog_query, num=10, freshness="year"),
@@ -428,14 +436,59 @@ class ScanOrchestrator:
         raw_signals.extend(self._normalise_openalex(openalex_res, mission="Research"))
         raw_signals.extend(self._normalise_google(google_res, mission="Research", source_label="Web", is_novel=False))
 
-        return list(
+        # If no LLM service available, fall back to traditional processing
+        if not self.llm_service:
+            return list(
+                self.process_signals(
+                    raw_signals,
+                    mission="Research",
+                    related_terms=[],
+                    override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
+                )
+            )
+
+        # Step 2: Convert to LLM input format
+        llm_input_data = [
+            {
+                "title": s.title,
+                "snippet": s.abstract,
+                "displayLink": s.source
+            }
+            for s in raw_signals
+        ]
+
+        # Step 3: Call LLM with fresh context
+        synthesis_result = await self.llm_service.synthesize_research(query, llm_input_data)
+
+        # Step 4: Convert LLM Output to SignalCard
+        synthesized_card = SignalCard(
+            title=f"Synthesis: {query.title()}",
+            url="",
+            summary=synthesis_result.get("synthesis", "No synthesis available."),
+            source="AI Analysis",
+            mission="Research",
+            date=datetime.now(timezone.utc).date().isoformat(),
+            score_activity=0.0,
+            score_attention=0.0,
+            score_recency=10.0,
+            final_score=9.5,
+            typology="Synthesis",
+            is_novel=True,
+            related_keywords=[]
+        )
+
+        # Create signal cards from individual results
+        individual_cards = list(
             self.process_signals(
-                raw_signals,
+                raw_signals[:10],  # Limit to top 10 for display
                 mission="Research",
                 related_terms=[],
                 override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
             )
         )
+
+        # Return synthesis first, then individual results
+        return [synthesized_card] + individual_cards
 
     async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
         """Policy Monitor: International & Grey Literature (PDFs)."""

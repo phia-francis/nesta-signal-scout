@@ -64,6 +64,7 @@ def get_scan_orchestrator() -> ScanOrchestrator:
         search_service=get_search_service(),
         analytics_service=get_analytics_service(),
         taxonomy=get_taxonomy(),
+        llm_service=get_llm_service(),
     )
 
 
