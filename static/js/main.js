@@ -45,19 +45,25 @@ const MODE_CONFIG = {
     desc: '<strong>Quick Scan:</strong> Fast web sweep for surface-level signals.',
     btnText: 'RUN QUICK SCAN',
     btnClass: 'bg-nesta-blue',
-    borderClass: 'border-nesta-blue'
+    borderClass: 'border-nesta-blue',
+    themeClass: 'theme-navy',
+    placeholder: "Enter an emerging topic (e.g., 'Biotech in Agriculture')"
   },
   research: {
     desc: '<strong>Deep Scan:</strong> AI synthesis of blogs & papers. Takes longer.',
     btnText: 'START DEEP RESEARCH',
     btnClass: 'bg-nesta-purple',
-    borderClass: 'border-nesta-purple'
+    borderClass: 'border-nesta-purple',
+    themeClass: 'theme-violet',
+    placeholder: ''
   },
   policy: {
     desc: '<strong>Policy Scan:</strong> International policy &amp; grey literature scan.',
     btnText: 'SCAN POLICY LANDSCAPE',
     btnClass: 'bg-nesta-yellow',
-    borderClass: 'border-nesta-yellow'
+    borderClass: 'border-nesta-yellow',
+    themeClass: 'theme-aqua',
+    placeholder: "Enter a policy area (e.g., 'AI Regulation')"
   }
 };
 
@@ -105,19 +111,24 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     const mode = btn.dataset.mode;
     state.currentMode = mode;
 
+    const config = MODE_CONFIG[mode];
+
+    // Apply theme class to body for CSS variable cascade
+    document.body.className =
+      `bg-app text-main h-screen flex flex-col overflow-hidden ${config.themeClass}`;
+
     // Update mode description
     const descBox = document.getElementById("mode-description");
-    const config = MODE_CONFIG[mode];
     if (descBox && config) {
       descBox.innerHTML = config.desc;
-      descBox.className = "text-sm text-nesta-navy bg-slate-50 p-3 rounded border-l-4 " + config.borderClass;
+      descBox.className = "text-sm text-main bg-input p-3 rounded border-l-4 " + config.borderClass;
     }
 
     // Update scan button text and colour
     const scanBtn = document.getElementById("scan-btn");
     if (scanBtn && config) {
       scanBtn.textContent = config.btnText;
-      scanBtn.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-yellow");
+      scanBtn.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-yellow", "bg-btn-accent");
       scanBtn.classList.add(config.btnClass);
     }
 
@@ -128,6 +139,9 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     } else {
       dom.queryInput?.classList.remove("hidden");
       dom.researchInput?.classList.add("hidden");
+      if (dom.queryInput && config.placeholder) {
+        dom.queryInput.placeholder = config.placeholder;
+      }
     }
 
     // Switch to scan view when mode changes

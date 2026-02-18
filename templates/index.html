@@ -13,23 +13,23 @@
     <style>
         body { font-family: 'Averta', sans-serif; }
         h1, h2, h3, .font-display { font-family: 'Zosia', serif; }
-        .mode-toggle.active { background-color: #0000FF; color: white; border-color: #0000FF; }
+        .mode-toggle.active { background-color: var(--btn-accent); color: var(--btn-text); border-color: var(--btn-accent); }
     </style>
 </head>
-<body class="bg-slate-50 text-nesta-navy h-screen flex flex-col overflow-hidden">
+<body class="bg-app text-main h-screen flex flex-col overflow-hidden theme-navy">
 
-    <nav class="bg-white border-b border-slate-200 px-6 h-16 flex justify-between items-center shadow-sm z-20">
+    <nav class="bg-panel backdrop-blur-md border-b border-borderline px-6 h-16 flex justify-between items-center shadow-sm z-20">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-nesta-blue rounded-bl-xl rounded-tr-xl"></div>
-            <h1 class="text-xl font-display font-bold">Signal Scout</h1>
+            <h1 class="text-xl font-display font-bold text-main">Signal Scout</h1>
         </div>
 
         <div class="flex gap-4 items-center">
-            <button id="open-db-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg text-sm font-bold text-nesta-navy hover:bg-slate-200 transition-colors">
+            <button id="open-db-btn" class="flex items-center gap-2 px-4 py-2 bg-input rounded-lg text-sm font-bold text-main hover:opacity-80 transition-colors">
                 📚 Signal Database
             </button>
             <button id="help-btn"
-                    class="text-slate-400 hover:text-nesta-blue transition-colors"
+                    class="text-muted hover:text-main transition-colors"
                     title="User Guide"
                     aria-label="User guide">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,54 +38,54 @@
                     </path>
                 </svg>
             </button>
-            <div class="w-px h-4 bg-slate-300"></div>
-            <span class="text-xs font-bold text-nesta-purple">v2.0 Layered</span>
+            <div class="w-px h-4 bg-borderline"></div>
+            <span class="text-xs font-bold text-muted">v2.0 Layered</span>
         </div>
     </nav>
 
     <main class="flex-1 flex flex-col overflow-hidden relative">
 
         <div id="view-scan" class="flex-1 flex flex-col w-full h-full">
-            <div class="bg-white border-b border-slate-200 p-8 shadow-sm z-10">
+            <div class="bg-panel backdrop-blur-md border-b border-borderline p-8 shadow-sm z-10">
                 <div class="max-w-6xl mx-auto space-y-6">
 
                     <div class="flex justify-center gap-4">
-                        <button class="mode-toggle active border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-blue transition-colors" data-mode="radar" title="Fast scan of news &amp; social media">
+                        <button class="mode-toggle active border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="radar" title="Fast scan of news &amp; social media">
                             ⚡ Quick Scan
                         </button>
-                        <button class="mode-toggle border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-purple transition-colors" data-mode="research" title="Deep AI analysis of papers">
+                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="research" title="Deep AI analysis of papers">
                             🧠 Deep Scan
                         </button>
-                        <button class="mode-toggle border-2 border-slate-200 px-6 py-3 rounded-full font-bold text-sm hover:border-nesta-yellow transition-colors" data-mode="policy" title="Scan government &amp; policy documents">
+                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="policy" title="Scan government &amp; policy documents">
                             🌍 Policy Scan
                         </button>
                     </div>
 
                     <div id="mode-description"
-                         class="text-sm text-nesta-navy bg-slate-50 p-3 rounded border-l-4 border-nesta-blue">
+                         class="text-sm text-main bg-input p-3 rounded border-l-4 border-nesta-blue">
                         <strong>Quick Scan:</strong> Fast web sweep for surface-level signals.
                     </div>
 
                     <div class="flex gap-2">
-                        <select id="mission-select" class="w-48 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 font-bold text-sm text-nesta-navy focus:border-nesta-blue outline-none">
+                        <select id="mission-select" class="w-48 bg-input border-2 border-borderline rounded-lg px-4 font-bold text-sm text-main focus:border-btn-accent outline-none">
                             <option value="Any">Cross-cutting / Any Mission</option>
                             <option value="A Sustainable Future">A Sustainable Future</option>
                             <option value="A Healthy Life">A Healthy Life</option>
                             <option value="A Fairer Start">A Fairer Start</option>
                         </select>
                         <input type="text" id="query-input" placeholder="Enter an emerging topic (e.g., 'Biotech in Agriculture')"
-                               class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-6 text-lg font-bold text-nesta-navy placeholder:text-slate-400 focus:border-nesta-blue outline-none transition-colors">
-                        <button id="scan-btn" class="bg-nesta-blue text-white px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
+                               class="flex-1 bg-input border-2 border-borderline rounded-lg px-6 text-lg font-bold text-main placeholder:text-muted focus:border-btn-accent outline-none transition-colors">
+                        <button id="scan-btn" class="bg-btn-accent text-btn-text px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
                             RUN QUICK SCAN
                         </button>
                     </div>
 
                     <textarea id="research-input"
                               rows="4"
-                              class="hidden w-full bg-slate-50 border-2 border-slate-200 rounded-lg p-4 text-lg font-bold text-nesta-navy placeholder:text-slate-400 focus:border-nesta-blue outline-none transition-colors"
+                              class="hidden w-full bg-input border-2 border-borderline rounded-lg p-4 text-lg font-bold text-main placeholder:text-muted focus:border-btn-accent outline-none transition-colors"
                               placeholder="Describe the research hypothesis or detailed question..."></textarea>
 
-                    <div class="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    <div class="flex justify-between items-center text-xs font-bold text-muted uppercase tracking-widest">
                         <span id="scan-status">Ready to scan.</span>
                         <div class="flex gap-2" id="advanced-options">
                             </div>
@@ -93,13 +93,13 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto bg-slate-50 p-6 relative">
-                <div id="scan-loader" class="hidden absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
-                    <div class="w-12 h-12 border-4 border-nesta-blue border-t-transparent rounded-full animate-spin"></div>
-                    <p class="mt-4 font-bold text-nesta-navy animate-pulse">Scanning Layers 1-5...</p>
+            <div class="flex-1 overflow-y-auto p-6 relative">
+                <div id="scan-loader" class="hidden absolute inset-0 bg-app/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+                    <div class="w-12 h-12 border-4 border-btn-accent border-t-transparent rounded-full animate-spin"></div>
+                    <p class="mt-4 font-bold text-main animate-pulse">Scanning Layers 1-5...</p>
                 </div>
 
-                <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center opacity-40">
+                <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center opacity-40 text-main">
                     <div class="text-6xl mb-4">🔭</div>
                     <h2 class="text-2xl font-display font-bold">Start a Scan</h2>
                     <p class="max-w-md mt-2">Select a mode above. Quick Scan covers social media & web. Deep Scan synthesises blogs & papers.</p>

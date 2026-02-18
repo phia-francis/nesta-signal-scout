@@ -33,6 +33,15 @@ tailwind.config = {
           black: '#000000',
           white: '#FFFFFF',
         },
+        // Theme-aware colours driven by CSS variables
+        app: 'var(--bg-app)',
+        panel: 'var(--panel-bg)',
+        main: 'var(--text-main)',
+        muted: 'var(--text-muted)',
+        borderline: 'var(--border-subtle)',
+        input: 'var(--input-bg)',
+        'btn-accent': 'var(--btn-accent)',
+        'btn-text': 'var(--btn-text)',
       },
       fontFamily: {
         sans: ['Averta', 'Inter', 'sans-serif'],
