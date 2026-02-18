@@ -402,6 +402,9 @@ const SOURCE_LISTS = {
   academic: ['nature.com', 'science.org', 'arxiv.org', 'pubmed.ncbi', 'scholar.google', 'openalex.org']
 };
 
+const DEFAULT_CONFIDENCE = 0.8;
+const SUMMARY_TRUNCATE_LENGTH = 120;
+
 function getSourceBadge(url) {
   if (!url || url === '#') {
     return { icon: '💬', label: 'Community', cssClass: 'bg-slate-100 text-slate-600' };
@@ -429,14 +432,16 @@ function renderSignalCard(signal) {
   const isRead = readSignals.has(signal.url);
   const badge = getSourceBadge(signal.url);
   const score = Number(signal.final_score || 0);
-  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / 10, 1) : 0.8);
+  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / 10, 1) : DEFAULT_CONFIDENCE);
   const confidencePercent = Math.round(confidence * 100);
+  const signalUrl = signal.url || "";
+  const summary = signal.summary || "";
 
   el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible ${isRead ? 'opacity-60' : ''}`;
   el.style.animationDelay = `${cardIndex * 0.05}s`;
   el.dataset.mission = signal.mission || "General";
-  el.dataset.score = score;
-  el.dataset.url = signal.url || "";
+  el.dataset.score = score.toString();
+  el.dataset.url = signalUrl;
 
   el.innerHTML = `
     ${!isRead ? '<div class="unread-dot absolute top-4 right-4 w-2.5 h-2.5 bg-red-500 rounded-full shadow-sm"></div>' : ''}
@@ -451,9 +456,9 @@ function renderSignalCard(signal) {
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" onclick="markAsRead('${escapeAttribute(signal.url || "")}')">${escapeHtml(signal.title || "Untitled")}</a>
+      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link">${escapeHtml(signal.title || "Untitled")}</a>
     </h3>
-    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml((signal.summary || "").slice(0, 120))}${(signal.summary || "").length > 120 ? '…' : ''}</p>
+    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(summary.slice(0, SUMMARY_TRUNCATE_LENGTH))}${summary.length > SUMMARY_TRUNCATE_LENGTH ? '…' : ''}</p>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
       <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
@@ -472,10 +477,15 @@ function renderSignalCard(signal) {
       ${confidencePercent < 70 ? '<p class="text-[10px] text-amber-600 mt-1.5">⚠️ Lower confidence — verify manually</p>' : ''}
     </div>
     <div class="hover-preview">
-      <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || signal.summary || "")}</p>
-      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" onclick="markAsRead('${escapeAttribute(signal.url || "")}')">Read Full →</a>
+      <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || summary)}</p>
+      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>
     </div>
   `;
+
+  // Attach event listeners (no inline onclick)
+  el.querySelectorAll('[data-action="read-link"], [data-action="read-preview"]').forEach(link => {
+    link.addEventListener('click', () => markAsRead(signalUrl));
+  });
 
   const starBtn = el.querySelector('[data-action="star"]');
   const archiveBtn = el.querySelector('[data-action="archive"]');
