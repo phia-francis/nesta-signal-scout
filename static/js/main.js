@@ -395,35 +395,131 @@ document.getElementById('filter-score-select')?.addEventListener('change', funct
 // 5. Rendering & UI
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Source Credibility Badges ────────────────────────────────────────────────
-const SOURCE_LISTS = {
-  official: ['gov.uk', 'nhs.uk', 'parliament.uk', 'ons.gov.uk', 'europa.eu'],
-  verified: ['bbc.co.uk', 'ft.com', 'theguardian.com', 'reuters.com', 'economist.com'],
-  academic: ['nature.com', 'science.org', 'arxiv.org', 'pubmed.ncbi', 'scholar.google', 'openalex.org']
-};
-
+// ── Source Type Badges (global, unbiased — describes type, not trustworthiness) ──
 const DEFAULT_CONFIDENCE = 0.8;
 const SUMMARY_TRUNCATE_LENGTH = 120;
 
-function getSourceBadge(url) {
-  if (!url || url === '#') {
-    return { icon: '💬', label: 'Community', cssClass: 'bg-slate-100 text-slate-600' };
+function getSourceBadge(sourceUrl) {
+  if (!sourceUrl || sourceUrl === '#') {
+    return { icon: '🌐', label: 'Web', cssClass: 'bg-slate-100 text-slate-600' };
   }
   try {
-    const domain = new URL(url).hostname.replace('www.', '');
-    if (SOURCE_LISTS.official.some(d => domain.includes(d))) {
+    const url = new URL(sourceUrl);
+    const domain = url.hostname.toLowerCase().replace('www.', '');
+    const path = url.pathname.toLowerCase();
+
+    // Government/Official (global TLDs)
+    if (domain.endsWith('.gov') || domain === 'gov' ||
+        domain.endsWith('.gov.uk') || domain === 'gov.uk' ||
+        domain.endsWith('.gov.au') || domain === 'gov.au' ||
+        domain.endsWith('.gov.sg') ||
+        domain.endsWith('.gov.br') ||
+        domain.endsWith('.go.jp') ||
+        domain.endsWith('.go.kr') ||
+        domain.endsWith('.gob.mx') ||
+        domain.endsWith('.gouv.fr') ||
+        domain.includes('parliament') ||
+        domain.includes('ministry')) {
       return { icon: '🏛️', label: 'Official', cssClass: 'bg-blue-100 text-blue-800' };
     }
-    if (SOURCE_LISTS.verified.some(d => domain.includes(d))) {
-      return { icon: '📰', label: 'Verified', cssClass: 'bg-green-100 text-green-800' };
+
+    // Intergovernmental Organisations
+    if (domain.includes('un.org') ||
+        domain.includes('who.int') ||
+        domain.includes('worldbank.org') ||
+        domain.includes('imf.org') ||
+        domain.includes('oecd.org') ||
+        domain.includes('europa.eu') ||
+        domain.includes('asean.org') ||
+        domain.includes('african-union.org')) {
+      return { icon: '🌍', label: 'IGO', cssClass: 'bg-cyan-100 text-cyan-800' };
     }
-    if (SOURCE_LISTS.academic.some(d => domain.includes(d))) {
+
+    // Think Tanks / Policy Research (check before Academic since some use .edu)
+    if (domain.includes('brookings') ||
+        domain.includes('chathamhouse') ||
+        domain.includes('csis.org') ||
+        domain.includes('rand.org') ||
+        domain.includes('carnegie') ||
+        domain.includes('cgdev.org') ||
+        domain.includes('nesta.org.uk')) {
+      return { icon: '💡', label: 'Think Tank', cssClass: 'bg-teal-100 text-teal-800' };
+    }
+
+    // Academic/Research (global education TLDs)
+    if (domain.includes('.edu') ||
+        domain.includes('.ac.uk') ||
+        domain.includes('.ac.jp') ||
+        domain.includes('.ac.in') ||
+        domain.includes('.edu.au') ||
+        domain.includes('arxiv.org') ||
+        domain.includes('researchgate') ||
+        domain.includes('scholar.google') ||
+        domain.includes('ssrn.com') ||
+        domain.includes('biorxiv.org') ||
+        domain.includes('pubmed') ||
+        domain.includes('openalex') ||
+        path.includes('/journal/') ||
+        path.includes('/paper/') ||
+        path.includes('/doi/')) {
       return { icon: '🎓', label: 'Academic', cssClass: 'bg-purple-100 text-purple-800' };
     }
+
+    // Peer-Reviewed Publishers
+    if (domain.includes('springer') ||
+        domain.includes('elsevier') ||
+        domain.includes('wiley') ||
+        domain.includes('nature.com') ||
+        domain.includes('science.org') ||
+        domain.includes('cell.com') ||
+        domain.includes('plos.org') ||
+        domain.includes('frontiersin.org') ||
+        domain.includes('mdpi.com')) {
+      return { icon: '📚', label: 'Published', cssClass: 'bg-violet-100 text-violet-800' };
+    }
+
+    // News Wire / Public Broadcasters (globally diverse)
+    if (domain.includes('reuters') ||
+        domain.includes('apnews.com') ||
+        domain.includes('afp.com') ||
+        domain.includes('xinhua') ||
+        domain.includes('aljazeera') ||
+        domain.includes('bbc.co') ||
+        domain.includes('dw.com') ||
+        domain.includes('france24') ||
+        domain.includes('nhk.or.jp') ||
+        domain.includes('abc.net.au') ||
+        domain.includes('cbc.ca')) {
+      return { icon: '📡', label: 'News Wire', cssClass: 'bg-green-100 text-green-800' };
+    }
+
+    // Industry/Trade Publications
+    if (domain.includes('techcrunch') ||
+        domain.includes('venturebeat') ||
+        domain.includes('crunchbase') ||
+        domain.includes('wired.com') ||
+        domain.includes('arstechnica') ||
+        domain.includes('theverge.com') ||
+        domain.includes('zdnet.com')) {
+      return { icon: '💼', label: 'Industry', cssClass: 'bg-indigo-100 text-indigo-800' };
+    }
+
+    // Community/Social (platform-based)
+    if (domain.includes('reddit.com') ||
+        domain.includes('twitter.com') ||
+        domain.includes('x.com') ||
+        domain.includes('linkedin.com') ||
+        domain.includes('medium.com') ||
+        domain.includes('substack.com') ||
+        domain.includes('producthunt')) {
+      return { icon: '💬', label: 'Community', cssClass: 'bg-amber-100 text-amber-800' };
+    }
+
   } catch (_) {
     // Invalid URL
   }
-  return { icon: '💬', label: 'Community', cssClass: 'bg-slate-100 text-slate-600' };
+  // Default: generic web source (no judgment)
+  return { icon: '🌐', label: 'Web', cssClass: 'bg-slate-100 text-slate-600' };
 }
 
 function renderSignalCard(signal) {
