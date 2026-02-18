@@ -151,6 +151,9 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     dom.radarFeed.innerHTML = "";
     dom.emptyState.classList.remove("hidden");
     if (dom.scanStatus) dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
+
+    // Update preview for this mode
+    loadRecentPreview(mode);
   });
 });
 
@@ -258,6 +261,9 @@ async function runScan() {
     dom.scanLoader?.classList.add("hidden");
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
     if (state.globalSignalsArray.length === 0) dom.emptyState.classList.remove("hidden");
+
+    // Refresh preview with new data
+    loadRecentPreview(state.currentMode);
   }
 }
 
@@ -387,6 +393,106 @@ async function updateSignalStatus(url, status) {
     console.error(e);
     showToast(`Action failed: ${e.message}`, "error");
     return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6b. Recent Preview Panel (Context-Aware)
+// ─────────────────────────────────────────────────────────────────────────────
+const PREVIEW_MODE_NAMES = {
+  radar: { title: "Quick Scan", icon: "⚡" },
+  research: { title: "Deep Scan", icon: "🧠" },
+  policy: { title: "Policy Scan", icon: "🌍" }
+};
+
+const PREVIEW_MODE_MAP = {
+  radar: ["Radar", "Quick"],
+  research: ["Research", "Deep", "Synthesis"],
+  policy: ["Policy", "Monitor"]
+};
+
+async function loadRecentPreview(mode) {
+  const container = document.getElementById("recent-preview-container");
+  const grid = document.getElementById("recent-preview-grid");
+  const title = document.getElementById("recent-preview-title");
+  const icon = document.getElementById("recent-preview-icon");
+
+  if (!container || !grid || !title || !icon) return;
+
+  container.classList.remove("hidden");
+  grid.innerHTML = '<div class="col-span-3 text-center text-muted">Loading...</div>';
+
+  const modeInfo = PREVIEW_MODE_NAMES[mode] || PREVIEW_MODE_NAMES.radar;
+  title.textContent = `Recent ${modeInfo.title}s`;
+  icon.textContent = modeInfo.icon;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/saved`);
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const items = await res.json();
+
+    if (!Array.isArray(items)) {
+      grid.innerHTML = `
+        <div class="col-span-3 text-center text-muted py-4
+                    border border-dashed border-borderline rounded-xl">
+            No saved ${escapeHtml(modeInfo.title)}s. Run a scan to populate.
+        </div>`;
+      return;
+    }
+
+    const modeKeys = PREVIEW_MODE_MAP[mode] || PREVIEW_MODE_MAP.radar;
+    const filtered = items
+      .filter(item => {
+        const itemMode = item.Mode || item.mode || "Radar";
+        return modeKeys.some(m =>
+          itemMode.toLowerCase().includes(m.toLowerCase())
+        );
+      })
+      .slice(0, 3);
+
+    grid.innerHTML = "";
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="col-span-3 text-center text-muted py-4
+                    border border-dashed border-borderline rounded-xl">
+            No saved ${escapeHtml(modeInfo.title)}s. Run a scan to populate.
+        </div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const itemTitle = item.Title || item.title || "Untitled";
+      const itemMission = item.Mission || item.mission || "General";
+      const itemSummary = item.Summary || item.summary || "";
+      const itemUrl = item.URL || item.url || "";
+      const itemScore = Number(item.score_activity || 0).toFixed(1);
+
+      const card = document.createElement("div");
+      card.className =
+        "bg-panel backdrop-blur-sm p-5 rounded-xl border border-borderline " +
+        "hover:shadow-xl hover:-translate-y-1 cursor-pointer transition-all";
+      card.innerHTML = `
+        <div class="flex justify-between mb-2">
+            <span class="text-[10px] font-bold bg-input text-main px-2 py-1 rounded border border-borderline">
+                ${escapeHtml(itemMission)}
+            </span>
+            <span class="text-xs text-muted font-bold">${escapeHtml(itemScore)}</span>
+        </div>
+        <h4 class="font-bold text-main mb-2 line-clamp-2">${escapeHtml(itemTitle)}</h4>
+        <p class="text-xs text-muted line-clamp-3">${escapeHtml(itemSummary.slice(0, 150))}</p>
+      `;
+      if (itemUrl) {
+        card.addEventListener("click", () => window.open(itemUrl, "_blank", "noopener,noreferrer"));
+      }
+      grid.appendChild(card);
+    });
+  } catch (error) {
+    console.warn("Preview load failed:", error.message);
+    grid.innerHTML = `
+      <div class="col-span-3 text-center text-muted py-4
+                  border border-dashed border-borderline rounded-xl">
+          Could not load recent scans.
+      </div>`;
   }
 }
 
@@ -881,6 +987,9 @@ function updateUrlWithScanId(scanId) {
 document.addEventListener('DOMContentLoaded', () => {
   setupViewToggle();
   checkUrlForScan();
+
+  // Load initial preview for default mode
+  loadRecentPreview(state.currentMode);
   
   // Add share button if not exists
   const resultsHeader = document.querySelector('.results-header');

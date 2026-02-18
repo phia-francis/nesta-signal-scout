@@ -107,6 +107,26 @@
 
                 <div id="radar-feed" class="max-w-6xl mx-auto space-y-6 pb-20"></div>
             </div>
+
+            <!-- Recent Preview Panel -->
+            <div id="recent-preview-container"
+                 class="hidden shrink-0 border-t border-borderline bg-app transition-colors">
+                <div class="max-w-5xl mx-auto p-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-display font-bold text-main">
+                            <span id="recent-preview-icon">⚡</span>
+                            <span id="recent-preview-title">Recent Quick Scans</span>
+                        </h3>
+                        <button onclick="document.getElementById('open-db-btn').click()"
+                                class="text-sm font-bold text-muted hover:text-main transition-colors">
+                            View all →
+                        </button>
+                    </div>
+                    <div id="recent-preview-grid"
+                         class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    </div>
+                </div>
+            </div>
         </div>
 
     </main>
