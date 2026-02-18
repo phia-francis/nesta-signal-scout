@@ -280,7 +280,7 @@ class ScanOrchestrator:
         self._warnings.clear()
         # Deep scan uses research method
         try:
-            cards = await self.fetch_research_deep_dive(clean_topic)
+            cards = await self.fetch_research_deep_dive(clean_topic, mission=mission)
             return {
                 "signals": cards,
                 "related_terms": [],
@@ -435,7 +435,7 @@ class ScanOrchestrator:
         for card in self._deduplicate_signals(candidate_cards):
             yield card
 
-    async def fetch_research_deep_dive(self, query: str) -> list[SignalCard]:
+    async def fetch_research_deep_dive(self, query: str, mission: str = "Any") -> list[SignalCard]:
         """
         Perform a deep research dive combining OpenAlex and web sources.
 
@@ -445,6 +445,7 @@ class ScanOrchestrator:
 
         Args:
             query: Research query string.
+            mission: Nesta mission for focused analysis (default ``"Any"``).
 
         Returns:
             List of SignalCard objects — the first is the AI synthesis,
@@ -491,8 +492,8 @@ class ScanOrchestrator:
             for s in raw_signals
         ]
 
-        # Step 3: Call LLM with fresh context
-        synthesis_result = await self.llm_service.synthesize_research(query, llm_input_data)
+        # Step 3: Call LLM with fresh context and mission awareness
+        synthesis_result = await self.llm_service.synthesize_research(query, llm_input_data, mission=mission)
 
         # Step 4: Convert LLM Output to SignalCard
         synthesized_card = SignalCard(
