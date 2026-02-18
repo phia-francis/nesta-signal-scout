@@ -13,37 +13,34 @@
   --nesta-white: #FFFFFF;
   --background: #F8F8FA;      /* main background */
 
-  /* Theme variables – default: Navy (Mini Radar) */
-  --bg-app: #0F294A;
-  --text-main: #FFFFFF;
-  --text-muted: #94A3B8;
-  --panel-bg: rgba(15, 41, 74, 0.85);
-  --border-subtle: rgba(255, 255, 255, 0.15);
-  --input-bg: rgba(255, 255, 255, 0.08);
+  /* Scan module variables – default: Navy (Mini Radar) */
+  --box-bg: #0F294A;
+  --box-text: #FFFFFF;
+  --box-muted: #94A3B8;
+  --box-input-bg: rgba(255, 255, 255, 0.08);
+  --box-input-border: rgba(255, 255, 255, 0.15);
   --btn-accent: #0000FF;
   --btn-text: #FFFFFF;
 }
 
 /* Deep Research – Violet */
 body.theme-violet {
-  --bg-app: #4C1D95;
-  --text-main: #FFFFFF;
-  --text-muted: #C4B5FD;
-  --panel-bg: rgba(76, 29, 149, 0.85);
-  --border-subtle: rgba(255, 255, 255, 0.15);
-  --input-bg: rgba(255, 255, 255, 0.08);
+  --box-bg: #4C1D95;
+  --box-text: #FFFFFF;
+  --box-muted: #C4B5FD;
+  --box-input-bg: rgba(255, 255, 255, 0.1);
+  --box-input-border: rgba(255, 255, 255, 0.15);
   --btn-accent: #18A48C;
   --btn-text: #FFFFFF;
 }
 
 /* Regulatory Horizon – Aqua (light theme) */
 body.theme-aqua {
-  --bg-app: #CCFBF1;
-  --text-main: #0F294A;
-  --text-muted: #0F766E;
-  --panel-bg: rgba(255, 255, 255, 0.85);
-  --border-subtle: rgba(15, 41, 74, 0.15);
-  --input-bg: rgba(255, 255, 255, 0.9);
+  --box-bg: #CCFBF1;
+  --box-text: #0F294A;
+  --box-muted: #0F766E;
+  --box-input-bg: rgba(255, 255, 255, 0.7);
+  --box-input-border: rgba(15, 41, 74, 0.15);
   --btn-accent: #0F294A;
   --btn-text: #FFFFFF;
 }
@@ -90,21 +87,49 @@ h1, h2, h3, .headline {
 }
 
 body {
-  background-color: var(--bg-app);
-  color: var(--text-main);
+  background-color: #F8F8FA;
+  color: #0F294A;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  transition: background-color 0.6s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.6s ease;
+}
+
+/* Scan module – the colored box */
+.scan-module {
+  background-color: var(--box-bg);
+  color: var(--box-text);
+  transition: background-color 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+              color 0.4s ease;
+}
+
+.scan-input {
+  background-color: var(--box-input-bg);
+  border-color: var(--box-input-border);
+  color: var(--box-text);
+}
+
+.scan-input::placeholder {
+  color: var(--box-muted);
+}
+
+.scan-input:focus {
+  border-color: var(--btn-accent);
 }
 
 h1,
 h2,
 h3,
 .brand-font {
-  color: var(--text-main);
+  color: #0F294A;
   font-family: 'Noto Serif', serif;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+/* Inside scan module, headings use module text colour */
+.scan-module h1,
+.scan-module h2,
+.scan-module h3,
+.scan-module .brand-font {
+  color: var(--box-text);
 }
 
 /* Sharp, bold button design with Nesta shadow */
@@ -459,9 +484,9 @@ h3,
 
 /* MODE TOGGLE STYLES */
 .mode-toggle {
-  background: var(--input-bg);
-  border: 2px solid var(--border-subtle);
-  color: var(--text-main);
+  background: var(--box-input-bg);
+  border: 2px solid var(--box-input-border);
+  color: var(--box-text);
   cursor: pointer;
   border-radius: 999px;
   transition: all 0.3s ease;
@@ -637,15 +662,24 @@ h3,
 }
 
 .signal-card:hover {
-  transform: translate(-2px, -4px);
-  box-shadow: 8px 8px 0px 0px var(--nesta-navy);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(15, 41, 74, 0.1);
   border-color: var(--nesta-blue);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .signal-card:active {
   transform: scale(0.98);
   transition: transform 0.1s ease;
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(15, 41, 74, 0.1);
 }
 
 /* ===== SLIDE-OVER DETAIL PANEL ===== */

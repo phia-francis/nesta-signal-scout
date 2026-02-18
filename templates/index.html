@@ -16,20 +16,20 @@
         .mode-toggle.active { background-color: var(--btn-accent); color: var(--btn-text); border-color: var(--btn-accent); }
     </style>
 </head>
-<body class="bg-app text-main h-screen flex flex-col overflow-hidden theme-navy">
+<body class="h-screen flex flex-col overflow-hidden theme-navy" style="background:#F8F8FA; color:#0F294A;">
 
-    <nav class="bg-panel backdrop-blur-md border-b border-borderline px-6 h-16 flex justify-between items-center shadow-sm z-20">
+    <nav class="bg-white/80 backdrop-blur-lg border-b border-slate-200 px-6 h-16 flex justify-between items-center shadow-sm z-20">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-nesta-blue rounded-bl-xl rounded-tr-xl"></div>
-            <h1 class="text-xl font-display font-bold text-main">Signal Scout</h1>
+            <h1 class="text-xl font-display font-bold text-nesta-navy">Signal Scout</h1>
         </div>
 
         <div class="flex gap-4 items-center">
-            <button id="open-db-btn" class="flex items-center gap-2 px-4 py-2 bg-input rounded-lg text-sm font-bold text-main hover:opacity-80 transition-colors">
+            <button id="open-db-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg text-sm font-bold text-nesta-navy hover:bg-slate-200 transition-colors">
                 📚 Signal Database
             </button>
             <button id="help-btn"
-                    class="text-muted hover:text-main transition-colors"
+                    class="text-slate-400 hover:text-nesta-blue transition-colors"
                     title="User Guide"
                     aria-label="User guide">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,97 +38,98 @@
                     </path>
                 </svg>
             </button>
-            <div class="w-px h-4 bg-borderline"></div>
-            <span class="text-xs font-bold text-muted">v2.0 Layered</span>
+            <div class="w-px h-4 bg-slate-300"></div>
+            <span class="text-xs font-bold text-slate-400">v2.0 Layered</span>
         </div>
     </nav>
 
-    <main class="flex-1 flex flex-col overflow-hidden relative">
+    <main class="flex-1 overflow-y-auto">
+        <div class="max-w-6xl mx-auto px-6 py-10 space-y-12">
 
-        <div id="view-scan" class="flex-1 flex flex-col w-full h-full">
-            <div class="bg-panel backdrop-blur-md border-b border-borderline p-8 shadow-sm z-10">
-                <div class="max-w-6xl mx-auto space-y-6">
+            <!-- Scan Module (coloured box) -->
+            <section class="scan-module rounded-[2.5rem] p-12 shadow-2xl">
+                <h2 class="text-3xl font-display font-bold mb-8">Configure Scan</h2>
 
+                <div class="space-y-6">
                     <div class="flex justify-center gap-4">
-                        <button class="mode-toggle active border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="radar" title="Fast web &amp; social trends">
+                        <button class="mode-toggle active px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="radar" title="Fast web &amp; social trends">
                             ⚡ Mini Radar
                         </button>
-                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="research" title="AI-powered deep dive analysis">
+                        <button class="mode-toggle px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="research" title="AI-powered deep dive analysis">
                             🧠 Deep Research
                         </button>
-                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="policy" title="Policy &amp; regulatory intelligence">
+                        <button class="mode-toggle px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="policy" title="Policy &amp; regulatory intelligence">
                             🌍 Regulatory Horizon
                         </button>
                     </div>
 
                     <div id="mode-description"
-                         class="text-sm text-main bg-input p-3 rounded border-l-4 border-nesta-blue">
+                         class="text-sm p-3 rounded border-l-4 border-nesta-blue"
+                         style="background: var(--box-input-bg); color: var(--box-text);">
                         <strong>Mini Radar:</strong> Fast web &amp; social trends.
                     </div>
 
                     <div class="flex gap-2">
-                        <select id="mission-select" class="w-48 bg-input border-2 border-borderline rounded-lg px-4 font-bold text-sm text-main focus:border-btn-accent outline-none">
+                        <select id="mission-select" class="scan-input w-48 border-2 rounded-lg px-4 font-bold text-sm outline-none">
                             <option value="Any">Cross-cutting / Any Mission</option>
                             <option value="A Sustainable Future">A Sustainable Future</option>
                             <option value="A Healthy Life">A Healthy Life</option>
                             <option value="A Fairer Start">A Fairer Start</option>
                         </select>
                         <input type="text" id="query-input" placeholder="Enter a topic (e.g., 'Alternative Proteins')"
-                               class="flex-1 bg-input border-2 border-borderline rounded-lg px-6 text-lg font-bold text-main placeholder:text-muted focus:border-btn-accent outline-none transition-colors">
-                        <button id="scan-btn" class="bg-btn-accent text-btn-text px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
+                               class="scan-input flex-1 border-2 rounded-lg px-6 text-lg font-bold outline-none transition-colors">
+                        <button id="scan-btn" class="px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform"
+                                style="background-color: var(--btn-accent); color: var(--btn-text);">
                             RUN MINI RADAR
                         </button>
                     </div>
 
                     <textarea id="research-input"
                               rows="4"
-                              class="hidden w-full bg-input border-2 border-borderline rounded-lg p-4 text-lg font-bold text-main placeholder:text-muted focus:border-btn-accent outline-none transition-colors"
+                              class="scan-input hidden w-full border-2 rounded-lg p-4 text-lg font-bold outline-none transition-colors"
                               placeholder="Describe the research hypothesis or detailed question..."></textarea>
 
-                    <div class="flex justify-between items-center text-xs font-bold text-muted uppercase tracking-widest">
+                    <div class="flex justify-between items-center text-xs font-bold uppercase tracking-widest" style="color: var(--box-muted);">
                         <span id="scan-status">Ready to scan.</span>
-                        <div class="flex gap-2" id="advanced-options">
-                            </div>
+                        <div class="flex gap-2" id="advanced-options"></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="flex-1 overflow-y-auto p-6 relative">
-                <div id="scan-loader" class="hidden absolute inset-0 bg-app/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
-                    <div class="w-12 h-12 border-4 border-btn-accent border-t-transparent rounded-full animate-spin"></div>
-                    <p class="mt-4 font-bold text-main animate-pulse">Scanning Layers 1-5...</p>
+            <!-- Results (neutral background) -->
+            <section class="relative">
+                <div id="scan-loader" class="hidden absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm rounded-3xl">
+                    <div class="w-12 h-12 border-4 border-nesta-blue border-t-transparent rounded-full animate-spin"></div>
+                    <p class="mt-4 font-bold text-nesta-navy animate-pulse">Scanning Layers 1-5...</p>
                 </div>
 
-                <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center opacity-40 text-main">
+                <div id="empty-state" class="flex flex-col items-center justify-center py-20 text-center opacity-40 text-nesta-navy">
                     <div class="text-6xl mb-4">🔭</div>
                     <h2 class="text-2xl font-display font-bold">Start a Scan</h2>
                     <p class="max-w-md mt-2">Select a mode above. Mini Radar covers social media &amp; web. Deep Research synthesises blogs &amp; papers.</p>
                 </div>
 
-                <div id="radar-feed" class="max-w-6xl mx-auto space-y-6 pb-20"></div>
-            </div>
+                <div id="radar-feed" class="space-y-6 pb-10"></div>
+            </section>
 
             <!-- Recent Preview Panel -->
-            <div id="recent-preview-container"
-                 class="hidden shrink-0 border-t border-borderline bg-app transition-colors">
-                <div class="max-w-5xl mx-auto p-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-display font-bold text-main">
-                            <span id="recent-preview-icon">⚡</span>
-                            <span id="recent-preview-title">Recent Mini Radars</span>
-                        </h3>
-                        <button onclick="document.getElementById('open-db-btn').click()"
-                                class="text-sm font-bold text-muted hover:text-main transition-colors">
-                            View all →
-                        </button>
-                    </div>
-                    <div id="recent-preview-grid"
-                         class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    </div>
+            <section id="recent-preview-container"
+                     class="hidden border-t border-slate-200 pt-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-display font-bold text-nesta-navy">
+                        <span id="recent-preview-icon">⚡</span>
+                        <span id="recent-preview-title">Recent Mini Radars</span>
+                    </h3>
+                    <button onclick="document.getElementById('open-db-btn').click()"
+                            class="text-sm font-bold text-slate-400 hover:text-nesta-navy transition-colors">
+                        View all →
+                    </button>
                 </div>
-            </div>
+                <div id="recent-preview-grid"
+                     class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                </div>
+            </section>
         </div>
-
     </main>
 
     <!-- Database Modal -->

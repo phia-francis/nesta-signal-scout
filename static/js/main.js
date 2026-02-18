@@ -113,23 +113,24 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
 
     const config = MODE_CONFIG[mode];
 
-    // Apply theme class to body for CSS variable cascade
-    document.body.className =
-      `bg-app text-main h-screen flex flex-col overflow-hidden ${config.themeClass}`;
+    // Apply theme class to body for CSS variable cascade (scan module only)
+    document.body.className = `h-screen flex flex-col overflow-hidden ${config.themeClass}`;
 
     // Update mode description
     const descBox = document.getElementById("mode-description");
     if (descBox && config) {
       descBox.innerHTML = config.desc;
-      descBox.className = "text-sm text-main bg-input p-3 rounded border-l-4 " + config.borderClass;
+      descBox.className = "text-sm p-3 rounded border-l-4 " + config.borderClass;
+      descBox.style.background = "var(--box-input-bg)";
+      descBox.style.color = "var(--box-text)";
     }
 
     // Update scan button text and colour
     const scanBtn = document.getElementById("scan-btn");
     if (scanBtn && config) {
       scanBtn.textContent = config.btnText;
-      scanBtn.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-yellow", "bg-btn-accent");
-      scanBtn.classList.add(config.btnClass);
+      scanBtn.style.backgroundColor = "var(--btn-accent)";
+      scanBtn.style.color = "var(--btn-text)";
     }
 
     // Toggle input visibility (textarea for Deep, input for others)
@@ -282,7 +283,9 @@ function handleStreamEvent(event) {
 // ─────────────────────────────────────────────────────────────────────────────
 function renderSignalCard(signal) {
   const el = document.createElement("article");
-  el.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-slide-in relative";
+  const cardIndex = state.globalSignalsArray.length;
+  el.className = "bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-in relative";
+  el.style.animationDelay = `${cardIndex * 0.05}s`;
 
   el.innerHTML = `
     <div class="flex justify-between items-start mb-3 gap-3">
@@ -422,7 +425,7 @@ async function loadRecentPreview(mode) {
   if (!container || !grid || !title || !icon) return;
 
   container.classList.remove("hidden");
-  grid.innerHTML = '<div class="col-span-3 text-center text-muted">Loading...</div>';
+  grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
 
   const modeInfo = PREVIEW_MODE_NAMES[mode] || PREVIEW_MODE_NAMES.radar;
   title.textContent = modeInfo.pluralTitle;
@@ -435,8 +438,8 @@ async function loadRecentPreview(mode) {
 
     if (!Array.isArray(items)) {
       grid.innerHTML = `
-        <div class="col-span-3 text-center text-muted py-4
-                    border border-dashed border-borderline rounded-xl">
+        <div class="col-span-3 text-center text-slate-400 py-4
+                    border border-dashed border-slate-200 rounded-xl">
             No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
         </div>`;
       return;
@@ -455,8 +458,8 @@ async function loadRecentPreview(mode) {
     grid.innerHTML = "";
     if (filtered.length === 0) {
       grid.innerHTML = `
-        <div class="col-span-3 text-center text-muted py-4
-                    border border-dashed border-borderline rounded-xl">
+        <div class="col-span-3 text-center text-slate-400 py-4
+                    border border-dashed border-slate-200 rounded-xl">
             No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
         </div>`;
       return;
@@ -471,17 +474,17 @@ async function loadRecentPreview(mode) {
 
       const card = document.createElement("div");
       card.className =
-        "bg-panel backdrop-blur-sm p-5 rounded-xl border border-borderline " +
-        "hover:shadow-xl hover:-translate-y-1 cursor-pointer transition-all";
+        "bg-white p-5 rounded-2xl border border-slate-200 shadow-sm " +
+        "card-hover cursor-pointer";
       card.innerHTML = `
         <div class="flex justify-between mb-2">
-            <span class="text-[10px] font-bold bg-input text-main px-2 py-1 rounded border border-borderline">
+            <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded">
                 ${escapeHtml(itemMission)}
             </span>
-            <span class="text-xs text-muted font-bold">${escapeHtml(itemScore)}</span>
+            <span class="text-xs text-slate-400 font-bold">${escapeHtml(itemScore)}</span>
         </div>
-        <h4 class="font-bold text-main mb-2 line-clamp-2">${escapeHtml(itemTitle)}</h4>
-        <p class="text-xs text-muted line-clamp-3">${escapeHtml(itemSummary.slice(0, MAX_PREVIEW_SUMMARY_LENGTH))}</p>
+        <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(itemTitle)}</h4>
+        <p class="text-xs text-slate-500 line-clamp-3">${escapeHtml(itemSummary.slice(0, MAX_PREVIEW_SUMMARY_LENGTH))}</p>
       `;
       if (itemUrl) {
         card.addEventListener("click", () => window.open(itemUrl, "_blank", "noopener,noreferrer"));
@@ -491,8 +494,8 @@ async function loadRecentPreview(mode) {
   } catch (error) {
     console.warn("Preview load failed:", error.message);
     grid.innerHTML = `
-      <div class="col-span-3 text-center text-muted py-4
-                  border border-dashed border-borderline rounded-xl">
+      <div class="col-span-3 text-center text-slate-400 py-4
+                  border border-dashed border-slate-200 rounded-xl">
           Could not load recent scans.
       </div>`;
   }
