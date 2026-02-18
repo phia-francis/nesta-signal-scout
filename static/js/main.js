@@ -399,6 +399,8 @@ async function updateSignalStatus(url, status) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6b. Recent Preview Panel (Context-Aware)
 // ─────────────────────────────────────────────────────────────────────────────
+const MAX_PREVIEW_CARDS = 3;
+const MAX_PREVIEW_SUMMARY_LENGTH = 150;
 const PREVIEW_MODE_NAMES = {
   radar: { title: "Quick Scan", icon: "⚡" },
   research: { title: "Deep Scan", icon: "🧠" },
@@ -448,7 +450,7 @@ async function loadRecentPreview(mode) {
           itemMode.toLowerCase().includes(m.toLowerCase())
         );
       })
-      .slice(0, 3);
+      .slice(0, MAX_PREVIEW_CARDS);
 
     grid.innerHTML = "";
     if (filtered.length === 0) {
@@ -479,7 +481,7 @@ async function loadRecentPreview(mode) {
             <span class="text-xs text-muted font-bold">${escapeHtml(itemScore)}</span>
         </div>
         <h4 class="font-bold text-main mb-2 line-clamp-2">${escapeHtml(itemTitle)}</h4>
-        <p class="text-xs text-muted line-clamp-3">${escapeHtml(itemSummary.slice(0, 150))}</p>
+        <p class="text-xs text-muted line-clamp-3">${escapeHtml(itemSummary.slice(0, MAX_PREVIEW_SUMMARY_LENGTH))}</p>
       `;
       if (itemUrl) {
         card.addEventListener("click", () => window.open(itemUrl, "_blank", "noopener,noreferrer"));
