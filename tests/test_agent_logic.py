@@ -111,7 +111,7 @@ def test_radar_route_streams_signalcard_payload_with_orchestrator_override():
 
     response = client.post(
         "/api/mode/radar",
-        json={"mission": "A Healthy Life", "topic": "AI", "mode": "radar"},
+        json={"mission": "A Healthy Life", "query": "AI"},
     )
 
     app.dependency_overrides.clear()
