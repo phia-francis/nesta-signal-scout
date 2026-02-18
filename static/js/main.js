@@ -42,15 +42,15 @@ const dom = {
 // ─────────────────────────────────────────────────────────────────────────────
 const MODE_CONFIG = {
   radar: {
-    desc: '<strong>Quick Scan:</strong> Fast web sweep for surface-level signals.',
-    btnText: 'RUN QUICK SCAN',
+    desc: '<strong>Mini Radar:</strong> Fast web &amp; social trends.',
+    btnText: 'RUN MINI RADAR',
     btnClass: 'bg-nesta-blue',
     borderClass: 'border-nesta-blue',
     themeClass: 'theme-navy',
-    placeholder: "Enter an emerging topic (e.g., 'Biotech in Agriculture')"
+    placeholder: "Enter a topic (e.g., 'Alternative Proteins')"
   },
   research: {
-    desc: '<strong>Deep Scan:</strong> AI synthesis of blogs & papers. Takes longer.',
+    desc: '<strong>Deep Research:</strong> AI-powered deep dive analysis.',
     btnText: 'START DEEP RESEARCH',
     btnClass: 'bg-nesta-purple',
     borderClass: 'border-nesta-purple',
@@ -58,8 +58,8 @@ const MODE_CONFIG = {
     placeholder: ''
   },
   policy: {
-    desc: '<strong>Policy Scan:</strong> International policy &amp; grey literature scan.',
-    btnText: 'SCAN POLICY LANDSCAPE',
+    desc: '<strong>Regulatory Horizon:</strong> Policy &amp; regulatory intelligence.',
+    btnText: 'SCAN REGULATORY HORIZON',
     btnClass: 'bg-nesta-yellow',
     borderClass: 'border-nesta-yellow',
     themeClass: 'theme-aqua',
@@ -202,7 +202,7 @@ async function runScan() {
 
   try {
     if (state.currentMode === "research") {
-      // Deep Scan (JSON)
+      // Deep Research (JSON)
       const res = await fetch(`${API_BASE_URL}/api/mode/research`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -215,10 +215,10 @@ async function runScan() {
         state.globalSignalsArray.push(signal);
         renderSignalCard(signal);
       });
-      showToast(`Deep Scan complete. ${signals.length} synthesis found.`, "success");
+      showToast(`Deep Research complete. ${signals.length} synthesis found.`, "success");
     
     } else {
-      // Quick Scan / Monitor (Streaming)
+      // Mini Radar / Monitor (Streaming)
       const res = await fetch(`${API_BASE_URL}/api/mode/${state.currentMode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -402,9 +402,9 @@ async function updateSignalStatus(url, status) {
 const MAX_PREVIEW_CARDS = 3;
 const MAX_PREVIEW_SUMMARY_LENGTH = 150;
 const PREVIEW_MODE_NAMES = {
-  radar: { title: "Quick Scan", icon: "⚡" },
-  research: { title: "Deep Scan", icon: "🧠" },
-  policy: { title: "Policy Scan", icon: "🌍" }
+  radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
+  research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
+  policy: { title: "Regulatory Horizon", pluralTitle: "Recent Regulatory Horizons", icon: "🌍" }
 };
 
 const PREVIEW_MODE_MAP = {
@@ -425,7 +425,7 @@ async function loadRecentPreview(mode) {
   grid.innerHTML = '<div class="col-span-3 text-center text-muted">Loading...</div>';
 
   const modeInfo = PREVIEW_MODE_NAMES[mode] || PREVIEW_MODE_NAMES.radar;
-  title.textContent = `Recent ${modeInfo.title}s`;
+  title.textContent = modeInfo.pluralTitle;
   icon.textContent = modeInfo.icon;
 
   try {
@@ -437,7 +437,7 @@ async function loadRecentPreview(mode) {
       grid.innerHTML = `
         <div class="col-span-3 text-center text-muted py-4
                     border border-dashed border-borderline rounded-xl">
-            No saved ${escapeHtml(modeInfo.title)}s. Run a scan to populate.
+            No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
         </div>`;
       return;
     }
@@ -457,7 +457,7 @@ async function loadRecentPreview(mode) {
       grid.innerHTML = `
         <div class="col-span-3 text-center text-muted py-4
                     border border-dashed border-borderline rounded-xl">
-            No saved ${escapeHtml(modeInfo.title)}s. Run a scan to populate.
+            No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
         </div>`;
       return;
     }

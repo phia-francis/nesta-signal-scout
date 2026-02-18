@@ -13,7 +13,7 @@
   --nesta-white: #FFFFFF;
   --background: #F8F8FA;      /* main background */
 
-  /* Theme variables – default: Navy (Quick Scan) */
+  /* Theme variables – default: Navy (Mini Radar) */
   --bg-app: #0F294A;
   --text-main: #FFFFFF;
   --text-muted: #94A3B8;
@@ -24,7 +24,7 @@
   --btn-text: #FFFFFF;
 }
 
-/* Deep Scan – Violet */
+/* Deep Research – Violet */
 body.theme-violet {
   --bg-app: #4C1D95;
   --text-main: #FFFFFF;
@@ -36,7 +36,7 @@ body.theme-violet {
   --btn-text: #FFFFFF;
 }
 
-/* Policy Scan – Aqua (light theme) */
+/* Regulatory Horizon – Aqua (light theme) */
 body.theme-aqua {
   --bg-app: #CCFBF1;
   --text-main: #0F294A;

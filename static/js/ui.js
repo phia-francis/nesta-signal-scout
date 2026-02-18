@@ -348,7 +348,7 @@ export function updateModeUI(mode) {
       description: 'Deep-dive analysis combining multiple sources into comprehensive insights',
     },
     policy: {
-      title: 'Policy Scanning',
+      title: 'Regulatory Horizon',
       description: 'Targeted search across global government and policy sources',
     },
   };

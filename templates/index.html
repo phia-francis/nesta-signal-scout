@@ -50,20 +50,20 @@
                 <div class="max-w-6xl mx-auto space-y-6">
 
                     <div class="flex justify-center gap-4">
-                        <button class="mode-toggle active border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="radar" title="Fast scan of news &amp; social media">
-                            ⚡ Quick Scan
+                        <button class="mode-toggle active border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="radar" title="Fast web &amp; social trends">
+                            ⚡ Mini Radar
                         </button>
-                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="research" title="Deep AI analysis of papers">
-                            🧠 Deep Scan
+                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="research" title="AI-powered deep dive analysis">
+                            🧠 Deep Research
                         </button>
-                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="policy" title="Scan government &amp; policy documents">
-                            🌍 Policy Scan
+                        <button class="mode-toggle border-2 border-borderline px-6 py-3 rounded-full font-bold text-sm transition-colors" data-mode="policy" title="Policy &amp; regulatory intelligence">
+                            🌍 Regulatory Horizon
                         </button>
                     </div>
 
                     <div id="mode-description"
                          class="text-sm text-main bg-input p-3 rounded border-l-4 border-nesta-blue">
-                        <strong>Quick Scan:</strong> Fast web sweep for surface-level signals.
+                        <strong>Mini Radar:</strong> Fast web &amp; social trends.
                     </div>
 
                     <div class="flex gap-2">
@@ -73,10 +73,10 @@
                             <option value="A Healthy Life">A Healthy Life</option>
                             <option value="A Fairer Start">A Fairer Start</option>
                         </select>
-                        <input type="text" id="query-input" placeholder="Enter an emerging topic (e.g., 'Biotech in Agriculture')"
+                        <input type="text" id="query-input" placeholder="Enter a topic (e.g., 'Alternative Proteins')"
                                class="flex-1 bg-input border-2 border-borderline rounded-lg px-6 text-lg font-bold text-main placeholder:text-muted focus:border-btn-accent outline-none transition-colors">
                         <button id="scan-btn" class="bg-btn-accent text-btn-text px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform">
-                            RUN QUICK SCAN
+                            RUN MINI RADAR
                         </button>
                     </div>
 
@@ -102,7 +102,7 @@
                 <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center opacity-40 text-main">
                     <div class="text-6xl mb-4">🔭</div>
                     <h2 class="text-2xl font-display font-bold">Start a Scan</h2>
-                    <p class="max-w-md mt-2">Select a mode above. Quick Scan covers social media & web. Deep Scan synthesises blogs & papers.</p>
+                    <p class="max-w-md mt-2">Select a mode above. Mini Radar covers social media &amp; web. Deep Research synthesises blogs &amp; papers.</p>
                 </div>
 
                 <div id="radar-feed" class="max-w-6xl mx-auto space-y-6 pb-20"></div>
@@ -115,7 +115,7 @@
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xl font-display font-bold text-main">
                             <span id="recent-preview-icon">⚡</span>
-                            <span id="recent-preview-title">Recent Quick Scans</span>
+                            <span id="recent-preview-title">Recent Mini Radars</span>
                         </h3>
                         <button onclick="document.getElementById('open-db-btn').click()"
                                 class="text-sm font-bold text-muted hover:text-main transition-colors">
@@ -150,9 +150,9 @@
         <div class="p-8">
             <h2 class="text-2xl font-display font-bold mb-4">How to Use</h2>
             <ul class="space-y-4 text-nesta-navy">
-                <li><strong>⚡ Quick Scan:</strong> News &amp; social media</li>
-                <li><strong>🧠 Deep Scan:</strong> Academic papers &amp; blogs</li>
-                <li><strong>🌍 Policy Scan:</strong> Gov documents</li>
+                <li><strong>⚡ Mini Radar:</strong> News &amp; social media</li>
+                <li><strong>🧠 Deep Research:</strong> Academic papers &amp; blogs</li>
+                <li><strong>🌍 Regulatory Horizon:</strong> Gov documents</li>
             </ul>
             <button id="close-help-btn" class="mt-8 w-full bg-slate-100 py-3 rounded-lg font-bold text-nesta-navy hover:bg-slate-200 transition-colors">
                 Got it
