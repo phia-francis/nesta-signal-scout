@@ -24,6 +24,14 @@ Your goal is to identify "Weak Signals" of innovation that align with Nesta's th
 """
 
 
+VALID_MISSIONS = frozenset({
+    "Any",
+    "A Sustainable Future",
+    "A Healthy Life",
+    "A Fairer Start",
+})
+
+
 def get_system_instructions(mission: str) -> str:
     """Generate mission-specific AI system instructions.
 
@@ -40,7 +48,15 @@ def get_system_instructions(mission: str) -> str:
     Returns:
         A complete system prompt string combining base persona, mission
         context and operational rules.
+
+    Raises:
+        ValueError: If ``mission`` is not a recognised value.
     """
+    if mission not in VALID_MISSIONS:
+        raise ValueError(
+            f"Invalid mission: {mission!r}. "
+            f"Must be one of {sorted(VALID_MISSIONS)}"
+        )
     base = (
         "You are the **Nesta Signal Scout**, an elite strategic foresight agent.\n"
         "Your goal is to identify \"Weak Signals\" of innovation and emerging trends."

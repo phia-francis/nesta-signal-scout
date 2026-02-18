@@ -16,7 +16,7 @@
         .mode-toggle.active { background-color: var(--btn-accent); color: var(--btn-text); border-color: var(--btn-accent); }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden theme-navy" style="background:#F8F8FA; color:#0F294A;">
+<body class="h-screen flex flex-col overflow-hidden theme-navy">
 
     <nav class="bg-white/80 backdrop-blur-lg border-b border-slate-200 px-6 h-16 flex justify-between items-center shadow-sm z-20">
         <div class="flex items-center gap-3">
@@ -144,7 +144,7 @@
                         <span id="recent-preview-icon">⚡</span>
                         <span id="recent-preview-title">Recent Mini Radars</span>
                     </h3>
-                    <button onclick="document.getElementById('open-db-btn').click()"
+                    <button id="view-all-btn"
                             class="text-sm font-bold text-slate-400 hover:text-nesta-navy transition-colors">
                         View all →
                     </button>
@@ -157,10 +157,10 @@
     </main>
 
     <!-- Database Modal -->
-    <div id="db-overlay" class="modal-overlay"></div>
-    <div id="db-modal" class="modal-content">
+    <div id="db-overlay" class="modal-overlay" aria-hidden="true"></div>
+    <div id="db-modal" class="modal-content" role="dialog" aria-modal="true" aria-labelledby="db-modal-title">
         <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center z-10" style="border-radius: 16px 16px 0 0;">
-            <h2 class="text-2xl font-display font-bold">Signal Database</h2>
+            <h2 id="db-modal-title" class="text-2xl font-display font-bold">Signal Database</h2>
             <div class="flex items-center gap-3">
                 <button id="refresh-db-btn" class="text-xs font-bold uppercase text-slate-400 hover:text-nesta-blue transition-colors">Refresh</button>
                 <button id="close-db-btn" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
@@ -170,10 +170,10 @@
     </div>
 
     <!-- Help Modal -->
-    <div id="help-overlay" class="modal-overlay"></div>
-    <div id="help-modal" class="modal-content" style="max-width: 600px;">
+    <div id="help-overlay" class="modal-overlay" aria-hidden="true"></div>
+    <div id="help-modal" class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" style="max-width: 600px;">
         <div class="p-8">
-            <h2 class="text-2xl font-display font-bold mb-4">How to Use</h2>
+            <h2 id="help-modal-title" class="text-2xl font-display font-bold mb-4">How to Use</h2>
             <ul class="space-y-4 text-nesta-navy">
                 <li><strong>⚡ Mini Radar:</strong> News &amp; social media</li>
                 <li><strong>🧠 Deep Research:</strong> Academic papers &amp; blogs</li>

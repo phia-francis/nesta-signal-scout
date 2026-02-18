@@ -27,13 +27,24 @@ const state = {
 };
 
 // ── Reading Progress Tracker ─────────────────────────────────────────────────
-const readSignals = new Set(
-  JSON.parse(localStorage.getItem('readSignals') || '[]')
-);
+let storedReadSignals = [];
+try {
+  const stored = window.localStorage ? window.localStorage.getItem('readSignals') : null;
+  if (stored) {
+    storedReadSignals = JSON.parse(stored);
+  }
+} catch (_) {
+  storedReadSignals = [];
+}
+const readSignals = new Set(storedReadSignals);
 
 function markAsRead(url) {
   readSignals.add(url);
-  localStorage.setItem('readSignals', JSON.stringify([...readSignals]));
+  try {
+    window.localStorage && window.localStorage.setItem('readSignals', JSON.stringify([...readSignals]));
+  } catch (_) {
+    // Ignore storage errors; reading state remains in-memory for this session.
+  }
   // Dim the card
   document.querySelectorAll('#radar-feed article').forEach(card => {
     if (card.dataset.url === url) {
@@ -163,6 +174,8 @@ function switchMainView(viewName) {
 window.switchMainView = switchMainView;
 
 // ── Modal Logic ──────────────────────────────────────────────────────────────
+let activeModalTrigger = null;
+
 function toggleModal(name, show) {
   const modals = {
     db: {
@@ -178,14 +191,30 @@ function toggleModal(name, show) {
   const m = modals[name];
   if (!m || !m.overlay || !m.content) return;
   if (show) {
+    activeModalTrigger = document.activeElement;
     m.overlay.classList.add('open');
     m.content.classList.add('open');
+    m.overlay.setAttribute('aria-hidden', 'false');
+    m.content.focus();
     if (name === 'db') refreshDatabase();
   } else {
     m.overlay.classList.remove('open');
     m.content.classList.remove('open');
+    m.overlay.setAttribute('aria-hidden', 'true');
+    if (activeModalTrigger) {
+      activeModalTrigger.focus();
+      activeModalTrigger = null;
+    }
   }
 }
+
+// Close modals on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    toggleModal('db', false);
+    toggleModal('help', false);
+  }
+});
 
 document.getElementById('open-db-btn')?.addEventListener('click',
   () => toggleModal('db', true));
@@ -193,6 +222,9 @@ document.getElementById('close-db-btn')?.addEventListener('click',
   () => toggleModal('db', false));
 document.getElementById('db-overlay')?.addEventListener('click',
   () => toggleModal('db', false));
+
+document.getElementById('view-all-btn')?.addEventListener('click',
+  () => toggleModal('db', true));
 
 document.querySelectorAll(".mode-toggle").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -204,7 +236,16 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     const config = MODE_CONFIG[mode];
 
     // Apply theme class to body for CSS variable cascade (scan module only)
-    document.body.className = `h-screen flex flex-col overflow-hidden ${config.themeClass}`;
+    const baseBodyClasses = ["h-screen", "flex", "flex-col", "overflow-hidden"];
+    document.body.classList.add(...baseBodyClasses);
+    Object.values(MODE_CONFIG).forEach((cfg) => {
+      if (cfg && cfg.themeClass) {
+        document.body.classList.remove(cfg.themeClass);
+      }
+    });
+    if (config && config.themeClass) {
+      document.body.classList.add(config.themeClass);
+    }
 
     // Update mode description
     const descBox = document.getElementById("mode-description");
@@ -527,7 +568,7 @@ function getSourceBadge(sourceUrl) {
 
 function renderSignalCard(signal) {
   const el = document.createElement("article");
-  const cardIndex = state.globalSignalsArray.length;
+  const cardIndex = state.globalSignalsArray.length - 1;
   const isRead = readSignals.has(signal.url);
   const badge = getSourceBadge(signal.url);
   const score = Number(signal.final_score || 0);
