@@ -26,6 +26,96 @@ const state = {
   currentScanId: null,  // Track current scan ID for persistence
 };
 
+// ── Reading Progress Tracker ─────────────────────────────────────────────────
+const readSignals = new Set(
+  JSON.parse(localStorage.getItem('readSignals') || '[]')
+);
+
+function markAsRead(url) {
+  readSignals.add(url);
+  localStorage.setItem('readSignals', JSON.stringify([...readSignals]));
+  // Dim the card
+  document.querySelectorAll('#radar-feed article').forEach(card => {
+    if (card.dataset.url === url) {
+      card.classList.add('opacity-60');
+      const dot = card.querySelector('.unread-dot');
+      if (dot) dot.remove();
+    }
+  });
+  updateProgressIndicator();
+}
+window.markAsRead = markAsRead;
+
+function updateProgressIndicator() {
+  const total = document.querySelectorAll('#radar-feed article').length;
+  const read = document.querySelectorAll('#radar-feed article.opacity-60').length;
+  const el = document.getElementById('progress-text');
+  if (el && total > 0) {
+    el.classList.remove('hidden');
+    el.textContent = `${read}/${total} reviewed`;
+  }
+}
+
+// ── Filter State ─────────────────────────────────────────────────────────────
+const filterState = {
+  mission: null,
+  minScore: null,
+};
+
+function addFilterChip(type, value, label) {
+  const container = document.getElementById('active-chips');
+  if (!container) return;
+
+  // Remove existing chip of same type
+  const existing = container.querySelector(`[data-filter-type="${type}"]`);
+  if (existing) existing.remove();
+
+  const chip = document.createElement('div');
+  chip.className = 'flex items-center gap-2 bg-nesta-navy text-white px-3 py-1.5 rounded-full text-xs font-bold';
+  chip.dataset.filterType = type;
+  chip.innerHTML = `
+    <span>${escapeHtml(label)}</span>
+    <button class="hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-[10px]" data-remove-filter="${type}">✕</button>
+  `;
+  chip.querySelector(`[data-remove-filter]`).addEventListener('click', () => removeFilter(type));
+  container.appendChild(chip);
+
+  filterState[type] = value;
+  applyFilters();
+}
+
+function removeFilter(type) {
+  filterState[type] = null;
+  const container = document.getElementById('active-chips');
+  const chip = container?.querySelector(`[data-filter-type="${type}"]`);
+  if (chip) chip.remove();
+
+  // Reset the corresponding select
+  if (type === 'mission') {
+    const sel = document.getElementById('filter-mission-select');
+    if (sel) sel.value = '';
+  } else if (type === 'minScore') {
+    const sel = document.getElementById('filter-score-select');
+    if (sel) sel.value = '';
+  }
+  applyFilters();
+}
+window.removeFilter = removeFilter;
+
+function applyFilters() {
+  const cards = document.querySelectorAll('#radar-feed article');
+  cards.forEach(card => {
+    let show = true;
+    if (filterState.mission && card.dataset.mission !== filterState.mission) {
+      show = false;
+    }
+    if (filterState.minScore && parseFloat(card.dataset.score || '0') < parseFloat(filterState.minScore)) {
+      show = false;
+    }
+    card.style.display = show ? '' : 'none';
+  });
+}
+
 const dom = {
   radarFeed: document.getElementById("radar-feed"),
   emptyState: document.getElementById("empty-state"),
@@ -261,7 +351,13 @@ async function runScan() {
   } finally {
     dom.scanLoader?.classList.add("hidden");
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
-    if (state.globalSignalsArray.length === 0) dom.emptyState.classList.remove("hidden");
+    if (state.globalSignalsArray.length === 0) {
+      dom.emptyState.classList.remove("hidden");
+    } else {
+      // Show filter bar when results exist
+      const filterBar = document.getElementById('filter-chips');
+      if (filterBar) filterBar.classList.remove('hidden');
+    }
 
     // Refresh preview with new data
     loadRecentPreview(state.currentMode);
@@ -278,33 +374,106 @@ function handleStreamEvent(event) {
   }
 }
 
+// ── Filter Chip Event Listeners ──────────────────────────────────────────────
+document.getElementById('filter-mission-select')?.addEventListener('change', function() {
+  if (this.value) {
+    addFilterChip('mission', this.value, `Mission: ${this.value}`);
+  } else {
+    removeFilter('mission');
+  }
+});
+
+document.getElementById('filter-score-select')?.addEventListener('change', function() {
+  if (this.value) {
+    addFilterChip('minScore', this.value, `Score ≥ ${this.value}`);
+  } else {
+    removeFilter('minScore');
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Rendering & UI
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Source Credibility Badges ────────────────────────────────────────────────
+const SOURCE_LISTS = {
+  official: ['gov.uk', 'nhs.uk', 'parliament.uk', 'ons.gov.uk', 'europa.eu'],
+  verified: ['bbc.co.uk', 'ft.com', 'theguardian.com', 'reuters.com', 'economist.com'],
+  academic: ['nature.com', 'science.org', 'arxiv.org', 'pubmed.ncbi', 'scholar.google', 'openalex.org']
+};
+
+function getSourceBadge(url) {
+  if (!url || url === '#') {
+    return { icon: '💬', label: 'Community', cssClass: 'bg-slate-100 text-slate-600' };
+  }
+  try {
+    const domain = new URL(url).hostname.replace('www.', '');
+    if (SOURCE_LISTS.official.some(d => domain.includes(d))) {
+      return { icon: '🏛️', label: 'Official', cssClass: 'bg-blue-100 text-blue-800' };
+    }
+    if (SOURCE_LISTS.verified.some(d => domain.includes(d))) {
+      return { icon: '📰', label: 'Verified', cssClass: 'bg-green-100 text-green-800' };
+    }
+    if (SOURCE_LISTS.academic.some(d => domain.includes(d))) {
+      return { icon: '🎓', label: 'Academic', cssClass: 'bg-purple-100 text-purple-800' };
+    }
+  } catch (_) {
+    // Invalid URL
+  }
+  return { icon: '💬', label: 'Community', cssClass: 'bg-slate-100 text-slate-600' };
+}
+
 function renderSignalCard(signal) {
   const el = document.createElement("article");
   const cardIndex = state.globalSignalsArray.length;
-  el.className = "bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-in relative";
+  const isRead = readSignals.has(signal.url);
+  const badge = getSourceBadge(signal.url);
+  const score = Number(signal.final_score || 0);
+  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / 10, 1) : 0.8);
+  const confidencePercent = Math.round(confidence * 100);
+
+  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible ${isRead ? 'opacity-60' : ''}`;
   el.style.animationDelay = `${cardIndex * 0.05}s`;
+  el.dataset.mission = signal.mission || "General";
+  el.dataset.score = score;
+  el.dataset.url = signal.url || "";
 
   el.innerHTML = `
+    ${!isRead ? '<div class="unread-dot absolute top-4 right-4 w-2.5 h-2.5 bg-red-500 rounded-full shadow-sm"></div>' : ''}
     <div class="flex justify-between items-start mb-3 gap-3">
-      <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase px-2 py-1 rounded tracking-wider">${escapeHtml(signal.mission || "General")}</span>
+      <div class="flex gap-2 flex-wrap">
+        <span class="${badge.cssClass} text-[10px] font-bold px-2 py-1 rounded-lg">${badge.icon} ${badge.label}</span>
+        <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase px-2 py-1 rounded tracking-wider">${escapeHtml(signal.mission || "General")}</span>
+      </div>
       <div class="flex gap-2">
         <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-yellow text-nesta-navy hover:opacity-90 transition-opacity" data-action="star">★ Star</button>
         <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90 transition-opacity" data-action="archive">Archive</button>
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors">${escapeHtml(signal.title || "Untitled")}</a>
+      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" onclick="markAsRead('${escapeAttribute(signal.url || "")}')">${escapeHtml(signal.title || "Untitled")}</a>
     </h3>
-    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(signal.summary || "")}</p>
+    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml((signal.summary || "").slice(0, 120))}${(signal.summary || "").length > 120 ? '…' : ''}</p>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
       <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
         <div class="text-[10px] font-bold uppercase text-slate-400">Score</div>
-        <div class="font-display font-bold text-nesta-blue">${Number(signal.final_score || 0).toFixed(2)}</div>
+        <div class="font-display font-bold text-nesta-blue">${score.toFixed(2)}</div>
       </div>
+    </div>
+    <div class="border-t border-slate-100 pt-3 mt-3">
+      <div class="flex justify-between items-center mb-1.5">
+        <span class="text-[10px] font-bold uppercase text-slate-400">AI Confidence</span>
+        <span class="text-[10px] font-bold text-slate-600">${confidencePercent}%${confidencePercent >= 90 ? ' ✓' : ''}</span>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-1.5">
+        <div class="bg-nesta-blue rounded-full h-1.5 transition-all" style="width: ${confidencePercent}%"></div>
+      </div>
+      ${confidencePercent < 70 ? '<p class="text-[10px] text-amber-600 mt-1.5">⚠️ Lower confidence — verify manually</p>' : ''}
+    </div>
+    <div class="hover-preview">
+      <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || signal.summary || "")}</p>
+      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" onclick="markAsRead('${escapeAttribute(signal.url || "")}')">Read Full →</a>
     </div>
   `;
 
@@ -316,9 +485,11 @@ function renderSignalCard(signal) {
     await archiveSignal(signal.url);
     el.remove();
     if (dom.radarFeed.children.length === 0) dom.emptyState.classList.remove("hidden");
+    updateProgressIndicator();
   });
 
   dom.radarFeed.prepend(el);
+  updateProgressIndicator();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

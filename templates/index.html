@@ -98,6 +98,30 @@
 
             <!-- Results (neutral background) -->
             <section class="relative">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-4">
+                        <h3 class="text-2xl font-display font-bold text-nesta-navy">Scan Results</h3>
+                        <span id="progress-text" class="hidden text-xs font-bold text-slate-400 uppercase tracking-wider"></span>
+                    </div>
+                    <div id="filter-chips" class="hidden flex gap-2 flex-wrap items-center">
+                        <select id="filter-mission-select" class="text-xs font-bold border border-slate-200 rounded-full px-3 py-1.5 bg-white text-nesta-navy cursor-pointer outline-none">
+                            <option value="">Filter by Mission</option>
+                            <option value="A Sustainable Future">A Sustainable Future</option>
+                            <option value="A Healthy Life">A Healthy Life</option>
+                            <option value="A Fairer Start">A Fairer Start</option>
+                            <option value="General">General</option>
+                        </select>
+                        <select id="filter-score-select" class="text-xs font-bold border border-slate-200 rounded-full px-3 py-1.5 bg-white text-nesta-navy cursor-pointer outline-none">
+                            <option value="">Min Score</option>
+                            <option value="3">3+</option>
+                            <option value="5">5+</option>
+                            <option value="7">7+</option>
+                            <option value="9">9+</option>
+                        </select>
+                        <div id="active-chips" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                </div>
+
                 <div id="scan-loader" class="hidden absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm rounded-3xl">
                     <div class="w-12 h-12 border-4 border-nesta-blue border-t-transparent rounded-full animate-spin"></div>
                     <p class="mt-4 font-bold text-nesta-navy animate-pulse">Scanning Layers 1-5...</p>

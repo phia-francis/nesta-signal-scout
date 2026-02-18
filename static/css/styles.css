@@ -682,6 +682,44 @@ h3,
   box-shadow: 0 20px 25px -5px rgba(15, 41, 74, 0.1);
 }
 
+/* ===== HOVER PREVIEW (QUICK LOOK) ===== */
+.hover-preview {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 10;
+  max-width: 400px;
+}
+
+.signal-card-wrapper:hover .hover-preview,
+article:hover .hover-preview {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0);
+}
+
+/* ===== SLIDE UP FADE ANIMATION ===== */
+@keyframes slideUpFade {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
 /* ===== SLIDE-OVER DETAIL PANEL ===== */
 .detail-panel {
   position: fixed;
