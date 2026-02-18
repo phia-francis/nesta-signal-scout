@@ -398,6 +398,7 @@ document.getElementById('filter-score-select')?.addEventListener('change', funct
 // ── Source Type Badges (global, unbiased — describes type, not trustworthiness) ──
 const DEFAULT_CONFIDENCE = 0.8;
 const SUMMARY_TRUNCATE_LENGTH = 120;
+const MAX_SCORE = 10; // Backend scores are on a 0-10 scale
 
 /** Check if domain exactly matches or is a subdomain of pattern. */
 function domainMatches(domain, pattern) {
@@ -530,7 +531,7 @@ function renderSignalCard(signal) {
   const isRead = readSignals.has(signal.url);
   const badge = getSourceBadge(signal.url);
   const score = Number(signal.final_score || 0);
-  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / 10, 1) : DEFAULT_CONFIDENCE);
+  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / MAX_SCORE, 1) : DEFAULT_CONFIDENCE);
   const confidencePercent = Math.round(confidence * 100);
   const signalUrl = signal.url || "";
   const summary = signal.summary || "";
