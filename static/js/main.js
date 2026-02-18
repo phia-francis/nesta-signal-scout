@@ -26,6 +26,107 @@ const state = {
   currentScanId: null,  // Track current scan ID for persistence
 };
 
+// ── Reading Progress Tracker ─────────────────────────────────────────────────
+let storedReadSignals = [];
+try {
+  const stored = window.localStorage ? window.localStorage.getItem('readSignals') : null;
+  if (stored) {
+    storedReadSignals = JSON.parse(stored);
+  }
+} catch (_) {
+  storedReadSignals = [];
+}
+const readSignals = new Set(storedReadSignals);
+
+function markAsRead(url) {
+  readSignals.add(url);
+  try {
+    window.localStorage && window.localStorage.setItem('readSignals', JSON.stringify([...readSignals]));
+  } catch (_) {
+    // Ignore storage errors; reading state remains in-memory for this session.
+  }
+  // Dim the card
+  document.querySelectorAll('#radar-feed article').forEach(card => {
+    if (card.dataset.url === url) {
+      card.classList.add('opacity-60');
+      const dot = card.querySelector('.unread-dot');
+      if (dot) dot.remove();
+    }
+  });
+  updateProgressIndicator();
+}
+window.markAsRead = markAsRead;
+
+function updateProgressIndicator() {
+  const total = document.querySelectorAll('#radar-feed article').length;
+  const read = document.querySelectorAll('#radar-feed article.opacity-60').length;
+  const el = document.getElementById('progress-text');
+  if (el && total > 0) {
+    el.classList.remove('hidden');
+    el.textContent = `${read}/${total} reviewed`;
+  }
+}
+
+// ── Filter State ─────────────────────────────────────────────────────────────
+const filterState = {
+  mission: null,
+  minScore: null,
+};
+
+function addFilterChip(type, value, label) {
+  const container = document.getElementById('active-chips');
+  if (!container) return;
+
+  // Remove existing chip of same type
+  const existing = container.querySelector(`[data-filter-type="${type}"]`);
+  if (existing) existing.remove();
+
+  const chip = document.createElement('div');
+  chip.className = 'flex items-center gap-2 bg-nesta-navy text-white px-3 py-1.5 rounded-full text-xs font-bold';
+  chip.dataset.filterType = type;
+  chip.innerHTML = `
+    <span>${escapeHtml(label)}</span>
+    <button class="hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-[10px]" data-remove-filter="${type}">✕</button>
+  `;
+  chip.querySelector(`[data-remove-filter]`).addEventListener('click', () => removeFilter(type));
+  container.appendChild(chip);
+
+  filterState[type] = value;
+  applyFilters();
+}
+
+function removeFilter(type) {
+  filterState[type] = null;
+  const container = document.getElementById('active-chips');
+  const chip = container?.querySelector(`[data-filter-type="${type}"]`);
+  if (chip) chip.remove();
+
+  // Reset the corresponding select
+  if (type === 'mission') {
+    const sel = document.getElementById('filter-mission-select');
+    if (sel) sel.value = '';
+  } else if (type === 'minScore') {
+    const sel = document.getElementById('filter-score-select');
+    if (sel) sel.value = '';
+  }
+  applyFilters();
+}
+window.removeFilter = removeFilter;
+
+function applyFilters() {
+  const cards = document.querySelectorAll('#radar-feed article');
+  cards.forEach(card => {
+    let show = true;
+    if (filterState.mission && card.dataset.mission !== filterState.mission) {
+      show = false;
+    }
+    if (filterState.minScore && parseFloat(card.dataset.score || '0') < parseFloat(filterState.minScore)) {
+      show = false;
+    }
+    card.style.display = show ? '' : 'none';
+  });
+}
+
 const dom = {
   radarFeed: document.getElementById("radar-feed"),
   emptyState: document.getElementById("empty-state"),
@@ -42,49 +143,88 @@ const dom = {
 // ─────────────────────────────────────────────────────────────────────────────
 const MODE_CONFIG = {
   radar: {
-    desc: '<strong>Quick Scan:</strong> Fast web sweep for surface-level signals.',
-    btnText: 'RUN QUICK SCAN',
+    desc: '<strong>Mini Radar:</strong> Fast web &amp; social trends.',
+    btnText: 'RUN MINI RADAR',
     btnClass: 'bg-nesta-blue',
-    borderClass: 'border-nesta-blue'
+    borderClass: 'border-nesta-blue',
+    themeClass: 'theme-navy',
+    placeholder: "Enter a topic (e.g., 'Alternative Proteins')"
   },
   research: {
-    desc: '<strong>Deep Scan:</strong> AI synthesis of blogs & papers. Takes longer.',
+    desc: '<strong>Deep Research:</strong> AI-powered deep dive analysis.',
     btnText: 'START DEEP RESEARCH',
     btnClass: 'bg-nesta-purple',
-    borderClass: 'border-nesta-purple'
+    borderClass: 'border-nesta-purple',
+    themeClass: 'theme-violet',
+    placeholder: ''
   },
   policy: {
-    desc: '<strong>Topic Monitor:</strong> International policy & grey literature scan.',
-    btnText: 'SCAN POLICY LANDSCAPE',
+    desc: '<strong>Regulatory Horizon:</strong> Policy &amp; regulatory intelligence.',
+    btnText: 'SCAN REGULATORY HORIZON',
     btnClass: 'bg-nesta-yellow',
-    borderClass: 'border-nesta-yellow'
+    borderClass: 'border-nesta-yellow',
+    themeClass: 'theme-aqua',
+    placeholder: "Enter a policy area (e.g., 'AI Regulation')"
   }
 };
 
 function switchMainView(viewName) {
-  const scanView = document.getElementById("view-scan");
-  const dbView = document.getElementById("view-database");
-  const navScan = document.getElementById("nav-scan");
-  const navDb = document.getElementById("nav-db");
-
-  if (viewName === "scan") {
-    scanView.classList.remove("hidden");
-    dbView.classList.add("hidden");
-    navScan.classList.add("bg-white", "shadow-sm", "text-nesta-navy");
-    navScan.classList.remove("text-slate-500");
-    navDb.classList.remove("bg-white", "shadow-sm", "text-nesta-navy");
-    navDb.classList.add("text-slate-500");
-  } else {
-    scanView.classList.add("hidden");
-    dbView.classList.remove("hidden");
-    navDb.classList.add("bg-white", "shadow-sm", "text-nesta-navy");
-    navDb.classList.remove("text-slate-500");
-    navScan.classList.remove("bg-white", "shadow-sm", "text-nesta-navy");
-    navScan.classList.add("text-slate-500");
-    refreshDatabase();
-  }
+  // Kept for backward compatibility; scanner is always visible now.
 }
 window.switchMainView = switchMainView;
+
+// ── Modal Logic ──────────────────────────────────────────────────────────────
+let activeModalTrigger = null;
+
+function toggleModal(name, show) {
+  const modals = {
+    db: {
+      overlay: document.getElementById('db-overlay'),
+      content: document.getElementById('db-modal')
+    },
+    help: {
+      overlay: document.getElementById('help-overlay'),
+      content: document.getElementById('help-modal')
+    }
+  };
+
+  const m = modals[name];
+  if (!m || !m.overlay || !m.content) return;
+  if (show) {
+    activeModalTrigger = document.activeElement;
+    m.overlay.classList.add('open');
+    m.content.classList.add('open');
+    m.overlay.setAttribute('aria-hidden', 'false');
+    m.content.focus();
+    if (name === 'db') refreshDatabase();
+  } else {
+    m.overlay.classList.remove('open');
+    m.content.classList.remove('open');
+    m.overlay.setAttribute('aria-hidden', 'true');
+    if (activeModalTrigger) {
+      activeModalTrigger.focus();
+      activeModalTrigger = null;
+    }
+  }
+}
+
+// Close modals on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    toggleModal('db', false);
+    toggleModal('help', false);
+  }
+});
+
+document.getElementById('open-db-btn')?.addEventListener('click',
+  () => toggleModal('db', true));
+document.getElementById('close-db-btn')?.addEventListener('click',
+  () => toggleModal('db', false));
+document.getElementById('db-overlay')?.addEventListener('click',
+  () => toggleModal('db', false));
+
+document.getElementById('view-all-btn')?.addEventListener('click',
+  () => toggleModal('db', true));
 
 document.querySelectorAll(".mode-toggle").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -93,20 +233,35 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     const mode = btn.dataset.mode;
     state.currentMode = mode;
 
+    const config = MODE_CONFIG[mode];
+
+    // Apply theme class to body for CSS variable cascade (scan module only)
+    const baseBodyClasses = ["h-screen", "flex", "flex-col", "overflow-hidden"];
+    document.body.classList.add(...baseBodyClasses);
+    Object.values(MODE_CONFIG).forEach((cfg) => {
+      if (cfg && cfg.themeClass) {
+        document.body.classList.remove(cfg.themeClass);
+      }
+    });
+    if (config && config.themeClass) {
+      document.body.classList.add(config.themeClass);
+    }
+
     // Update mode description
     const descBox = document.getElementById("mode-description");
-    const config = MODE_CONFIG[mode];
     if (descBox && config) {
       descBox.innerHTML = config.desc;
-      descBox.className = "text-sm text-nesta-navy bg-slate-50 p-3 rounded border-l-4 " + config.borderClass;
+      descBox.className = "text-sm p-3 rounded border-l-4 " + config.borderClass;
+      descBox.style.background = "var(--box-input-bg)";
+      descBox.style.color = "var(--box-text)";
     }
 
     // Update scan button text and colour
     const scanBtn = document.getElementById("scan-btn");
     if (scanBtn && config) {
       scanBtn.textContent = config.btnText;
-      scanBtn.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-yellow");
-      scanBtn.classList.add(config.btnClass);
+      scanBtn.style.backgroundColor = "var(--btn-accent)";
+      scanBtn.style.color = "var(--btn-text)";
     }
 
     // Toggle input visibility (textarea for Deep, input for others)
@@ -116,6 +271,9 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     } else {
       dom.queryInput?.classList.remove("hidden");
       dom.researchInput?.classList.add("hidden");
+      if (dom.queryInput && config.placeholder) {
+        dom.queryInput.placeholder = config.placeholder;
+      }
     }
 
     // Switch to scan view when mode changes
@@ -125,6 +283,9 @@ document.querySelectorAll(".mode-toggle").forEach((btn) => {
     dom.radarFeed.innerHTML = "";
     dom.emptyState.classList.remove("hidden");
     if (dom.scanStatus) dom.scanStatus.textContent = `Mode switched to ${btn.textContent.trim()}`;
+
+    // Update preview for this mode
+    loadRecentPreview(mode);
   });
 });
 
@@ -143,14 +304,13 @@ dom.researchInput?.addEventListener("keydown", (event) => {
   }
 });
 document.getElementById("help-btn")?.addEventListener("click", () => {
-  alert(
-    "User Guide:\n\n" +
-    "1. Select a Mode (Quick, Deep, Topic Monitor)\n" +
-    "2. Choose a Mission (or 'Any')\n" +
-    "3. Enter your topic\n" +
-    "4. Click Scan\n\n" +
-    "Use 'Star' to save signals to Database."
-  );
+  toggleModal('help', true);
+});
+document.getElementById("close-help-btn")?.addEventListener("click", () => {
+  toggleModal('help', false);
+});
+document.getElementById("help-overlay")?.addEventListener("click", () => {
+  toggleModal('help', false);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -174,7 +334,7 @@ async function runScan() {
 
   try {
     if (state.currentMode === "research") {
-      // Deep Scan (JSON)
+      // Deep Research (JSON)
       const res = await fetch(`${API_BASE_URL}/api/mode/research`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,10 +347,10 @@ async function runScan() {
         state.globalSignalsArray.push(signal);
         renderSignalCard(signal);
       });
-      showToast(`Deep Scan complete. ${signals.length} synthesis found.`, "success");
+      showToast(`Deep Research complete. ${signals.length} synthesis found.`, "success");
     
     } else {
-      // Quick Scan / Monitor (Streaming)
+      // Mini Radar / Monitor (Streaming)
       const res = await fetch(`${API_BASE_URL}/api/mode/${state.currentMode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,7 +392,16 @@ async function runScan() {
   } finally {
     dom.scanLoader?.classList.add("hidden");
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
-    if (state.globalSignalsArray.length === 0) dom.emptyState.classList.remove("hidden");
+    if (state.globalSignalsArray.length === 0) {
+      dom.emptyState.classList.remove("hidden");
+    } else {
+      // Show filter bar when results exist
+      const filterBar = document.getElementById('filter-chips');
+      if (filterBar) filterBar.classList.remove('hidden');
+    }
+
+    // Refresh preview with new data
+    loadRecentPreview(state.currentMode);
   }
 }
 
@@ -246,33 +415,217 @@ function handleStreamEvent(event) {
   }
 }
 
+// ── Filter Chip Event Listeners ──────────────────────────────────────────────
+document.getElementById('filter-mission-select')?.addEventListener('change', function() {
+  if (this.value) {
+    addFilterChip('mission', this.value, `Mission: ${this.value}`);
+  } else {
+    removeFilter('mission');
+  }
+});
+
+document.getElementById('filter-score-select')?.addEventListener('change', function() {
+  if (this.value) {
+    addFilterChip('minScore', this.value, `Score ≥ ${this.value}`);
+  } else {
+    removeFilter('minScore');
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Rendering & UI
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Source Type Badges (global, unbiased — describes type, not trustworthiness) ──
+const DEFAULT_CONFIDENCE = 0.8;
+const SUMMARY_TRUNCATE_LENGTH = 120;
+const MAX_SCORE = 10; // Backend scores are on a 0-10 scale
+
+/** Check if domain exactly matches or is a subdomain of pattern. */
+function domainMatches(domain, pattern) {
+  return domain === pattern || domain.endsWith('.' + pattern);
+}
+
+function getSourceBadge(sourceUrl) {
+  if (!sourceUrl || sourceUrl === '#') {
+    return { icon: '🌐', label: 'Web', cssClass: 'bg-slate-100 text-slate-600' };
+  }
+  try {
+    const url = new URL(sourceUrl);
+    const domain = url.hostname.toLowerCase().replace('www.', '');
+
+    // Government/Official (global TLDs)
+    if (domain.endsWith('.gov') ||
+        domainMatches(domain, 'gov.uk') ||
+        domainMatches(domain, 'gov.au') ||
+        domain.endsWith('.gov.sg') ||
+        domain.endsWith('.gov.br') ||
+        domain.endsWith('.go.jp') ||
+        domain.endsWith('.go.kr') ||
+        domain.endsWith('.gob.mx') ||
+        domain.endsWith('.gouv.fr') ||
+        domainMatches(domain, 'parliament.uk') ||
+        domainMatches(domain, 'parliament.gov')) {
+      return { icon: '🏛️', label: 'Official', cssClass: 'bg-blue-100 text-blue-800' };
+    }
+
+    // Intergovernmental Organisations
+    if (domainMatches(domain, 'un.org') ||
+        domainMatches(domain, 'who.int') ||
+        domainMatches(domain, 'worldbank.org') ||
+        domainMatches(domain, 'imf.org') ||
+        domainMatches(domain, 'oecd.org') ||
+        domainMatches(domain, 'europa.eu') ||
+        domainMatches(domain, 'asean.org') ||
+        domainMatches(domain, 'african-union.org')) {
+      return { icon: '🌍', label: 'IGO', cssClass: 'bg-cyan-100 text-cyan-800' };
+    }
+
+    // Think Tanks / Policy Research (check before Academic since some use .edu)
+    if (domainMatches(domain, 'brookings.edu') ||
+        domainMatches(domain, 'chathamhouse.org') ||
+        domainMatches(domain, 'csis.org') ||
+        domainMatches(domain, 'rand.org') ||
+        domainMatches(domain, 'carnegieendowment.org') ||
+        domainMatches(domain, 'cgdev.org') ||
+        domainMatches(domain, 'nesta.org.uk')) {
+      return { icon: '💡', label: 'Think Tank', cssClass: 'bg-teal-100 text-teal-800' };
+    }
+
+    // Academic/Research (global education TLDs)
+    if (domain.endsWith('.edu') ||
+        domain.endsWith('.ac.uk') ||
+        domain.endsWith('.ac.jp') ||
+        domain.endsWith('.ac.in') ||
+        domain.endsWith('.edu.au') ||
+        domainMatches(domain, 'arxiv.org') ||
+        domainMatches(domain, 'researchgate.net') ||
+        domainMatches(domain, 'scholar.google.com') ||
+        domainMatches(domain, 'ssrn.com') ||
+        domainMatches(domain, 'biorxiv.org') ||
+        domainMatches(domain, 'pubmed.ncbi.nlm.nih.gov') ||
+        domainMatches(domain, 'openalex.org')) {
+      return { icon: '🎓', label: 'Academic', cssClass: 'bg-purple-100 text-purple-800' };
+    }
+
+    // Peer-Reviewed Publishers
+    if (domainMatches(domain, 'springer.com') ||
+        domainMatches(domain, 'elsevier.com') ||
+        domainMatches(domain, 'wiley.com') ||
+        domainMatches(domain, 'nature.com') ||
+        domainMatches(domain, 'science.org') ||
+        domainMatches(domain, 'cell.com') ||
+        domainMatches(domain, 'plos.org') ||
+        domainMatches(domain, 'frontiersin.org') ||
+        domainMatches(domain, 'mdpi.com')) {
+      return { icon: '📚', label: 'Published', cssClass: 'bg-violet-100 text-violet-800' };
+    }
+
+    // News Wire / Public Broadcasters (globally diverse)
+    if (domainMatches(domain, 'reuters.com') ||
+        domainMatches(domain, 'apnews.com') ||
+        domainMatches(domain, 'afp.com') ||
+        domainMatches(domain, 'xinhuanet.com') ||
+        domainMatches(domain, 'aljazeera.com') ||
+        domainMatches(domain, 'bbc.co.uk') ||
+        domainMatches(domain, 'bbc.com') ||
+        domainMatches(domain, 'dw.com') ||
+        domainMatches(domain, 'france24.com') ||
+        domainMatches(domain, 'nhk.or.jp') ||
+        domainMatches(domain, 'abc.net.au') ||
+        domainMatches(domain, 'cbc.ca')) {
+      return { icon: '📡', label: 'News Wire', cssClass: 'bg-green-100 text-green-800' };
+    }
+
+    // Industry/Trade Publications
+    if (domainMatches(domain, 'techcrunch.com') ||
+        domainMatches(domain, 'venturebeat.com') ||
+        domainMatches(domain, 'crunchbase.com') ||
+        domainMatches(domain, 'wired.com') ||
+        domainMatches(domain, 'arstechnica.com') ||
+        domainMatches(domain, 'theverge.com') ||
+        domainMatches(domain, 'zdnet.com')) {
+      return { icon: '💼', label: 'Industry', cssClass: 'bg-indigo-100 text-indigo-800' };
+    }
+
+    // Community/Social (platform-based)
+    if (domainMatches(domain, 'reddit.com') ||
+        domainMatches(domain, 'twitter.com') ||
+        domainMatches(domain, 'x.com') ||
+        domainMatches(domain, 'linkedin.com') ||
+        domainMatches(domain, 'medium.com') ||
+        domainMatches(domain, 'substack.com') ||
+        domainMatches(domain, 'producthunt.com')) {
+      return { icon: '💬', label: 'Community', cssClass: 'bg-amber-100 text-amber-800' };
+    }
+
+  } catch (_) {
+    // Invalid URL
+  }
+  // Default: generic web source (no judgment)
+  return { icon: '🌐', label: 'Web', cssClass: 'bg-slate-100 text-slate-600' };
+}
+
 function renderSignalCard(signal) {
   const el = document.createElement("article");
-  el.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-slide-in relative";
+  const cardIndex = state.globalSignalsArray.length - 1;
+  const isRead = readSignals.has(signal.url);
+  const badge = getSourceBadge(signal.url);
+  const score = Number(signal.final_score || 0);
+  const confidence = signal.confidence ? signal.confidence.overall : (score > 0 ? Math.min(score / MAX_SCORE, 1) : DEFAULT_CONFIDENCE);
+  const confidencePercent = Math.round(confidence * 100);
+  const signalUrl = signal.url || "";
+  const summary = signal.summary || "";
+
+  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible ${isRead ? 'opacity-60' : ''}`;
+  el.style.animationDelay = `${cardIndex * 0.05}s`;
+  el.dataset.mission = signal.mission || "General";
+  el.dataset.score = score.toString();
+  el.dataset.url = signalUrl;
 
   el.innerHTML = `
+    ${!isRead ? '<div class="unread-dot absolute top-4 right-4 w-2.5 h-2.5 bg-red-500 rounded-full shadow-sm"></div>' : ''}
     <div class="flex justify-between items-start mb-3 gap-3">
-      <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase px-2 py-1 rounded tracking-wider">${escapeHtml(signal.mission || "General")}</span>
+      <div class="flex gap-2 flex-wrap">
+        <span class="${badge.cssClass} text-[10px] font-bold px-2 py-1 rounded-lg">${badge.icon} ${badge.label}</span>
+        <span class="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase px-2 py-1 rounded tracking-wider">${escapeHtml(signal.mission || "General")}</span>
+      </div>
       <div class="flex gap-2">
         <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-yellow text-nesta-navy hover:opacity-90 transition-opacity" data-action="star">★ Star</button>
         <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90 transition-opacity" data-action="archive">Archive</button>
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      <a href="${escapeAttribute(signal.url || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors">${escapeHtml(signal.title || "Untitled")}</a>
+      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link">${escapeHtml(signal.title || "Untitled")}</a>
     </h3>
-    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(signal.summary || "")}</p>
+    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(summary.slice(0, SUMMARY_TRUNCATE_LENGTH))}${summary.length > SUMMARY_TRUNCATE_LENGTH ? '…' : ''}</p>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
       <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
         <div class="text-[10px] font-bold uppercase text-slate-400">Score</div>
-        <div class="font-display font-bold text-nesta-blue">${Number(signal.final_score || 0).toFixed(2)}</div>
+        <div class="font-display font-bold text-nesta-blue">${score.toFixed(2)}</div>
       </div>
     </div>
+    <div class="border-t border-slate-100 pt-3 mt-3">
+      <div class="flex justify-between items-center mb-1.5">
+        <span class="text-[10px] font-bold uppercase text-slate-400">AI Confidence</span>
+        <span class="text-[10px] font-bold text-slate-600">${confidencePercent}%${confidencePercent >= 90 ? ' ✓' : ''}</span>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-1.5">
+        <div class="bg-nesta-blue rounded-full h-1.5 transition-all" style="width: ${confidencePercent}%"></div>
+      </div>
+      ${confidencePercent < 70 ? '<p class="text-[10px] text-amber-600 mt-1.5">⚠️ Lower confidence — verify manually</p>' : ''}
+    </div>
+    <div class="hover-preview">
+      <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || summary)}</p>
+      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>
+    </div>
   `;
+
+  // Attach event listeners (no inline onclick)
+  el.querySelectorAll('[data-action="read-link"], [data-action="read-preview"]').forEach(link => {
+    link.addEventListener('click', () => markAsRead(signalUrl));
+  });
 
   const starBtn = el.querySelector('[data-action="star"]');
   const archiveBtn = el.querySelector('[data-action="archive"]');
@@ -282,9 +635,11 @@ function renderSignalCard(signal) {
     await archiveSignal(signal.url);
     el.remove();
     if (dom.radarFeed.children.length === 0) dom.emptyState.classList.remove("hidden");
+    updateProgressIndicator();
   });
 
   dom.radarFeed.prepend(el);
+  updateProgressIndicator();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -362,6 +717,108 @@ async function updateSignalStatus(url, status) {
     console.error(e);
     showToast(`Action failed: ${e.message}`, "error");
     return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6b. Recent Preview Panel (Context-Aware)
+// ─────────────────────────────────────────────────────────────────────────────
+const MAX_PREVIEW_CARDS = 3;
+const MAX_PREVIEW_SUMMARY_LENGTH = 150;
+const PREVIEW_MODE_NAMES = {
+  radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
+  research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
+  policy: { title: "Regulatory Horizon", pluralTitle: "Recent Regulatory Horizons", icon: "🌍" }
+};
+
+const PREVIEW_MODE_MAP = {
+  radar: ["Radar", "Quick"],
+  research: ["Research", "Deep", "Synthesis"],
+  policy: ["Policy", "Monitor"]
+};
+
+async function loadRecentPreview(mode) {
+  const container = document.getElementById("recent-preview-container");
+  const grid = document.getElementById("recent-preview-grid");
+  const title = document.getElementById("recent-preview-title");
+  const icon = document.getElementById("recent-preview-icon");
+
+  if (!container || !grid || !title || !icon) return;
+
+  container.classList.remove("hidden");
+  grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
+
+  const modeInfo = PREVIEW_MODE_NAMES[mode] || PREVIEW_MODE_NAMES.radar;
+  title.textContent = modeInfo.pluralTitle;
+  icon.textContent = modeInfo.icon;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/saved`);
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const items = await res.json();
+
+    if (!Array.isArray(items)) {
+      grid.innerHTML = `
+        <div class="col-span-3 text-center text-slate-400 py-4
+                    border border-dashed border-slate-200 rounded-xl">
+            No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
+        </div>`;
+      return;
+    }
+
+    const modeKeys = PREVIEW_MODE_MAP[mode] || PREVIEW_MODE_MAP.radar;
+    const filtered = items
+      .filter(item => {
+        const itemMode = item.Mode || item.mode || "Radar";
+        return modeKeys.some(m =>
+          itemMode.toLowerCase().includes(m.toLowerCase())
+        );
+      })
+      .slice(0, MAX_PREVIEW_CARDS);
+
+    grid.innerHTML = "";
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div class="col-span-3 text-center text-slate-400 py-4
+                    border border-dashed border-slate-200 rounded-xl">
+            No saved scans yet. Run a ${escapeHtml(modeInfo.title)} to populate.
+        </div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const itemTitle = item.Title || item.title || "Untitled";
+      const itemMission = item.Mission || item.mission || "General";
+      const itemSummary = item.Summary || item.summary || "";
+      const itemUrl = item.URL || item.url || "";
+      const itemScore = Number(item.score_activity || 0).toFixed(1);
+
+      const card = document.createElement("div");
+      card.className =
+        "bg-white p-5 rounded-2xl border border-slate-200 shadow-sm " +
+        "card-hover cursor-pointer";
+      card.innerHTML = `
+        <div class="flex justify-between mb-2">
+            <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                ${escapeHtml(itemMission)}
+            </span>
+            <span class="text-xs text-slate-400 font-bold">${escapeHtml(itemScore)}</span>
+        </div>
+        <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(itemTitle)}</h4>
+        <p class="text-xs text-slate-500 line-clamp-3">${escapeHtml(itemSummary.slice(0, MAX_PREVIEW_SUMMARY_LENGTH))}</p>
+      `;
+      if (itemUrl) {
+        card.addEventListener("click", () => window.open(itemUrl, "_blank", "noopener,noreferrer"));
+      }
+      grid.appendChild(card);
+    });
+  } catch (error) {
+    console.warn("Preview load failed:", error.message);
+    grid.innerHTML = `
+      <div class="col-span-3 text-center text-slate-400 py-4
+                  border border-dashed border-slate-200 rounded-xl">
+          Could not load recent scans.
+      </div>`;
   }
 }
 
@@ -856,6 +1313,9 @@ function updateUrlWithScanId(scanId) {
 document.addEventListener('DOMContentLoaded', () => {
   setupViewToggle();
   checkUrlForScan();
+
+  // Load initial preview for default mode
+  loadRecentPreview(state.currentMode);
   
   // Add share button if not exists
   const resultsHeader = document.querySelector('.results-header');

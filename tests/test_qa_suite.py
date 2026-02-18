@@ -89,7 +89,7 @@ def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
     prompt_capture = {}
 
     def fake_create_first(model, messages, tools):
-        prompt_capture["prompt"] = messages[1]["content"]
+        prompt_capture["prompt"] = messages[0]["content"]
         return make_response([])
 
     monkeypatch.setattr(main.client.chat.completions, "create", fake_create_first)
@@ -104,7 +104,7 @@ def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
     prompt_capture.clear()
 
     def fake_create_second(model, messages, tools):
-        prompt_capture["prompt"] = messages[1]["content"]
+        prompt_capture["prompt"] = messages[0]["content"]
         return make_response([])
 
     monkeypatch.setattr(main.client.chat.completions, "create", fake_create_second)

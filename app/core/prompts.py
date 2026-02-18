@@ -24,6 +24,70 @@ Your goal is to identify "Weak Signals" of innovation that align with Nesta's th
 """
 
 
+VALID_MISSIONS = frozenset({
+    "Any",
+    "A Sustainable Future",
+    "A Healthy Life",
+    "A Fairer Start",
+})
+
+
+def get_system_instructions(mission: str) -> str:
+    """Generate mission-specific AI system instructions.
+
+    Produces a dynamic system prompt that adapts the AI persona based on
+    the selected Nesta mission. When ``mission`` is ``"Any"`` the prompt
+    instructs the model to scan broadly across all sectors (cross-cutting
+    mode). For a named mission the prompt narrows the focus to that
+    specific goal.
+
+    Args:
+        mission: The Nesta mission name (e.g. ``"A Healthy Life"``) or
+                 ``"Any"`` for cross-cutting horizon scanning.
+
+    Returns:
+        A complete system prompt string combining base persona, mission
+        context and operational rules.
+
+    Raises:
+        ValueError: If ``mission`` is not a recognised value.
+    """
+    if mission not in VALID_MISSIONS:
+        raise ValueError(
+            f"Invalid mission: {mission!r}. "
+            f"Must be one of {sorted(VALID_MISSIONS)}"
+        )
+    base = (
+        "You are the **Nesta Signal Scout**, an elite strategic foresight agent.\n"
+        "Your goal is to identify \"Weak Signals\" of innovation and emerging trends."
+    )
+
+    if mission == "Any":
+        mission_context = (
+            "\n**FOCUS: Cross-Cutting / Horizon Scanning**\n"
+            "Look broadly across all sectors. Prioritise:\n"
+            "- General purpose technologies (AI, biotech, materials)\n"
+            "- Intersecting trends (e.g., climate tech + public health)\n"
+            "- Weak signals outside traditional boundaries\n"
+        )
+    else:
+        mission_context = (
+            f"\n**FOCUS: {mission}**\n"
+            f"Strictly evaluate signals through the lens of Nesta's '{mission}' mission.\n"
+            "Highlight impact on this specific goal.\n"
+        )
+
+    rules = (
+        "\n**RULES:**\n"
+        "1. No hallucinations - use provided context only\n"
+        "2. Synthesise into cohesive narrative\n"
+        "3. Output valid JSON matching schema\n"
+        "4. Professional tone (British English)\n"
+    )
+
+    return f"{base}\n{mission_context}\n{rules}"
+
+
 def build_analysis_prompt(query: str, context_str: str) -> str:
     """
     Constructs the user message with the fresh context.

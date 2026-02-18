@@ -12,7 +12,8 @@ from app.core.prompts import (
     SYSTEM_INSTRUCTIONS, 
     build_analysis_prompt,
     CLUSTERING_INSTRUCTIONS,
-    build_clustering_prompt
+    build_clustering_prompt,
+    get_system_instructions,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,17 +46,20 @@ class LLMService:
             logger.warning("LLMService initialized without OPENAI_API_KEY. Synthesis will not be available.")
         self.model = self.settings.CHAT_MODEL
 
-    async def synthesize_research(self, query: str, search_results: list[dict[str, Any]]) -> dict[str, Any]:
+    async def synthesize_research(self, query: str, search_results: list[dict[str, Any]], mission: str = "Any") -> dict[str, Any]:
         """
         Synthesise raw search results into a structured research summary.
 
         Takes raw search results, formats them into a context window, and
         calls the LLM to produce a JSON synthesis with extracted signals.
+        The system prompt adapts dynamically based on the selected mission.
 
         Args:
             query: The research query or topic to synthesise around.
             search_results: List of search result dictionaries, each
                             containing at least 'title' and 'snippet' keys.
+            mission: Nesta mission for focused analysis (default ``"Any"``
+                     for cross-cutting mode).
 
         Returns:
             Dictionary with:
@@ -77,8 +81,9 @@ class LLMService:
             return {"synthesis": "No data found to analyse.", "signals": []}
 
         # 2. Construct Messages (System + User w/ Context)
+        system_prompt = get_system_instructions(mission)
         messages = [
-            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": build_analysis_prompt(query, context_str)}
         ]
 
