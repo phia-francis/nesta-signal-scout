@@ -44,7 +44,7 @@ SOURCE_DIVERSITY_TARGET = {
 
 
 def build_novelty_query(base_query: str) -> str:
-    """Enhance a query with forward-looking keywords from *keywords.py*.
+    """Enhance a query with forward-looking keywords from ``keywords.py``.
 
     Uses positive inclusion only (no exclusion operators) so that
     results are biased toward recent launches, pilots, and emerging
