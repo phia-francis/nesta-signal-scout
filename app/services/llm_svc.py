@@ -145,14 +145,24 @@ class LLMService:
             source, mission, typology, scores, and mode.
 
         Raises:
-            ValueError: If the OpenAI client is not initialised or
-                        *context* is empty.
+            ValueError: If *context* is empty.
             LLMServiceError: If the OpenAI API call fails.
         """
         if not self.client:
-            raise ValueError(
-                "OpenAI client not initialized. Check OPENAI_API_KEY environment variable."
+            logger.warning(
+                "OpenAI client not initialized in generate_signal; "
+                "returning fallback response instead of calling the API."
             )
+            return {
+                "title": "Research Synthesis",
+                "summary": "LLM client is not configured; unable to generate AI-driven synthesis.",
+                "source": "Web Synthesis",
+                "mission": "Research",
+                "typology": "Synthesis",
+                "score_activity": 0,
+                "score_attention": 0,
+                "mode": mode.title(),
+            }
 
         if not context or not context.strip():
             raise ValueError("Cannot generate signal from empty context")
