@@ -133,3 +133,77 @@ def test_format_results_limits_to_15(llm_service_with_key):
     
     assert "[15]" in formatted
     assert "[16]" not in formatted
+
+
+@pytest.mark.asyncio
+async def test_generate_signal_without_client():
+    """Test that generate_signal returns fallback when no client."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    result = await service.generate_signal(
+        context="Source (http://a.com): snippet one\nSource (http://b.com): snippet two",
+        system_prompt="You are an analyst.",
+        mode="Research",
+    )
+
+    assert result["title"] == "Research Synthesis"
+    assert result["mode"] == "Research"
+    assert "snippet" in result["summary"].lower()
+
+
+@pytest.mark.asyncio
+async def test_generate_signal_with_empty_context():
+    """Test generate_signal with empty context returns fallback summary."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    result = await service.generate_signal(context="", system_prompt="Synthesize.", mode="research")
+
+    assert result["summary"] == "No synthesis context available."
+    assert result["mode"] == "Research"
+
+
+@pytest.mark.asyncio
+async def test_generate_signal_success(llm_service_with_key):
+    """Test successful generate_signal with mocked OpenAI response."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = "A concise synthesis of the data."
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    result = await llm_service_with_key.generate_signal(
+        context="Source: snippet",
+        system_prompt="Synthesize.",
+        mode="Research",
+    )
+
+    assert result["summary"] == "A concise synthesis of the data."
+    assert result["title"] == "Research Synthesis"
+    assert llm_service_with_key.client.chat.completions.create.called
+
+
+@pytest.mark.asyncio
+async def test_generate_signal_api_error_fallback(llm_service_with_key):
+    """Test that generate_signal falls back on API error."""
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(
+        side_effect=Exception("API Error")
+    )
+
+    result = await llm_service_with_key.generate_signal(
+        context="Source (http://a.com): snippet one",
+        system_prompt="Synthesize.",
+        mode="Research",
+    )
+
+    assert "snippet" in result["summary"].lower()
+    assert result["title"] == "Research Synthesis"

@@ -131,6 +131,54 @@ class LLMService:
             buffer.append(f"[{i}] {title} ({source}): {snippet}")
         return "\n\n".join(buffer)
 
+    async def generate_signal(self, context: str, system_prompt: str, mode: str) -> dict[str, Any]:
+        """
+        Generate a synthesised signal card from raw context.
+
+        Uses the LLM to synthesise raw search snippets into a single
+        structured signal when the OpenAI client is available, falling
+        back to a simple text-based summary otherwise.
+
+        Args:
+            context: Concatenated search snippets / source text.
+            system_prompt: System instructions for synthesis behaviour.
+            mode: Operating mode label (e.g. ``"Research"``).
+
+        Returns:
+            Dictionary representing a signal card with title, summary,
+            source, mission, typology, scores, and mode.
+        """
+        summary: str
+        if self.client:
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": context},
+                    ],
+                    temperature=0.3,
+                )
+                summary = (response.choices[0].message.content or "")[:500]
+            except Exception as e:
+                logger.warning("LLM generate_signal failed, using fallback: %s", e)
+                snippets = [line.strip() for line in context.splitlines() if line.strip()]
+                summary = " ".join(snippets[:6])[:500] if snippets else "No synthesis context available."
+        else:
+            snippets = [line.strip() for line in context.splitlines() if line.strip()]
+            summary = " ".join(snippets[:6])[:500] if snippets else "No synthesis context available."
+
+        return {
+            "title": "Research Synthesis",
+            "summary": summary,
+            "source": "Web Synthesis",
+            "mission": "Research",
+            "typology": "Synthesis",
+            "score_activity": 0,
+            "score_attention": 0,
+            "mode": mode.title(),
+        }
+
     async def cluster_signals(self, signals: list[Any]) -> dict[str, Any]:
         """
         Group signals into 3–5 thematic clusters using LLM analysis.
