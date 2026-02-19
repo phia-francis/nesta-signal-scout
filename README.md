@@ -95,7 +95,7 @@ cp .env.example .env
 # Edit .env with your API keys (see below)
 
 # Run the backend server
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 ```
 
 The API will be available at `http://127.0.0.1:8000`.
