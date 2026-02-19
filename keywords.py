@@ -61,8 +61,55 @@ NICHE_DOMAINS = [
     "wired.co.uk/topic/startups",
 ]
 
-# --- 5. GENERIC TOPICS ---
+# --- 5. NOVELTY MODIFIERS (Positive semantic targeting) ---
+NOVELTY_MODIFIERS = [
+    "pilot", "trial", "prototype", "emerging",
+    "startup", "new", "first", "launched",
+    "announced", "unveils", "beta",
+]
+
+# --- 6. GENERIC TOPICS ---
 GENERIC_TOPICS = ["obesity", "health", "energy", "education", "climate", "food"]
+
+
+def get_trend_modifiers(query: str) -> list[str]:
+    """Return novelty-focused keywords to append to a search query.
+
+    These positive-inclusion modifiers bias results toward recent
+    launches, pilots, and emerging developments rather than
+    encyclopedic background content.
+
+    Args:
+        query: The base search query (reserved for future
+               query-aware modifier selection).
+
+    Returns:
+        A list of novelty modifier strings (top 5).
+    """
+    return NOVELTY_MODIFIERS[:5]
+
+
+POLICY_MODIFIERS = [
+    "legislation", "mandate", "tax credit", "guideline",
+    "policy draft", "framework", "regulation", "ordinance",
+    "incentive", "consultation",
+]
+
+
+def get_policy_modifiers(query: str) -> list[str]:
+    """Return policy/regulatory keywords to append to a search query.
+
+    These positive-inclusion modifiers bias results toward government
+    and regulatory sources rather than generic Wikipedia articles.
+
+    Args:
+        query: The base search query (reserved for future
+               query-aware modifier selection).
+
+    Returns:
+        A list of policy modifier strings (top 5).
+    """
+    return POLICY_MODIFIERS[:5]
 
 
 def generate_broad_scan_queries(seed_terms, num_signals=5):

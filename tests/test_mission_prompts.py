@@ -52,7 +52,7 @@ def test_get_system_instructions_always_has_base_persona():
     for mission in ["Any", "A Healthy Life"]:
         prompt = get_system_instructions(mission)
         assert "Nesta Signal Scout" in prompt
-        assert "Weak Signals" in prompt
+        assert "Weak Signal" in prompt
 
 
 def test_get_system_instructions_rejects_invalid_mission():

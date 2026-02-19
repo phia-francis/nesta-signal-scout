@@ -309,8 +309,18 @@ document.getElementById("help-btn")?.addEventListener("click", () => {
 document.getElementById("close-help-btn")?.addEventListener("click", () => {
   toggleModal('help', false);
 });
+document.getElementById("close-help-btn-top")?.addEventListener("click", () => {
+  toggleModal('help', false);
+});
 document.getElementById("help-overlay")?.addEventListener("click", () => {
   toggleModal('help', false);
+});
+
+// Interactive Tour button
+document.getElementById("start-tour-btn")?.addEventListener("click", () => {
+  if (typeof startTour === 'function') {
+    startTour();
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -330,7 +340,14 @@ async function runScan() {
   dom.radarFeed.innerHTML = "";
   dom.emptyState.classList.add("hidden");
   dom.scanLoader?.classList.remove("hidden");
+  const loaderText = document.getElementById("loader-text");
+  if (loaderText) loaderText.textContent = "Initializing scan...";
   if (dom.scanStatus) dom.scanStatus.textContent = "Scanning active...";
+
+  // After 5 seconds, explain possible cold-start delay
+  const slowBootWarning = setTimeout(() => {
+    if (loaderText) loaderText.textContent = "Waking up server... This can take up to 60 seconds on first request.";
+  }, 5000);
 
   try {
     if (state.currentMode === "research") {
@@ -390,7 +407,9 @@ async function runScan() {
     console.error(error);
     showToast(`Scan failed: ${error.message}`, "error");
   } finally {
+    clearTimeout(slowBootWarning);
     dom.scanLoader?.classList.add("hidden");
+    if (loaderText) loaderText.textContent = "Scanning Layers 1-5...";
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
     if (state.globalSignalsArray.length === 0) {
       dom.emptyState.classList.remove("hidden");
@@ -576,8 +595,39 @@ function renderSignalCard(signal) {
   const confidencePercent = Math.round(confidence * 100);
   const signalUrl = signal.url || "";
   const summary = signal.summary || "";
+  const isSynthesis = signal.typology === "Synthesis" || (signal.sources && Array.isArray(signal.sources));
 
-  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible ${isRead ? 'opacity-60' : ''}`;
+  // Parse Markdown to HTML for synthesis cards (if marked.js loaded)
+  let parsedSnippet;
+  if (isSynthesis && typeof marked !== 'undefined' && summary) {
+    const rawHtml = marked.parse(summary);
+    if (typeof DOMPurify !== 'undefined') {
+      parsedSnippet = DOMPurify.sanitize(rawHtml);
+    } else {
+      parsedSnippet = `<p>${escapeHtml(summary)}</p>`;
+    }
+  } else {
+    parsedSnippet = `<p>${escapeHtml(summary)}</p>`;
+  }
+
+  // Render sources array (Research mode) OR single URL (Radar mode)
+  let linksHtml = '';
+  if (signal.sources && Array.isArray(signal.sources) && signal.sources.length > 0) {
+    linksHtml = `
+      <div class="source-list">
+        <strong>Sources referenced:</strong>
+        ${signal.sources.map(s =>
+          `<a href="${escapeAttribute(sanitizeUrl(s.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(s.title || s.url)}</a>`
+        ).join('')}
+      </div>
+    `;
+  } else if (signalUrl) {
+    linksHtml = `
+      <a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview" onclick="event.stopPropagation()">Read Full →</a>
+    `;
+  }
+
+  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible signal-card ${isSynthesis ? 'expandable' : ''} ${isRead ? 'opacity-60' : ''}`;
   el.style.animationDelay = `${cardIndex * 0.05}s`;
   el.dataset.mission = signal.mission || "General";
   el.dataset.score = score.toString();
@@ -596,14 +646,20 @@ function renderSignalCard(signal) {
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link">${escapeHtml(signal.title || "Untitled")}</a>
+      ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
     </h3>
-    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(summary.slice(0, SUMMARY_TRUNCATE_LENGTH))}${summary.length > SUMMARY_TRUNCATE_LENGTH ? '…' : ''}</p>
+    <div class="snippet-content text-sm text-slate-600 leading-relaxed">
+      ${parsedSnippet}
+    </div>
+    ${isSynthesis ? '<div class="expand-hint text-xs text-slate-400">Click to expand ▼</div>' : ''}
+    <div onclick="event.stopPropagation()">
+      ${linksHtml}
+    </div>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
       <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
         <div class="text-[10px] font-bold uppercase text-slate-400">Score</div>
-        <div class="font-display font-bold text-nesta-blue">${score.toFixed(2)}</div>
+        <div class="font-display font-bold text-nesta-blue">${score.toFixed(1)}<span class="text-[10px] text-slate-400">/10</span></div>
       </div>
     </div>
     <div class="border-t border-slate-100 pt-3 mt-3">
@@ -618,9 +674,17 @@ function renderSignalCard(signal) {
     </div>
     <div class="hover-preview">
       <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || summary)}</p>
-      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>
+      ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>` : ''}
     </div>
   `;
+
+  // Click handler to expand/collapse synthesis cards
+  if (isSynthesis) {
+    el.addEventListener('click', function(e) {
+      if (e.target.closest('a, button')) return;
+      this.classList.toggle('expanded');
+    });
+  }
 
   // Attach event listeners (no inline onclick)
   el.querySelectorAll('[data-action="read-link"], [data-action="read-preview"]').forEach(link => {
@@ -630,8 +694,9 @@ function renderSignalCard(signal) {
   const starBtn = el.querySelector('[data-action="star"]');
   const archiveBtn = el.querySelector('[data-action="archive"]');
 
-  starBtn?.addEventListener("click", () => toggleStar(signal.url));
-  archiveBtn?.addEventListener("click", async () => {
+  starBtn?.addEventListener("click", (e) => { e.stopPropagation(); toggleStar(signal.url); });
+  archiveBtn?.addEventListener("click", async (e) => {
+    e.stopPropagation();
     await archiveSignal(signal.url);
     el.remove();
     if (dom.radarFeed.children.length === 0) dom.emptyState.classList.remove("hidden");
@@ -666,17 +731,29 @@ async function refreshDatabase() {
       const mission = item.mission || item.Mission || "General";
       const summary = item.summary || item.Summary || "";
       const url = item.url || item.URL || "";
+      const typology = item.typology || item.Typology || "Signal";
+      const scoreActivity = item.score_activity || item.Score_Activity || "N/A";
+      const scoreAttention = item.score_attention || item.Score_Attention || "N/A";
+      const sourceDate = item.date || item.Source_Date || item.source_date || "";
 
       const card = document.createElement("div");
-      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm";
+      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
       card.innerHTML = `
         <div class="flex justify-between mb-2 gap-2">
            <span class="text-xs font-bold bg-nesta-blue text-white px-2 py-1 rounded">${escapeHtml(mission)}</span>
-           <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
+           <span class="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-1 rounded-lg">${escapeHtml(typology)}</span>
         </div>
         <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(title)}</h4>
-        <div class="text-xs text-slate-500 mb-4 line-clamp-3">${escapeHtml(summary.slice(0, 150))}</div>
-        <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
+        <div class="text-xs text-slate-500 mb-4 line-clamp-3 flex-grow">${escapeHtml(summary.slice(0, 150))}</div>
+        <div class="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-3 mb-3">
+          <span>Activity: ${escapeHtml(String(scoreActivity))}</span>
+          <span>Attention: ${escapeHtml(String(scoreAttention))}</span>
+        </div>
+        ${sourceDate ? `<div class="text-[10px] text-slate-400 mb-3">Published: ${escapeHtml(String(sourceDate))}</div>` : ''}
+        <div class="flex justify-between items-center">
+          ${sanitizeUrl(url || "") ? `<a href="${escapeAttribute(sanitizeUrl(url))}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>` : '<span class="text-xs text-slate-400">No source link</span>'}
+          <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
+        </div>
       `;
       card.querySelector('[data-action="archive"]')?.addEventListener("click", async () => {
         await archiveSignal(url);
@@ -854,6 +931,24 @@ function escapeAttribute(value) {
   return escapeHtml(value || "");
 }
 
+/**
+ * Sanitize a URL to only allow safe schemes (http, https, mailto).
+ * Blocks javascript:, data:, and other dangerous URL schemes.
+ */
+function sanitizeUrl(url) {
+  if (!url) return "";
+  const cleaned = String(url).trim();
+  // Only allow http:, https:, and mailto: schemes
+  if (/^https?:\/\//i.test(cleaned) || /^mailto:/i.test(cleaned)) {
+    return cleaned;
+  }
+  // Relative URLs starting with / or ./ are allowed
+  if (/^\.{0,2}\/[a-z0-9]/i.test(cleaned)) {
+    return cleaned;
+  }
+  return "";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. Slide-Over Detail Panel
 // ─────────────────────────────────────────────────────────────────────────────
@@ -902,7 +997,7 @@ function openDetailPanel(signal) {
       <div>
         <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Source</h4>
         <p class="text-sm text-slate-600 mb-2">${escapeHtml(signal.source || 'Unknown')}</p>
-        ${signal.url ? `<a href="${escapeAttribute(signal.url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
+        ${signal.url ? `<a href="${escapeAttribute(sanitizeUrl(signal.url))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
           <span>View Source</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -1341,3 +1436,25 @@ window.autoClusterAfterScan = autoClusterAfterScan;
 window.handleThemeFilter = handleThemeFilter;
 window.loadScan = loadScan;
 window.shareCurrentScan = shareCurrentScan;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pre-warm: Wake Render backend on page load to avoid cold-start delays
+// ─────────────────────────────────────────────────────────────────────────────
+async function wakeUpServer() {
+  try {
+    console.log("[Scout] Pre-warming backend server...");
+    await fetch(`${API_BASE_URL}/api/health`, {
+      method: "GET",
+      signal: AbortSignal.timeout(30000),
+    });
+    console.log("[Scout] ✓ Server is awake and ready");
+  } catch (error) {
+    console.warn("[Scout] Health check timeout (server may still be booting):", error.message);
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", wakeUpServer);
+} else {
+  wakeUpServer();
+}

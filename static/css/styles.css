@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Utility: Remove element from document flow completely */
+.hidden {
+    display: none !important;
+}
+
+/* Ensure loader covers properly when active */
+#scan-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
+}
+
 :root {
   --nesta-blue: #0000FF;      /* buttons, links */
   --nesta-navy: #0F294A;      /* text, headers */
@@ -112,6 +127,12 @@ body {
 
 .scan-input:focus {
   border-color: var(--btn-accent);
+}
+
+/* Ensure dropdown options inherit theme colors */
+.scan-input option {
+  color: var(--box-text);
+  background-color: var(--box-input-bg);
 }
 
 h1,
@@ -525,10 +546,104 @@ h3,
   box-shadow: 4px 4px 0px 0px #0f294a;
 }
 
+.signal-card.expandable {
+  cursor: pointer;
+}
+
 .signal-card:hover {
   transform: translate(-2px, -2px);
   box-shadow: 6px 6px 0px 0px #0f294a;
   border-color: #0000ff;
+}
+
+/* Snippet preview - show 3 lines by default */
+.snippet-content {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+/* Expanded state - show full content */
+.signal-card.expanded .snippet-content {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+
+/* Expand indicator */
+.expand-hint {
+  text-align: center;
+  font-size: 0.85em;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.signal-card.expanded .expand-hint {
+  display: none;
+}
+
+/* Source list styling */
+.source-list {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.9em;
+}
+
+.source-list strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #0f172a;
+}
+
+.source-list a {
+  display: block;
+  color: #0000ff;
+  text-decoration: none;
+  margin-bottom: 6px;
+  padding-left: 16px;
+  position: relative;
+  word-break: break-word;
+}
+
+.source-list a::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+}
+
+.source-list a:hover {
+  text-decoration: underline;
+}
+
+/* Rendered markdown inside snippet */
+.snippet-content h1,
+.snippet-content h2,
+.snippet-content h3 {
+  font-weight: 700;
+  color: #0f294a;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+}
+
+.snippet-content h3 {
+  font-size: 1em;
+}
+
+.snippet-content ul,
+.snippet-content ol {
+  padding-left: 1.25em;
+  margin: 0.5em 0;
+}
+
+.snippet-content li {
+  margin-bottom: 0.25em;
+}
+
+.snippet-content p {
+  margin: 0.5em 0;
 }
 
 

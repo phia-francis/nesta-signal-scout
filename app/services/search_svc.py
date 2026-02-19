@@ -45,6 +45,7 @@ class SearchService:
         query: str,
         num: int = 10,
         freshness: str | None = None,
+        sort_by_date: bool = False,
         friction_mode: bool = False,
         max_retries: int = 3,
     ) -> list[dict[str, Any]]:
@@ -60,6 +61,8 @@ class SearchService:
             num: Number of results to return (max 10 per page).
             freshness: Date filter — 'day', 'week', 'month', or 'year'
                        (mapped to Google's dateRestrict parameter).
+            sort_by_date: When ``True``, sort results by date (newest
+                          first) using Google's ``sort=date`` parameter.
             friction_mode: Legacy parameter, ignored.
             max_retries: Maximum retry attempts for rate limits (default 3).
 
@@ -101,6 +104,8 @@ class SearchService:
         }
         if date_restrict:
             params["dateRestrict"] = date_restrict
+        if sort_by_date:
+            params["sort"] = "date"
 
         logger.info(f"Google Search API call: query='{query}', num={num}, freshness={freshness}")
 
