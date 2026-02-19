@@ -14,6 +14,21 @@ router = APIRouter(prefix="/api", tags=["system"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("/health")
+async def health_check() -> dict[str, str]:
+    """Lightweight endpoint to wake server or check status.
+
+    No authentication, no database, no LLM calls — returns immediately.
+    Used by the frontend to pre-warm the Render free-tier backend on
+    page load so that cold-start latency is absorbed before the user
+    clicks "Scan".
+    """
+    return {
+        "status": "awake",
+        "message": "Signal Scout backend is ready",
+    }
+
+
 class UpdateStatusRequest(BaseModel):
     url: str
     status: str  # e.g., "Starred", "Archived", "Read"

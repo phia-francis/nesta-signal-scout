@@ -330,7 +330,14 @@ async function runScan() {
   dom.radarFeed.innerHTML = "";
   dom.emptyState.classList.add("hidden");
   dom.scanLoader?.classList.remove("hidden");
+  const loaderText = document.getElementById("loader-text");
+  if (loaderText) loaderText.textContent = "Initializing scan...";
   if (dom.scanStatus) dom.scanStatus.textContent = "Scanning active...";
+
+  // After 5 seconds, explain possible cold-start delay
+  const slowBootWarning = setTimeout(() => {
+    if (loaderText) loaderText.textContent = "Waking up server... This can take up to 60 seconds on first request.";
+  }, 5000);
 
   try {
     if (state.currentMode === "research") {
@@ -390,7 +397,9 @@ async function runScan() {
     console.error(error);
     showToast(`Scan failed: ${error.message}`, "error");
   } finally {
+    clearTimeout(slowBootWarning);
     dom.scanLoader?.classList.add("hidden");
+    if (loaderText) loaderText.textContent = "Scanning Layers 1-5...";
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
     if (state.globalSignalsArray.length === 0) {
       dom.emptyState.classList.remove("hidden");
@@ -1341,3 +1350,25 @@ window.autoClusterAfterScan = autoClusterAfterScan;
 window.handleThemeFilter = handleThemeFilter;
 window.loadScan = loadScan;
 window.shareCurrentScan = shareCurrentScan;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pre-warm: Wake Render backend on page load to avoid cold-start delays
+// ─────────────────────────────────────────────────────────────────────────────
+async function wakeUpServer() {
+  try {
+    console.log("[Scout] Pre-warming backend server...");
+    await fetch(`${API_BASE_URL}/api/health`, {
+      method: "GET",
+      signal: AbortSignal.timeout(30000),
+    });
+    console.log("[Scout] ✓ Server is awake and ready");
+  } catch (error) {
+    console.warn("[Scout] Health check timeout (server may still be booting):", error.message);
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", wakeUpServer);
+} else {
+  wakeUpServer();
+}
