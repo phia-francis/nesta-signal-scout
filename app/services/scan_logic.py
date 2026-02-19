@@ -43,6 +43,32 @@ SOURCE_DIVERSITY_TARGET = {
 }
 
 
+def build_novelty_query(base_query: str) -> str:
+    """Enhance a query with forward-looking keywords from *keywords.py*.
+
+    Uses positive inclusion only (no exclusion operators) so that
+    results are biased toward recent launches, pilots, and emerging
+    developments rather than encyclopedic background content.
+
+    Args:
+        base_query: The original user search query.
+
+    Returns:
+        An enhanced query string with novelty modifiers appended, or
+        the original query if no modifiers are available.
+
+    Example::
+
+        >>> build_novelty_query("alternative proteins")
+        'alternative proteins (pilot OR trial OR prototype OR emerging OR startup)'
+    """
+    modifiers = keywords.get_trend_modifiers(base_query)
+    if modifiers:
+        modifiers_str = " OR ".join(modifiers)
+        return f"{base_query} ({modifiers_str})"
+    return base_query
+
+
 class ScanOrchestrator:
     """
     Orchestrates multi-source horizon scanning operations.
@@ -167,7 +193,7 @@ class ScanOrchestrator:
         results = await asyncio.gather(
             self.search_service.search(queries.get("social", ""), num=10, freshness="month"),
             self.search_service.search(queries.get("blog", ""), num=8, freshness="year"),
-            self.search_service.search(queries.get("general", ""), num=5, freshness="year"),
+            self.search_service.search(queries.get("general", ""), num=5, freshness="month", sort_by_date=True),
             self.gateway_service.fetch_projects(queries.get("topic", ""), min_start_date=cutoff_date),
             return_exceptions=True,
         )
@@ -256,7 +282,7 @@ class ScanOrchestrator:
         queries = {
             "social": f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)",
             "blog": f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")",
-            "general": clean_topic,
+            "general": build_novelty_query(clean_topic),
             "topic": clean_topic
         }
         
@@ -382,15 +408,15 @@ class ScanOrchestrator:
         # Layer 4: Niche Blogs / Thought Leadership (30% of results)
         blog_query = f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")"
 
-        # Layer 3: General Web (20% of results)
-        general_query = clean_topic
+        # Layer 3: General Web (20% of results) — novelty-enhanced
+        general_query = build_novelty_query(clean_topic)
 
         # Execute Concurrently with adjusted result counts
         # Total ~25 results: 10 social (40%), 7 blog (30%), 5 general (20%), 3 academic (10%)
         results = await asyncio.gather(
             self.search_service.search(social_query, num=10, freshness="month"),  # Layer 5 - 40%
             self.search_service.search(blog_query, num=8, freshness="year"),      # Layer 4 - 30%
-            self.search_service.search(general_query, num=5, freshness="year"),   # Layer 3 - 20%
+            self.search_service.search(general_query, num=5, freshness="month", sort_by_date=True),   # Layer 3 - 20%
             # Layer 1 (Academic) - Fetch fewer, lower priority - 10%
             self.gateway_service.fetch_projects(clean_topic, min_start_date=cutoff_date),
             return_exceptions=True,
