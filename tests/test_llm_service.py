@@ -136,20 +136,23 @@ def test_format_results_limits_to_15(llm_service_with_key):
 
 
 @pytest.mark.asyncio
-async def test_generate_signal_without_client_raises_error():
-    """Test that generate_signal raises ValueError when no client."""
+async def test_generate_signal_without_client_returns_fallback():
+    """Test that generate_signal returns fallback when no client."""
     settings = Mock()
     settings.OPENAI_API_KEY = None
     settings.CHAT_MODEL = "gpt-4o-mini"
 
     service = LLMService(settings=settings)
 
-    with pytest.raises(ValueError, match="OpenAI client not initialized"):
-        await service.generate_signal(
-            context="Source (http://a.com): snippet one",
-            system_prompt="You are an analyst.",
-            mode="Research",
-        )
+    result = await service.generate_signal(
+        context="Source (http://a.com): snippet one",
+        system_prompt="You are an analyst.",
+        mode="Research",
+    )
+
+    assert result["title"] == "Research Synthesis"
+    assert result["mode"] == "Research"
+    assert "not configured" in result["summary"].lower()
 
 
 @pytest.mark.asyncio
