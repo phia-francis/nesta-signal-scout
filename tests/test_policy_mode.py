@@ -36,8 +36,8 @@ def test_policy_modifiers_contain_regulatory_terms():
 
 def test_policy_system_prompt_contains_authority_boost():
     """Test that POLICY_SYSTEM_PROMPT includes authority boost for gov sources."""
-    assert ".gov" in POLICY_SYSTEM_PROMPT
-    assert ".gov.uk" in POLICY_SYSTEM_PROMPT
+    assert "Authority Boost" in POLICY_SYSTEM_PROMPT
+    assert "Baseline score" in POLICY_SYSTEM_PROMPT
     assert "7.5" in POLICY_SYSTEM_PROMPT
 
 
