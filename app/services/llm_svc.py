@@ -211,7 +211,14 @@ class LLMService:
         if not context_str.strip():
             return []
 
-        system_prompt = get_system_instructions(mission)
+        try:
+            system_prompt = get_system_instructions(mission)
+        except ValueError:
+            # Fall back gracefully for unknown missions (e.g. API default "General")
+            try:
+                system_prompt = get_system_instructions("Any")
+            except ValueError:
+                system_prompt = SYSTEM_INSTRUCTIONS
         user_prompt = f"""
 ### RADAR EVALUATION TASK
 Review the following search results for the topic: "{query}".

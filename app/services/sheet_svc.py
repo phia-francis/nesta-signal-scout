@@ -110,7 +110,7 @@ class SheetService:
             signal.get("source", "Web"),
             signal.get("status", "New"),
             signal.get("narrative_group", ""),
-            signal.get("source_date", "Unknown"),
+            signal.get("source_date") or signal.get("date") or "Unknown",
         ]
 
     @staticmethod
@@ -205,7 +205,7 @@ class SheetService:
                             gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
                             gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
                             gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group", "")),
-                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("source_date", "Unknown")),
+                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("source_date") or signal.get("date") or "Unknown"),
                         ]
                     )
                 else:
@@ -243,7 +243,7 @@ class SheetService:
             signal.get("source", "Web"),
             signal.get("status", "Starred"),
             signal.get("narrative_group", ""),
-            signal.get("source_date", "Unknown"),
+            signal.get("source_date") or signal.get("date") or "Unknown",
         ]
         try:
             await asyncio.to_thread(self.get_watchlist_sheet().append_row, row)

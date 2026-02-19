@@ -542,20 +542,42 @@ class ScanOrchestrator:
         individual_cards = []
         llm_signals = synthesis_result.get("signals", [])
 
-        # Fallback to URL matching to grab original dates/metadata
-        url_to_raw = {s.url: s for s in raw_signals if s.url}
+        # Use normalized URLs from the raw signals for robust matching
+        url_to_raw = {
+            normalize_url_for_deduplication(s.url): s
+            for s in raw_signals
+            if s.url
+        }
 
         for sig_data in llm_signals:
             if not isinstance(sig_data, dict):
                 continue
-            url = sig_data.get("source", "")
-            raw = url_to_raw.get(url)
+
+            # Prefer a dedicated 'url' field from the LLM output
+            llm_url = sig_data.get("url") or sig_data.get("source", "")
+            normalized_llm_url = (
+                normalize_url_for_deduplication(llm_url)
+                if isinstance(llm_url, str) and llm_url
+                else ""
+            )
+            raw = url_to_raw.get(normalized_llm_url) if normalized_llm_url else None
+
+            # Card URL: use LLM URL if it's a proper HTTP URL, otherwise fall back to raw.url
+            if isinstance(llm_url, str) and llm_url.startswith("http"):
+                card_url = llm_url
+            elif raw and getattr(raw, "url", None):
+                card_url = raw.url
+            else:
+                card_url = ""
+
+            # Source name: prefer matched raw source or generic label
+            card_source = raw.source if raw else "Web Synthesis"
 
             card = SignalCard(
                 title=sig_data.get("title", "Research Signal"),
-                url=url if isinstance(url, str) and url.startswith("http") else "",
+                url=card_url,
                 summary=sig_data.get("summary", ""),
-                source=raw.source if raw else "Web Synthesis",
+                source=card_source,
                 mission="Research",
                 date=raw.date.date().isoformat() if raw and raw.date else datetime.now(timezone.utc).date().isoformat(),
                 score_activity=5.0,

@@ -87,11 +87,13 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
             evaluated_signals = await llm.evaluate_radar_signals(query, llm_input, mission)
 
             if evaluated_signals:
+                evaluated_ids = set()
                 count = 0
                 for ev in evaluated_signals:
                     try:
                         idx = int(ev.get("id", -1))
                         if 0 <= idx < len(raw_signals):
+                            evaluated_ids.add(idx)
                             raw = raw_signals[idx]
 
                             # Rewrite properties to use AI analytical text
@@ -112,6 +114,13 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
                                 count += 1
                     except (ValueError, TypeError):
                         continue
+
+                # Also yield remaining non-evaluated signals via standard scoring
+                remaining = [s for i, s in enumerate(raw_signals) if i not in evaluated_ids]
+                for card in orchestrator.process_signals(remaining, mission=mission, related_terms=related_terms):
+                    data = {"status": "blip", "blip": card.model_dump()}
+                    yield json.dumps(data) + "\n"
+                    count += 1
 
                 if count > 0:
                     yield _msg("complete", f"Scan complete. {count} signals analysed.")
