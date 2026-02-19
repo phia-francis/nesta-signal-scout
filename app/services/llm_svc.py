@@ -131,6 +131,70 @@ class LLMService:
             buffer.append(f"[{i}] {title} ({source}): {snippet}")
         return "\n\n".join(buffer)
 
+    async def generate_signal(self, context: str, system_prompt: str, mode: str) -> dict[str, Any]:
+        """
+        Generate an AI-synthesised signal card from raw context.
+
+        Args:
+            context: Concatenated search snippets / source text.
+            system_prompt: System instructions for synthesis behaviour.
+            mode: Operating mode label (e.g. ``"Research"``).
+
+        Returns:
+            Dictionary representing a signal card with title, summary,
+            source, mission, typology, scores, and mode.
+
+        Raises:
+            ValueError: If *context* is empty.
+            LLMServiceError: If the OpenAI API call fails.
+        """
+        if not self.client:
+            logger.warning(
+                "OpenAI client not initialized in generate_signal; "
+                "returning fallback response instead of calling the API."
+            )
+            return {
+                "title": "Research Synthesis",
+                "summary": "LLM client is not configured; unable to generate AI-driven synthesis.",
+                "source": "Web Synthesis",
+                "mission": "Research",
+                "typology": "Synthesis",
+                "score_activity": 0,
+                "score_attention": 0,
+                "mode": mode.title(),
+            }
+
+        if not context or not context.strip():
+            raise ValueError("Cannot generate signal from empty context")
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context},
+                ],
+                temperature=0.3,
+            )
+            summary = (response.choices[0].message.content or "")[:500]
+        except Exception as e:
+            logger.error("OpenAI API call failed in generate_signal: %s", e, exc_info=True)
+            raise LLMServiceError(
+                f"LLM generate_signal failed: {str(e)}",
+                model=self.model,
+            ) from e
+
+        return {
+            "title": "Research Synthesis",
+            "summary": summary,
+            "source": "Web Synthesis",
+            "mission": "Research",
+            "typology": "Synthesis",
+            "score_activity": 0,
+            "score_attention": 0,
+            "mode": mode.title(),
+        }
+
     async def cluster_signals(self, signals: list[Any]) -> dict[str, Any]:
         """
         Group signals into 3–5 thematic clusters using LLM analysis.
