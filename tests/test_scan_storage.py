@@ -5,6 +5,7 @@ import json
 import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,7 +14,7 @@ from app.storage.scan_storage import ScanStorage
 
 @pytest.fixture
 def storage():
-    """Create a temporary storage instance for testing."""
+    """Create a temporary storage instance for testing (local files only)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield ScanStorage(storage_dir=Path(tmpdir))
 
@@ -221,3 +222,176 @@ def test_concurrent_save(storage):
     for scan_id in scan_ids:
         scan_data = storage.get_scan(scan_id)
         assert scan_data is not None
+
+
+# ---- Google Sheets integration tests (mocked) ----
+
+@pytest.fixture
+def mock_worksheet():
+    """Create a mock Google Sheets worksheet."""
+    ws = MagicMock()
+    ws.append_row = MagicMock()
+    ws.find = MagicMock(return_value=None)
+    ws.row_values = MagicMock(return_value=[])
+    return ws
+
+
+@pytest.fixture
+def mock_sheets_client(mock_worksheet):
+    """Create a mock gspread client."""
+    client = MagicMock()
+    spreadsheet = MagicMock()
+    spreadsheet.worksheet.return_value = mock_worksheet
+    client.open_by_key.return_value = spreadsheet
+    return client
+
+
+@pytest.fixture
+def sheets_storage(mock_sheets_client):
+    """Create a ScanStorage instance with mocked Google Sheets."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield ScanStorage(
+            storage_dir=Path(tmpdir),
+            sheets_client=mock_sheets_client,
+            spreadsheet_id="test-spreadsheet-id",
+        )
+
+
+def test_save_scan_writes_to_sheets(sheets_storage, mock_worksheet):
+    """Test that save_scan writes to both local file and Google Sheets."""
+    scan_id = sheets_storage.save_scan(
+        query="test query",
+        mode="radar",
+        signals=[{"title": "Signal 1"}],
+    )
+
+    assert scan_id is not None
+    # Verify Google Sheets was called
+    mock_worksheet.append_row.assert_called_once()
+    row = mock_worksheet.append_row.call_args[0][0]
+    assert row[0] == scan_id
+    assert row[2] == "test query"
+    assert row[3] == "radar"
+    # Payload is JSON in column 5
+    payload = json.loads(row[4])
+    assert payload["query"] == "test query"
+    assert len(payload["signals"]) == 1
+
+
+def test_get_scan_falls_back_to_sheets(sheets_storage, mock_worksheet):
+    """Test that get_scan falls back to Google Sheets when local file missing."""
+    scan_data = {
+        "scan_id": "sheets-only-id",
+        "query": "persisted query",
+        "mode": "radar",
+        "signals": [{"title": "Persisted Signal"}],
+        "themes": [],
+    }
+    # Mock Sheets returning the scan
+    cell_mock = MagicMock()
+    cell_mock.row = 2
+    mock_worksheet.find.return_value = cell_mock
+    mock_worksheet.row_values.return_value = [
+        "sheets-only-id",
+        "2025-02-19 14:30:00",
+        "persisted query",
+        "radar",
+        json.dumps(scan_data),
+    ]
+
+    result = sheets_storage.get_scan("sheets-only-id")
+
+    assert result is not None
+    assert result["query"] == "persisted query"
+    assert result["scan_id"] == "sheets-only-id"
+    mock_worksheet.find.assert_called_once_with("sheets-only-id", in_column=1)
+
+
+def test_get_scan_prefers_local_cache(sheets_storage, mock_worksheet):
+    """Test that get_scan uses local file when available, not Sheets."""
+    # Save locally first
+    scan_id = sheets_storage.save_scan(
+        query="local query",
+        mode="radar",
+        signals=[{"title": "Local Signal"}],
+    )
+
+    # Reset Sheets mock call counts
+    mock_worksheet.find.reset_mock()
+
+    # Retrieve - should use local file, not Sheets
+    result = sheets_storage.get_scan(scan_id)
+    assert result is not None
+    assert result["query"] == "local query"
+    # Sheets find should NOT have been called since local file exists
+    mock_worksheet.find.assert_not_called()
+
+
+def test_get_scan_recaches_from_sheets(sheets_storage, mock_worksheet):
+    """Test that scan retrieved from Sheets is re-cached locally."""
+    scan_data = {
+        "scan_id": "recache-test",
+        "query": "recache query",
+        "mode": "radar",
+        "signals": [],
+        "themes": [],
+    }
+    cell_mock = MagicMock()
+    cell_mock.row = 2
+    mock_worksheet.find.return_value = cell_mock
+    mock_worksheet.row_values.return_value = [
+        "recache-test", "2025-02-19", "recache query", "radar",
+        json.dumps(scan_data),
+    ]
+
+    # First retrieval - should hit Sheets
+    result = sheets_storage.get_scan("recache-test")
+    assert result is not None
+    mock_worksheet.find.assert_called_once()
+
+    # Reset and retrieve again - should use local cache now
+    mock_worksheet.find.reset_mock()
+    result = sheets_storage.get_scan("recache-test")
+    assert result is not None
+    mock_worksheet.find.assert_not_called()
+
+
+def test_sheets_unavailable_falls_back_to_local(mock_worksheet):
+    """Test that storage works with local files when Sheets is unavailable."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage = ScanStorage(storage_dir=Path(tmpdir))
+
+        scan_id = storage.save_scan(
+            query="offline query",
+            mode="radar",
+            signals=[{"title": "Offline Signal"}],
+        )
+
+        result = storage.get_scan(scan_id)
+        assert result is not None
+        assert result["query"] == "offline query"
+
+
+def test_sheets_error_does_not_break_save(mock_worksheet):
+    """Test that Sheets errors don't prevent local save."""
+    client = MagicMock()
+    client.open_by_key.side_effect = Exception("Sheets API error")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage = ScanStorage(
+            storage_dir=Path(tmpdir),
+            sheets_client=client,
+            spreadsheet_id="test-id",
+        )
+
+        # Save should succeed (local file) even though Sheets fails
+        scan_id = storage.save_scan(
+            query="resilient query",
+            mode="radar",
+            signals=[{"title": "Signal"}],
+        )
+
+        assert scan_id is not None
+        result = storage.get_scan(scan_id)
+        assert result is not None
+        assert result["query"] == "resilient query"
