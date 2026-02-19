@@ -80,7 +80,8 @@ def get_system_instructions(mission: str) -> str:
     rules = (
         "\n**RULES:**\n"
         "1. No hallucinations - use provided context only\n"
-        "2. Synthesise into cohesive narrative\n"
+        "2. Synthesise and Analyse: DO NOT copy-paste snippets or simply describe the source. "
+        "You must explain the 'So What?' (implications, drivers, and potential impact).\n"
         "3. Output valid JSON matching schema\n"
         "4. Professional tone (British English)\n"
     )
@@ -110,7 +111,16 @@ Identify emerging trends, conflicts, or "odd gems" (unusual but high-potential d
 ### REQUIRED OUTPUT
 Return a JSON object with:
 - "synthesis": A 3-sentence summary of the landscape.
-- "signals": A list of the top 3 specific signals found in the text.
+- "signals": A list of the top 3 specific signals found in the text. Each signal must be an object containing:
+    - "title": A descriptive, engaging title for the signal.
+    - "summary": A 2-3 sentence critical analysis. DO NOT copy-paste. Explain the core innovation, \
+the underlying drivers, and its strategic implications for the future.
+    - "source": The source name or URL.
+
+CRITICAL: The "summary" field must be analytical, not descriptive. Answer:
+- What is the core innovation or change?
+- What are the underlying drivers making this happen now?
+- What are the strategic implications for Nesta's missions?
 """
 
 
