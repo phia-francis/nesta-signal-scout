@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from app.api.dependencies import get_llm_service, get_scan_orchestrator, get_sheet_service
@@ -50,7 +52,7 @@ async def research_scan(
         for s in raw_signals[:NUM_SIGNALS_FOR_SYNTHESIS]
         if s.url
     ]
-    synthesis["url"] = ""
+    synthesis["url"] = f"synthesis:{uuid.uuid4().hex[:12]}"
     background_tasks.add_task(sheet_service.save_signals_batch, [synthesis])
 
     return [synthesis]

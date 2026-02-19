@@ -178,7 +178,7 @@
         <div class="p-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 id="help-modal-title" class="text-3xl font-display font-bold text-nesta-navy">User Guide</h2>
-                <button id="close-help-btn-top" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
+                <button id="close-help-btn-top" type="button" aria-label="Close user guide" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
             </div>
 
             <p class="text-slate-600 mb-8 leading-relaxed">
@@ -247,8 +247,9 @@
 
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Markdown parser for Research mode -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Markdown parser for Research mode (self-hosted, version-pinned) -->
+    <script src="static/js/vendor/purify.min.js"></script>
+    <script src="static/js/vendor/marked.min.js"></script>
     <script src="static/js/modules/guide.js" type="module"></script>
     <script src="static/js/main.js"></script>
 </body>

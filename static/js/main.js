@@ -600,7 +600,12 @@ function renderSignalCard(signal) {
   // Parse Markdown to HTML for synthesis cards (if marked.js loaded)
   let parsedSnippet;
   if (isSynthesis && typeof marked !== 'undefined' && summary) {
-    parsedSnippet = marked.parse(summary);
+    const rawHtml = marked.parse(summary);
+    if (typeof DOMPurify !== 'undefined') {
+      parsedSnippet = DOMPurify.sanitize(rawHtml);
+    } else {
+      parsedSnippet = `<p>${escapeHtml(summary)}</p>`;
+    }
   } else {
     parsedSnippet = `<p>${escapeHtml(summary)}</p>`;
   }
@@ -612,13 +617,13 @@ function renderSignalCard(signal) {
       <div class="source-list">
         <strong>Sources referenced:</strong>
         ${signal.sources.map(s =>
-          `<a href="${escapeAttribute(s.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(s.title || s.url)}</a>`
+          `<a href="${escapeAttribute(sanitizeUrl(s.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(s.title || s.url)}</a>`
         ).join('')}
       </div>
     `;
   } else if (signalUrl) {
     linksHtml = `
-      <a href="${escapeAttribute(signalUrl)}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview" onclick="event.stopPropagation()">Read Full →</a>
+      <a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview" onclick="event.stopPropagation()">Read Full →</a>
     `;
   }
 
@@ -641,7 +646,7 @@ function renderSignalCard(signal) {
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      ${signalUrl ? `<a href="${escapeAttribute(signalUrl)}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
+      ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
     </h3>
     <div class="snippet-content text-sm text-slate-600 leading-relaxed">
       ${parsedSnippet}
@@ -669,7 +674,7 @@ function renderSignalCard(signal) {
     </div>
     <div class="hover-preview">
       <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || summary)}</p>
-      ${signalUrl ? `<a href="${escapeAttribute(signalUrl)}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>` : ''}
+      ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>` : ''}
     </div>
   `;
 
@@ -746,7 +751,7 @@ async function refreshDatabase() {
         </div>
         ${sourceDate ? `<div class="text-[10px] text-slate-400 mb-3">Published: ${escapeHtml(String(sourceDate))}</div>` : ''}
         <div class="flex justify-between items-center">
-          <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
+          ${sanitizeUrl(url || "") ? `<a href="${escapeAttribute(sanitizeUrl(url))}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>` : '<span class="text-xs text-slate-400">No source link</span>'}
           <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
         </div>
       `;
@@ -926,6 +931,24 @@ function escapeAttribute(value) {
   return escapeHtml(value || "");
 }
 
+/**
+ * Sanitize a URL to only allow safe schemes (http, https, mailto).
+ * Blocks javascript:, data:, and other dangerous URL schemes.
+ */
+function sanitizeUrl(url) {
+  if (!url) return "";
+  const cleaned = String(url).trim();
+  // Only allow http:, https:, and mailto: schemes
+  if (/^https?:\/\//i.test(cleaned) || /^mailto:/i.test(cleaned)) {
+    return cleaned;
+  }
+  // Relative URLs starting with / or ./ are allowed
+  if (/^\.{0,2}\/[a-z0-9]/i.test(cleaned)) {
+    return cleaned;
+  }
+  return "";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. Slide-Over Detail Panel
 // ─────────────────────────────────────────────────────────────────────────────
@@ -974,7 +997,7 @@ function openDetailPanel(signal) {
       <div>
         <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Source</h4>
         <p class="text-sm text-slate-600 mb-2">${escapeHtml(signal.source || 'Unknown')}</p>
-        ${signal.url ? `<a href="${escapeAttribute(signal.url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
+        ${signal.url ? `<a href="${escapeAttribute(sanitizeUrl(signal.url))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
           <span>View Source</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
