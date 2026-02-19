@@ -309,8 +309,18 @@ document.getElementById("help-btn")?.addEventListener("click", () => {
 document.getElementById("close-help-btn")?.addEventListener("click", () => {
   toggleModal('help', false);
 });
+document.getElementById("close-help-btn-top")?.addEventListener("click", () => {
+  toggleModal('help', false);
+});
 document.getElementById("help-overlay")?.addEventListener("click", () => {
   toggleModal('help', false);
+});
+
+// Interactive Tour button
+document.getElementById("start-tour-btn")?.addEventListener("click", () => {
+  if (typeof startTour === 'function') {
+    startTour();
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -28,6 +28,9 @@
             <button id="open-db-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg text-sm font-bold text-nesta-navy hover:bg-slate-200 transition-colors">
                 📚 Signal Database
             </button>
+            <button id="start-tour-btn" class="flex items-center gap-2 px-4 py-2 bg-nesta-blue/10 text-nesta-blue rounded-lg text-sm font-bold hover:bg-nesta-blue/20 transition-colors">
+                ✨ Interactive Tour
+            </button>
             <button id="help-btn"
                     class="text-slate-400 hover:text-nesta-blue transition-colors"
                     title="User Guide"
@@ -171,17 +174,74 @@
 
     <!-- Help Modal -->
     <div id="help-overlay" class="modal-overlay" aria-hidden="true"></div>
-    <div id="help-modal" class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" style="max-width: 600px;">
+    <div id="help-modal" class="modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" style="max-width: 700px; max-height: 85vh; overflow-y: auto;">
         <div class="p-8">
-            <h2 id="help-modal-title" class="text-2xl font-display font-bold mb-4">How to Use</h2>
-            <ul class="space-y-4 text-nesta-navy">
-                <li><strong>⚡ Mini Radar:</strong> News &amp; social media</li>
-                <li><strong>🧠 Deep Research:</strong> Academic papers &amp; blogs</li>
-                <li><strong>🌍 Governance Radar:</strong> Gov documents</li>
-            </ul>
-            <button id="close-help-btn" class="mt-8 w-full bg-slate-100 py-3 rounded-lg font-bold text-nesta-navy hover:bg-slate-200 transition-colors">
-                Got it
-            </button>
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="help-modal-title" class="text-3xl font-display font-bold text-nesta-navy">User Guide</h2>
+                <button id="close-help-btn-top" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
+            </div>
+
+            <p class="text-slate-600 mb-8 leading-relaxed">
+                <strong>Nesta Signal Scout</strong> is an AI-powered horizon scanning tool designed to identify "weak signals" of change—early indicators of emerging technologies, shifting social behaviours, and novel policies that align with Nesta's missions.
+            </p>
+
+            <div class="space-y-8 text-nesta-navy">
+
+                <div>
+                    <h3 class="text-xl font-display font-bold mb-3 border-b border-slate-200 pb-2">1. Choose Your Lens</h3>
+                    <ul class="space-y-4 mt-4">
+                        <li class="flex gap-3">
+                            <span class="text-2xl">⚡</span>
+                            <div>
+                                <strong class="block text-lg">Mini Radar</strong>
+                                <span class="text-sm text-slate-600">Best for identifying emerging social trends, consumer shifts, and grassroots movements. Scans niche blogs, forums (like Reddit), and recent news while actively filtering out established encyclopaedias.</span>
+                            </div>
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-2xl">🧠</span>
+                            <div>
+                                <strong class="block text-lg">Deep Research</strong>
+                                <span class="text-sm text-slate-600">Best for deep-tech and academic exploration. The AI synthesises multiple dense documents, academic papers, and long-form reports to generate a comprehensive markdown summary of a landscape.</span>
+                            </div>
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-2xl">🌍</span>
+                            <div>
+                                <strong class="block text-lg">Governance Radar</strong>
+                                <span class="text-sm text-slate-600">Best for regulatory intelligence. Forces the search algorithm to hunt for policy drafts, reach codes, tax credits, and official government (.gov) or NGO publications.</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-display font-bold mb-3 border-b border-slate-200 pb-2">2. Understanding the Metrics</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <strong class="text-nesta-blue">Score (1-10)</strong>
+                            <p class="text-sm text-slate-600 mt-1">Measures the "Novelty" and "Actionability" of the signal. Higher scores indicate highly disruptive or mission-aligned developments.</p>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <strong class="text-nesta-blue">AI Confidence (%)</strong>
+                            <p class="text-sm text-slate-600 mt-1">Measures the authority of the source. Official gov sites receive high confidence, while subjective social media posts are flagged for manual verification.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-display font-bold mb-3 border-b border-slate-200 pb-2">3. Saving to the Database</h3>
+                    <p class="text-sm text-slate-600 mt-2">
+                        When you spot a valuable signal, click the <strong>★ Star</strong> button. This automatically formats and pushes the data to the central Google Sheets Database (Signal Scout DB v2), tracking its Typology, Mission, and Source links for your team.
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="mt-10">
+                <button id="close-help-btn" class="w-full bg-nesta-navy text-white py-3 rounded-lg font-bold hover:bg-opacity-90 transition-colors">
+                    Close Guide
+                </button>
+            </div>
         </div>
     </div>
 
@@ -189,6 +249,7 @@
 
     <!-- Markdown parser for Research mode -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="static/js/modules/guide.js" type="module"></script>
     <script src="static/js/main.js"></script>
 </body>
 </html>

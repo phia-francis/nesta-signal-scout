@@ -1,28 +1,28 @@
 const TOUR_STEPS = [
   {
-    target: 'aside',
+    target: 'nav',
     title: 'Primary Navigation',
-    description: 'Navigate between Radar (Live Scan) and Database (Saved Signals).',
-    position: 'right',
-  },
-  {
-    target: '#search-panel',
-    title: 'Mode Selector',
-    description:
-      "Choose your lens: 'Radar' for broad trends, 'Research' for academic rigour, or 'Policy' for government strategy.",
+    description: 'Access the Signal Database to view saved signals or open the User Guide.',
     position: 'bottom',
   },
   {
-    target: 'input[type="text"]',
+    target: '.scan-module',
+    title: 'Scan Configuration',
+    description:
+      "Choose your lens: 'Mini Radar' for broad trends, 'Deep Research' for academic rigour, or 'Governance Radar' for policy.",
+    position: 'bottom',
+  },
+  {
+    target: '#query-input',
     title: 'Search Input',
     description:
-      'Enter a topic. The agent automatically applies friction terms to find novel, edge-case signals.',
+      'Enter a topic and select a mission context. The agent automatically applies friction terms to find novel, edge-case signals.',
     position: 'bottom',
   },
   {
     target: '#radar-feed',
     title: 'Results Grid',
-    description: 'Real-time results appear here with Activity and Attention scores.',
+    description: 'Real-time results appear here, scored for Activity and Attention.',
     position: 'top',
   },
 ];
@@ -276,5 +276,8 @@ const tour = new MissionDiscoveryTour();
 export function startTour() {
   tour.start();
 }
+
+// Expose globally so non-module scripts (main.js) can call it
+window.startTour = startTour;
 
 export { TOUR_STEPS, tour };
