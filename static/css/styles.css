@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Utility: Remove element from document flow completely */
+.hidden {
+    display: none !important;
+}
+
+/* Ensure loader covers properly when active */
+#scan-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
+}
+
 :root {
   --nesta-blue: #0000FF;      /* buttons, links */
   --nesta-navy: #0F294A;      /* text, headers */
