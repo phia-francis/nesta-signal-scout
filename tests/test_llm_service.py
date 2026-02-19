@@ -201,3 +201,62 @@ async def test_generate_signal_api_error_raises(llm_service_with_key):
             system_prompt="Synthesize.",
             mode="Research",
         )
+
+
+@pytest.mark.asyncio
+async def test_evaluate_radar_signals_without_client():
+    """Test that evaluate_radar_signals returns empty list when no client."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    result = await service.evaluate_radar_signals("test query", [{"id": "0", "title": "Test"}], "General")
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_evaluate_radar_signals_with_empty_results(llm_service_with_key):
+    """Test that evaluate_radar_signals handles empty search results."""
+    result = await llm_service_with_key.evaluate_radar_signals("test query", [], "General")
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_evaluate_radar_signals_success(llm_service_with_key):
+    """Test successful radar evaluation with mocked OpenAI response."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = '{"signals": [{"id": "0", "title": "Rewritten Title", "summary": "Analytical summary", "score": 8.5, "confidence": 90}]}'
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    search_results = [
+        {"id": "0", "title": "Raw Result", "snippet": "Raw snippet", "displayLink": "source.com"}
+    ]
+
+    result = await llm_service_with_key.evaluate_radar_signals("quantum computing", search_results, "Any")
+
+    assert len(result) == 1
+    assert result[0]["title"] == "Rewritten Title"
+    assert result[0]["summary"] == "Analytical summary"
+    assert llm_service_with_key.client.chat.completions.create.called
+
+
+@pytest.mark.asyncio
+async def test_evaluate_radar_signals_api_error_returns_empty(llm_service_with_key):
+    """Test that evaluate_radar_signals returns empty list on API error (does not raise)."""
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(
+        side_effect=Exception("API Error")
+    )
+
+    search_results = [{"id": "0", "title": "Test", "snippet": "Summary", "displayLink": "test.com"}]
+
+    result = await llm_service_with_key.evaluate_radar_signals("test", search_results, "Any")
+
+    assert result == []

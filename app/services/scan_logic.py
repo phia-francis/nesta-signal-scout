@@ -538,15 +538,46 @@ class ScanOrchestrator:
             related_keywords=[]
         )
 
-        # Create signal cards from individual results
-        individual_cards = list(
-            self.process_signals(
-                raw_signals[:10],  # Limit to top 10 for display
+        # Create signal cards from individual LLM results
+        individual_cards = []
+        llm_signals = synthesis_result.get("signals", [])
+
+        # Fallback to URL matching to grab original dates/metadata
+        url_to_raw = {s.url: s for s in raw_signals if s.url}
+
+        for sig_data in llm_signals:
+            if not isinstance(sig_data, dict):
+                continue
+            url = sig_data.get("source", "")
+            raw = url_to_raw.get(url)
+
+            card = SignalCard(
+                title=sig_data.get("title", "Research Signal"),
+                url=url if isinstance(url, str) and url.startswith("http") else "",
+                summary=sig_data.get("summary", ""),
+                source=raw.source if raw else "Web Synthesis",
                 mission="Research",
-                related_terms=[],
-                override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
+                date=raw.date.date().isoformat() if raw and raw.date else datetime.now(timezone.utc).date().isoformat(),
+                score_activity=5.0,
+                score_attention=5.0,
+                score_recency=5.0,
+                final_score=7.5,
+                typology="Signal",
+                is_novel=True,
+                related_keywords=[]
             )
-        )
+            individual_cards.append(card)
+
+        # If LLM didn't return any sub-signals, fallback to generic parsing
+        if not individual_cards:
+            individual_cards = list(
+                self.process_signals(
+                    raw_signals[:10],
+                    mission="Research",
+                    related_terms=[],
+                    override_cutoff_date=datetime.now(timezone.utc) - timedelta(days=FIVE_YEARS_DAYS),
+                )
+            )
 
         # Return synthesis first, then individual results
         return [synthesized_card] + individual_cards
