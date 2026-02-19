@@ -114,6 +114,12 @@ body {
   border-color: var(--btn-accent);
 }
 
+/* Ensure dropdown options inherit theme colors */
+.scan-input option {
+  color: var(--box-text);
+  background-color: var(--box-input-bg);
+}
+
 h1,
 h2,
 h3,
