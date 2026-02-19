@@ -31,7 +31,6 @@ async def research_scan(
 
     # 2. Synthesize (Many Sources -> One Signal)
     context_text = "\n\n".join([f"Source: {s.url}\nSummary: {s.abstract}" for s in raw_signals[:NUM_SIGNALS_FOR_SYNTHESIS]])
-    bibliography = ", ".join([s.url for s in raw_signals[:NUM_SIGNALS_FOR_SYNTHESIS]])
 
     system_prompt = (
         "You are a strategic analyst. Synthesize the provided search snippets into ONE comprehensive "
@@ -44,8 +43,14 @@ async def research_scan(
         mode="Research",
     )
 
-    # 3. Add Bibliography & Persist
-    synthesis["url"] = bibliography
+    # 3. Create descriptive title and attach real sources
+    synthesis["title"] = f"{query.title()}: A Research Synthesis"
+    synthesis["sources"] = [
+        {"title": s.title, "url": s.url}
+        for s in raw_signals[:NUM_SIGNALS_FOR_SYNTHESIS]
+        if s.url
+    ]
+    synthesis["url"] = ""
     background_tasks.add_task(sheet_service.save_signals_batch, [synthesis])
 
     return [synthesis]

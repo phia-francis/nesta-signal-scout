@@ -161,6 +161,7 @@ class LLMService:
                 "typology": "Synthesis",
                 "score_activity": 0,
                 "score_attention": 0,
+                "final_score": 0,
                 "mode": mode.title(),
             }
 
@@ -192,6 +193,7 @@ class LLMService:
             "typology": "Synthesis",
             "score_activity": 0,
             "score_attention": 0,
+            "final_score": 7.5,
             "mode": mode.title(),
         }
 

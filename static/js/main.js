@@ -585,8 +585,34 @@ function renderSignalCard(signal) {
   const confidencePercent = Math.round(confidence * 100);
   const signalUrl = signal.url || "";
   const summary = signal.summary || "";
+  const isSynthesis = signal.typology === "Synthesis" || (signal.sources && Array.isArray(signal.sources));
 
-  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible ${isRead ? 'opacity-60' : ''}`;
+  // Parse Markdown to HTML for synthesis cards (if marked.js loaded)
+  let parsedSnippet;
+  if (isSynthesis && typeof marked !== 'undefined' && summary) {
+    parsedSnippet = marked.parse(summary);
+  } else {
+    parsedSnippet = `<p>${escapeHtml(summary)}</p>`;
+  }
+
+  // Render sources array (Research mode) OR single URL (Radar mode)
+  let linksHtml = '';
+  if (signal.sources && Array.isArray(signal.sources) && signal.sources.length > 0) {
+    linksHtml = `
+      <div class="source-list">
+        <strong>Sources referenced:</strong>
+        ${signal.sources.map(s =>
+          `<a href="${escapeAttribute(s.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(s.title || s.url)}</a>`
+        ).join('')}
+      </div>
+    `;
+  } else if (signalUrl) {
+    linksHtml = `
+      <a href="${escapeAttribute(signalUrl)}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview" onclick="event.stopPropagation()">Read Full →</a>
+    `;
+  }
+
+  el.className = `bg-white p-6 rounded-3xl border border-slate-200 shadow-sm card-hover animate-slide-up relative overflow-visible signal-card ${isSynthesis ? 'expandable' : ''} ${isRead ? 'opacity-60' : ''}`;
   el.style.animationDelay = `${cardIndex * 0.05}s`;
   el.dataset.mission = signal.mission || "General";
   el.dataset.score = score.toString();
@@ -605,14 +631,20 @@ function renderSignalCard(signal) {
       </div>
     </div>
     <h3 class="font-display text-lg font-bold text-nesta-navy leading-tight mb-2">
-      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link">${escapeHtml(signal.title || "Untitled")}</a>
+      ${signalUrl ? `<a href="${escapeAttribute(signalUrl)}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
     </h3>
-    <p class="text-sm text-slate-600 leading-relaxed mb-4">${escapeHtml(summary.slice(0, SUMMARY_TRUNCATE_LENGTH))}${summary.length > SUMMARY_TRUNCATE_LENGTH ? '…' : ''}</p>
+    <div class="snippet-content text-sm text-slate-600 leading-relaxed">
+      ${parsedSnippet}
+    </div>
+    ${isSynthesis ? '<div class="expand-hint text-xs text-slate-400">Click to expand ▼</div>' : ''}
+    <div onclick="event.stopPropagation()">
+      ${linksHtml}
+    </div>
     <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
       <div class="text-xs text-slate-500 truncate pr-3 max-w-[200px]">${escapeHtml(signal.source || "Web")}</div>
       <div class="text-right">
         <div class="text-[10px] font-bold uppercase text-slate-400">Score</div>
-        <div class="font-display font-bold text-nesta-blue">${score.toFixed(2)}</div>
+        <div class="font-display font-bold text-nesta-blue">${score.toFixed(1)}<span class="text-[10px] text-slate-400">/10</span></div>
       </div>
     </div>
     <div class="border-t border-slate-100 pt-3 mt-3">
@@ -627,9 +659,17 @@ function renderSignalCard(signal) {
     </div>
     <div class="hover-preview">
       <p class="text-sm text-slate-600 mb-3">${escapeHtml(signal.abstract || summary)}</p>
-      <a href="${escapeAttribute(signalUrl || "#")}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>
+      ${signalUrl ? `<a href="${escapeAttribute(signalUrl)}" target="_blank" class="text-xs font-bold text-nesta-blue hover:underline" data-action="read-preview">Read Full →</a>` : ''}
     </div>
   `;
+
+  // Click handler to expand/collapse synthesis cards
+  if (isSynthesis) {
+    el.addEventListener('click', function(e) {
+      if (e.target.closest('a, button')) return;
+      this.classList.toggle('expanded');
+    });
+  }
 
   // Attach event listeners (no inline onclick)
   el.querySelectorAll('[data-action="read-link"], [data-action="read-preview"]').forEach(link => {
@@ -639,8 +679,9 @@ function renderSignalCard(signal) {
   const starBtn = el.querySelector('[data-action="star"]');
   const archiveBtn = el.querySelector('[data-action="archive"]');
 
-  starBtn?.addEventListener("click", () => toggleStar(signal.url));
-  archiveBtn?.addEventListener("click", async () => {
+  starBtn?.addEventListener("click", (e) => { e.stopPropagation(); toggleStar(signal.url); });
+  archiveBtn?.addEventListener("click", async (e) => {
+    e.stopPropagation();
     await archiveSignal(signal.url);
     el.remove();
     if (dom.radarFeed.children.length === 0) dom.emptyState.classList.remove("hidden");
