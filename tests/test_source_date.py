@@ -31,7 +31,7 @@ def test_signal_to_row_includes_source_date():
         "source": "Web",
         "status": "New",
         "narrative_group": "",
-        "date": "2025-11-15",
+        "source_date": "2025-11-15",
     }
     row = svc._signal_to_row(signal)
 

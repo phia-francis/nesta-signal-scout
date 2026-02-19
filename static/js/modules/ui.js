@@ -286,4 +286,51 @@ export function renderSignals(signals, container, topic = '', groupBy = null) {
   });
 }
 
+export function renderThemeChips(themes, container, onSelect) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!themes || themes.length === 0) return;
+
+  const label = document.createElement('span');
+  label.className = 'text-xs font-bold text-slate-500 uppercase tracking-wider mr-2';
+  label.textContent = 'Detected Themes:';
+  container.appendChild(label);
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'px-3 py-1 rounded-full text-xs font-bold transition-colors bg-nesta-navy text-white';
+  allBtn.textContent = 'All Signals';
+  allBtn.addEventListener('click', () => {
+    container.querySelectorAll('button').forEach(b => {
+      b.classList.remove('bg-nesta-navy', 'text-white');
+      b.classList.add('bg-slate-100', 'text-slate-600');
+    });
+    allBtn.classList.remove('bg-slate-100', 'text-slate-600');
+    allBtn.classList.add('bg-nesta-navy', 'text-white');
+    onSelect(null);
+  });
+  container.appendChild(allBtn);
+
+  themes.forEach((theme) => {
+    const btn = document.createElement('button');
+    btn.className = 'px-3 py-1 rounded-full text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200';
+    btn.textContent = theme.name;
+    btn.title = theme.description;
+
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => {
+        b.classList.remove('bg-nesta-navy', 'text-white');
+        b.classList.add('bg-slate-100', 'text-slate-600');
+      });
+      btn.classList.remove('bg-slate-100', 'text-slate-600');
+      btn.classList.add('bg-nesta-navy', 'text-white');
+      onSelect(theme);
+    });
+    container.appendChild(btn);
+  });
+
+  const toggles = document.getElementById('view-toggles');
+  if (toggles) toggles.classList.remove('hidden');
+}
+
 export { MISSION_THEMES };

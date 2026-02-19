@@ -197,6 +197,63 @@ class LLMService:
             "mode": mode.title(),
         }
 
+    async def evaluate_radar_signals(self, query: str, search_results: list[dict[str, Any]], mission: str) -> list[dict[str, Any]]:
+        """Evaluate and rewrite raw search results for radar mode to prevent copy-pasting."""
+        if not self.client:
+            return []
+
+        buffer = []
+        for item in search_results:
+            # Inject numerical ID so the LLM can precisely map summaries back to the original URLs
+            buffer.append(f"[{item.get('id')}] {item.get('title')} ({item.get('displayLink')}): {item.get('snippet')}")
+        context_str = "\n\n".join(buffer)
+
+        if not context_str.strip():
+            return []
+
+        try:
+            system_prompt = get_system_instructions(mission)
+        except ValueError:
+            # Fall back gracefully for unknown missions (e.g. API default "General")
+            try:
+                system_prompt = get_system_instructions("Any")
+            except ValueError:
+                system_prompt = SYSTEM_INSTRUCTIONS
+        user_prompt = f"""
+### RADAR EVALUATION TASK
+Review the following search results for the topic: "{query}".
+Identify and rewrite up to 10 of the most relevant, novel signals from the context.
+
+### CONTEXT DATA
+{context_str}
+
+### REQUIRED OUTPUT
+Return valid JSON with a "signals" array. Each object MUST contain:
+- "id": The exact numerical ID from the brackets in the context data (critical for matching).
+- "title": A descriptive, engaging title.
+- "summary": A 2-3 sentence critical analysis. DO NOT copy-paste the snippet. Explain the core innovation, drivers, and strategic implications.
+- "score": A relevance score (1.0-10.0).
+- "confidence": AI confidence score (1-100).
+"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.3,
+            )
+            content = response.choices[0].message.content
+            if content:
+                return json.loads(content).get("signals", [])
+            return []
+        except Exception as e:
+            logger.error("Radar evaluation failed: %s", e)
+            return []
+
     async def cluster_signals(self, signals: list[Any]) -> dict[str, Any]:
         """
         Group signals into 3–5 thematic clusters using LLM analysis.

@@ -73,17 +73,68 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
             yield _msg("complete", "Scan finished.")
             return
 
-        yield _msg("success", f"Found {len(raw_signals)} potential signals. Scoring...")
+        yield _msg("info", f"Found {len(raw_signals)} potential signals. AI is analysing and rewriting...")
 
-        # 2. Score & Yield Cards
+        # -- LLM INTERCEPTION LAYER --
+        llm = getattr(orchestrator, 'llm_service', None)
+        if llm and getattr(llm, 'client', None):
+            # Prepare top 15 results for the LLM
+            llm_input = [
+                {"id": str(i), "title": s.title, "snippet": s.abstract, "displayLink": s.url or s.source}
+                for i, s in enumerate(raw_signals[:15])
+            ]
+
+            evaluated_signals = await llm.evaluate_radar_signals(query, llm_input, mission)
+
+            if evaluated_signals:
+                evaluated_ids = set()
+                count = 0
+                for ev in evaluated_signals:
+                    try:
+                        idx = int(ev.get("id", -1))
+                        if 0 <= idx < len(raw_signals):
+                            evaluated_ids.add(idx)
+                            raw = raw_signals[idx]
+
+                            # Rewrite properties to use AI analytical text
+                            raw.abstract = ev.get("summary", raw.abstract)
+                            raw.title = ev.get("title", raw.title)
+
+                            scored = orchestrator._score_signal(raw, orchestrator.cutoff_date)
+                            if scored:
+                                if ev.get("score"):
+                                    try:
+                                        scored.final_score = float(ev.get("score"))
+                                    except ValueError:
+                                        pass
+
+                                card = orchestrator._to_signal_card(scored, related_terms=related_terms)
+                                data = {"status": "blip", "blip": card.model_dump()}
+                                yield json.dumps(data) + "\n"
+                                count += 1
+                    except (ValueError, TypeError):
+                        continue
+
+                # Also yield remaining non-evaluated signals via standard scoring
+                remaining = [s for i, s in enumerate(raw_signals) if i not in evaluated_ids]
+                for card in orchestrator.process_signals(remaining, mission=mission, related_terms=related_terms):
+                    data = {"status": "blip", "blip": card.model_dump()}
+                    yield json.dumps(data) + "\n"
+                    count += 1
+
+                if count > 0:
+                    yield _msg("complete", f"Scan complete. {count} signals analysed.")
+                    return
+
+        # -- FALLBACK if LLM unavailable or failed --
+        yield _msg("info", "Applying standard scoring...")
         count = 0
         for card in orchestrator.process_signals(raw_signals, mission=mission, related_terms=related_terms):
-            # Send the card as a 'blip'
             data = {"status": "blip", "blip": card.model_dump()}
             yield json.dumps(data) + "\n"
             count += 1
 
-        yield _msg("complete", f"Scan complete. {count} signals visualized.")
+        yield _msg("complete", f"Scan complete. {count} signals visualised.")
 
     except ValidationError as e:
         logger.warning("Radar validation error: %s", e)

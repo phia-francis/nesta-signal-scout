@@ -22,7 +22,7 @@ QUEUE_FLUSH_BATCH_SIZE = 50
 class SheetService:
     """Google Sheets persistence service with buffered background sync."""
 
-    DATABASE_TAB_NAME = "Sheet1"
+    DATABASE_TAB_NAME = "Database"
     WATCHLIST_TAB_NAME = "Watchlist"
     STATUS_COLUMN_INDEX = 11
     URL_COLUMN_INDEX = 5
@@ -110,7 +110,7 @@ class SheetService:
             signal.get("source", "Web"),
             signal.get("status", "New"),
             signal.get("narrative_group", ""),
-            signal.get("date", "Unknown"),
+            signal.get("source_date") or signal.get("date") or "Unknown",
         ]
 
     @staticmethod
@@ -205,7 +205,7 @@ class SheetService:
                             gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
                             gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
                             gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group", "")),
-                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("date", "Unknown")),
+                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("source_date") or signal.get("date") or "Unknown"),
                         ]
                     )
                 else:
@@ -232,6 +232,7 @@ class SheetService:
         """Persist starred signals into Watchlist tab for analyst triage."""
         row = [
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            signal.get("mode", "Radar"),
             signal.get("mission", "General"),
             signal.get("title", "Untitled"),
             signal.get("url", ""),
@@ -241,6 +242,8 @@ class SheetService:
             signal.get("score_attention", 0),
             signal.get("source", "Web"),
             signal.get("status", "Starred"),
+            signal.get("narrative_group", ""),
+            signal.get("source_date") or signal.get("date") or "Unknown",
         ]
         try:
             await asyncio.to_thread(self.get_watchlist_sheet().append_row, row)
