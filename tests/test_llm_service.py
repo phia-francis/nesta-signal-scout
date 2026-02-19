@@ -136,38 +136,29 @@ def test_format_results_limits_to_15(llm_service_with_key):
 
 
 @pytest.mark.asyncio
-async def test_generate_signal_without_client():
-    """Test that generate_signal returns fallback when no client."""
+async def test_generate_signal_without_client_raises_error():
+    """Test that generate_signal raises ValueError when no client."""
     settings = Mock()
     settings.OPENAI_API_KEY = None
     settings.CHAT_MODEL = "gpt-4o-mini"
 
     service = LLMService(settings=settings)
 
-    result = await service.generate_signal(
-        context="Source (http://a.com): snippet one\nSource (http://b.com): snippet two",
-        system_prompt="You are an analyst.",
-        mode="Research",
-    )
-
-    assert result["title"] == "Research Synthesis"
-    assert result["mode"] == "Research"
-    assert "snippet" in result["summary"].lower()
+    with pytest.raises(ValueError, match="OpenAI client not initialized"):
+        await service.generate_signal(
+            context="Source (http://a.com): snippet one",
+            system_prompt="You are an analyst.",
+            mode="Research",
+        )
 
 
 @pytest.mark.asyncio
-async def test_generate_signal_with_empty_context():
-    """Test generate_signal with empty context returns fallback summary."""
-    settings = Mock()
-    settings.OPENAI_API_KEY = None
-    settings.CHAT_MODEL = "gpt-4o-mini"
-
-    service = LLMService(settings=settings)
-
-    result = await service.generate_signal(context="", system_prompt="Synthesize.", mode="research")
-
-    assert result["summary"] == "No synthesis context available."
-    assert result["mode"] == "Research"
+async def test_generate_signal_empty_context_raises_error(llm_service_with_key):
+    """Test generate_signal raises ValueError on empty context."""
+    with pytest.raises(ValueError, match="empty context"):
+        await llm_service_with_key.generate_signal(
+            context="", system_prompt="Synthesize.", mode="research"
+        )
 
 
 @pytest.mark.asyncio
@@ -192,18 +183,18 @@ async def test_generate_signal_success(llm_service_with_key):
 
 
 @pytest.mark.asyncio
-async def test_generate_signal_api_error_fallback(llm_service_with_key):
-    """Test that generate_signal falls back on API error."""
+async def test_generate_signal_api_error_raises(llm_service_with_key):
+    """Test that generate_signal raises LLMServiceError on API error."""
+    from app.core.exceptions import LLMServiceError
+
     llm_service_with_key.client = AsyncMock()
     llm_service_with_key.client.chat.completions.create = AsyncMock(
         side_effect=Exception("API Error")
     )
 
-    result = await llm_service_with_key.generate_signal(
-        context="Source (http://a.com): snippet one",
-        system_prompt="Synthesize.",
-        mode="Research",
-    )
-
-    assert "snippet" in result["summary"].lower()
-    assert result["title"] == "Research Synthesis"
+    with pytest.raises(LLMServiceError, match="LLM generate_signal failed"):
+        await llm_service_with_key.generate_signal(
+            context="Source (http://a.com): snippet one",
+            system_prompt="Synthesize.",
+            mode="Research",
+        )

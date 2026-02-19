@@ -133,11 +133,7 @@ class LLMService:
 
     async def generate_signal(self, context: str, system_prompt: str, mode: str) -> dict[str, Any]:
         """
-        Generate a synthesised signal card from raw context.
-
-        Uses the LLM to synthesise raw search snippets into a single
-        structured signal when the OpenAI client is available, falling
-        back to a simple text-based summary otherwise.
+        Generate an AI-synthesised signal card from raw context.
 
         Args:
             context: Concatenated search snippets / source text.
@@ -147,26 +143,36 @@ class LLMService:
         Returns:
             Dictionary representing a signal card with title, summary,
             source, mission, typology, scores, and mode.
+
+        Raises:
+            ValueError: If the OpenAI client is not initialised or
+                        *context* is empty.
+            LLMServiceError: If the OpenAI API call fails.
         """
-        summary: str
-        if self.client:
-            try:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": context},
-                    ],
-                    temperature=0.3,
-                )
-                summary = (response.choices[0].message.content or "")[:500]
-            except Exception as e:
-                logger.warning("LLM generate_signal failed, using fallback: %s", e)
-                snippets = [line.strip() for line in context.splitlines() if line.strip()]
-                summary = " ".join(snippets[:6])[:500] if snippets else "No synthesis context available."
-        else:
-            snippets = [line.strip() for line in context.splitlines() if line.strip()]
-            summary = " ".join(snippets[:6])[:500] if snippets else "No synthesis context available."
+        if not self.client:
+            raise ValueError(
+                "OpenAI client not initialized. Check OPENAI_API_KEY environment variable."
+            )
+
+        if not context or not context.strip():
+            raise ValueError("Cannot generate signal from empty context")
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context},
+                ],
+                temperature=0.3,
+            )
+            summary = (response.choices[0].message.content or "")[:500]
+        except Exception as e:
+            logger.error("OpenAI API call failed in generate_signal: %s", e, exc_info=True)
+            raise LLMServiceError(
+                f"LLM generate_signal failed: {str(e)}",
+                model=self.model,
+            ) from e
 
         return {
             "title": "Research Synthesis",
