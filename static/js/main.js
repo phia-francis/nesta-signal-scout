@@ -719,6 +719,7 @@ async function refreshDatabase() {
       const typology = item.typology || item.Typology || "Signal";
       const scoreActivity = item.score_activity || item.Score_Activity || "N/A";
       const scoreAttention = item.score_attention || item.Score_Attention || "N/A";
+      const sourceDate = item.date || item.Source_Date || item.source_date || "";
 
       const card = document.createElement("div");
       card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
@@ -733,6 +734,7 @@ async function refreshDatabase() {
           <span>Activity: ${escapeHtml(String(scoreActivity))}</span>
           <span>Attention: ${escapeHtml(String(scoreAttention))}</span>
         </div>
+        ${sourceDate ? `<div class="text-[10px] text-slate-400 mb-3">Published: ${escapeHtml(String(sourceDate))}</div>` : ''}
         <div class="flex justify-between items-center">
           <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
           <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>

@@ -35,6 +35,7 @@ class SheetService:
     ATTENTION_COLUMN_INDEX = 9
     SOURCE_COLUMN_INDEX = 10
     NARRATIVE_GROUP_COLUMN_INDEX = 12
+    SOURCE_DATE_COLUMN_INDEX = 13
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -109,6 +110,7 @@ class SheetService:
             signal.get("source", "Web"),
             signal.get("status", "New"),
             signal.get("narrative_group", ""),
+            signal.get("date", "Unknown"),
         ]
 
     @staticmethod
@@ -203,6 +205,7 @@ class SheetService:
                             gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
                             gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
                             gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group", "")),
+                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("date", "Unknown")),
                         ]
                     )
                 else:
