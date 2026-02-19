@@ -89,6 +89,29 @@ def get_trend_modifiers(query: str) -> list[str]:
     return NOVELTY_MODIFIERS[:5]
 
 
+POLICY_MODIFIERS = [
+    "legislation", "mandate", "tax credit", "guideline",
+    "policy draft", "framework", "regulation", "ordinance",
+    "incentive", "consultation",
+]
+
+
+def get_policy_modifiers(query: str) -> list[str]:
+    """Return policy/regulatory keywords to append to a search query.
+
+    These positive-inclusion modifiers bias results toward government
+    and regulatory sources rather than generic Wikipedia articles.
+
+    Args:
+        query: The base search query (reserved for future
+               query-aware modifier selection).
+
+    Returns:
+        A list of policy modifier strings (top 5).
+    """
+    return POLICY_MODIFIERS[:5]
+
+
 def generate_broad_scan_queries(seed_terms, num_signals=5):
     """Backward-compatible helper used by tests/agent logic."""
     try:

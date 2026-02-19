@@ -716,17 +716,27 @@ async function refreshDatabase() {
       const mission = item.mission || item.Mission || "General";
       const summary = item.summary || item.Summary || "";
       const url = item.url || item.URL || "";
+      const typology = item.typology || item.Typology || "Signal";
+      const scoreActivity = item.score_activity || item.Score_Activity || "N/A";
+      const scoreAttention = item.score_attention || item.Score_Attention || "N/A";
 
       const card = document.createElement("div");
-      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm";
+      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
       card.innerHTML = `
         <div class="flex justify-between mb-2 gap-2">
            <span class="text-xs font-bold bg-nesta-blue text-white px-2 py-1 rounded">${escapeHtml(mission)}</span>
-           <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
+           <span class="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-1 rounded-lg">${escapeHtml(typology)}</span>
         </div>
         <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(title)}</h4>
-        <div class="text-xs text-slate-500 mb-4 line-clamp-3">${escapeHtml(summary.slice(0, 150))}</div>
-        <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
+        <div class="text-xs text-slate-500 mb-4 line-clamp-3 flex-grow">${escapeHtml(summary.slice(0, 150))}</div>
+        <div class="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-3 mb-3">
+          <span>Activity: ${escapeHtml(String(scoreActivity))}</span>
+          <span>Attention: ${escapeHtml(String(scoreAttention))}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <a href="${escapeAttribute(url || "#")}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>
+          <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
+        </div>
       `;
       card.querySelector('[data-action="archive"]')?.addEventListener("click", async () => {
         await archiveSignal(url);

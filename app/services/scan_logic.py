@@ -557,6 +557,8 @@ class ScanOrchestrator:
 
         Searches government, international organisation, and NGO sites for
         policy documents (including PDFs) related to the given topic.
+        Enhances the query with policy-specific modifiers to prioritise
+        regulatory and legislative content over encyclopedic results.
 
         Args:
             topic: Policy topic to scan.
@@ -570,8 +572,12 @@ class ScanOrchestrator:
         if not topic.strip():
             raise ValidationError("Policy topic is required.")
 
-        # International + Grey Lit (PDFs)
-        query = f"{topic} (site:.gov OR site:.int OR site:.org OR filetype:pdf) -site:gov.uk"
+        # Enhance query with policy modifiers for regulatory targeting
+        policy_terms = keywords.get_policy_modifiers(topic)
+        modifiers_str = " OR ".join(policy_terms)
+
+        # International + UK Gov + Grey Lit (PDFs)
+        query = f"{topic} ({modifiers_str}) (site:.gov OR site:.gov.uk OR site:.int OR site:.org OR filetype:pdf)"
 
         try:
             results = await self.search_service.search(query, num=SCAN_RESULT_LIMIT, freshness="year")
