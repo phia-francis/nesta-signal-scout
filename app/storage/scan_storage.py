@@ -12,6 +12,8 @@ import fcntl
 import gspread
 from google.oauth2.service_account import Credentials
 
+from functools import lru_cache
+
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -75,20 +77,20 @@ class ScanStorage:
             logger.error(f"Failed to save scan {scan_id} to Sheets: {e}")
     
     def _get_from_sheets(self, scan_id: str) -> Optional[dict[str, Any]]:
-        """Retrieve scan from Google Sheets."""
+        """Retrieve scan from Google Sheets using batch column fetch."""
         worksheet = self._get_worksheet()
         if not worksheet:
             return None
         try:
-            cell = worksheet.find(scan_id, in_column=1)
-            if not cell:
+            # Batch fetch all scan_ids in column 1 (single API call)
+            scan_ids = worksheet.col_values(1)
+            if scan_id not in scan_ids:
                 return None
-            row = worksheet.row_values(cell.row)
+            row_index = scan_ids.index(scan_id) + 1  # 1-based row index
+            row = worksheet.row_values(row_index)
             if len(row) >= 5:
                 payload = json.loads(row[4])
                 return payload
-            return None
-        except gspread.exceptions.CellNotFound:
             return None
         except Exception as e:
             logger.error(f"Failed to load scan {scan_id} from Sheets: {e}")
@@ -310,34 +312,28 @@ class ScanStorage:
             return deleted_count
 
 
-# Singleton instance
-_storage_instance: ScanStorage | None = None
-
-
+@lru_cache(maxsize=1)
 def get_scan_storage() -> ScanStorage:
     """Get or create the singleton storage instance with Google Sheets integration."""
-    global _storage_instance
-    if _storage_instance is None:
-        sheets_client = None
-        spreadsheet_id = None
-        settings = get_settings()
-        
-        if settings.GOOGLE_CREDENTIALS and settings.SHEET_ID:
-            try:
-                credentials = Credentials.from_service_account_info(
-                    json.loads(settings.GOOGLE_CREDENTIALS),
-                    scopes=["https://www.googleapis.com/auth/spreadsheets"],
-                )
-                sheets_client = gspread.authorize(credentials)
-                spreadsheet_id = settings.SHEET_ID
-                logger.info("ScanStorage initialised with Google Sheets persistence")
-            except Exception as e:
-                logger.error(f"Failed to initialise Google Sheets for ScanStorage: {e}")
-        else:
-            logger.warning("Google credentials or Sheet ID not configured; ScanStorage using local files only")
-        
-        _storage_instance = ScanStorage(
-            sheets_client=sheets_client,
-            spreadsheet_id=spreadsheet_id,
-        )
-    return _storage_instance
+    sheets_client = None
+    spreadsheet_id = None
+    settings = get_settings()
+
+    if settings.GOOGLE_CREDENTIALS and settings.SHEET_ID:
+        try:
+            credentials = Credentials.from_service_account_info(
+                json.loads(settings.GOOGLE_CREDENTIALS),
+                scopes=["https://www.googleapis.com/auth/spreadsheets"],
+            )
+            sheets_client = gspread.authorize(credentials)
+            spreadsheet_id = settings.SHEET_ID
+            logger.info("ScanStorage initialised with Google Sheets persistence")
+        except Exception as e:
+            logger.error(f"Failed to initialise Google Sheets for ScanStorage: {e}")
+    else:
+        logger.warning("Google credentials or Sheet ID not configured; ScanStorage using local files only")
+
+    return ScanStorage(
+        sheets_client=sheets_client,
+        spreadsheet_id=spreadsheet_id,
+    )

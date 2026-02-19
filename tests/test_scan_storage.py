@@ -231,7 +231,7 @@ def mock_worksheet():
     """Create a mock Google Sheets worksheet."""
     ws = MagicMock()
     ws.append_row = MagicMock()
-    ws.find = MagicMock(return_value=None)
+    ws.col_values = MagicMock(return_value=["scan_id"])  # header only
     ws.row_values = MagicMock(return_value=[])
     return ws
 
@@ -287,10 +287,8 @@ def test_get_scan_falls_back_to_sheets(sheets_storage, mock_worksheet):
         "signals": [{"title": "Persisted Signal"}],
         "themes": [],
     }
-    # Mock Sheets returning the scan
-    cell_mock = MagicMock()
-    cell_mock.row = 2
-    mock_worksheet.find.return_value = cell_mock
+    # Mock Sheets returning the scan via col_values batch lookup
+    mock_worksheet.col_values.return_value = ["scan_id", "sheets-only-id"]
     mock_worksheet.row_values.return_value = [
         "sheets-only-id",
         "2025-02-19 14:30:00",
@@ -304,7 +302,7 @@ def test_get_scan_falls_back_to_sheets(sheets_storage, mock_worksheet):
     assert result is not None
     assert result["query"] == "persisted query"
     assert result["scan_id"] == "sheets-only-id"
-    mock_worksheet.find.assert_called_once_with("sheets-only-id", in_column=1)
+    mock_worksheet.col_values.assert_called_with(1)
 
 
 def test_get_scan_prefers_local_cache(sheets_storage, mock_worksheet):
@@ -317,14 +315,14 @@ def test_get_scan_prefers_local_cache(sheets_storage, mock_worksheet):
     )
 
     # Reset Sheets mock call counts
-    mock_worksheet.find.reset_mock()
+    mock_worksheet.col_values.reset_mock()
 
     # Retrieve - should use local file, not Sheets
     result = sheets_storage.get_scan(scan_id)
     assert result is not None
     assert result["query"] == "local query"
-    # Sheets find should NOT have been called since local file exists
-    mock_worksheet.find.assert_not_called()
+    # Sheets col_values should NOT have been called since local file exists
+    mock_worksheet.col_values.assert_not_called()
 
 
 def test_get_scan_recaches_from_sheets(sheets_storage, mock_worksheet):
@@ -336,9 +334,7 @@ def test_get_scan_recaches_from_sheets(sheets_storage, mock_worksheet):
         "signals": [],
         "themes": [],
     }
-    cell_mock = MagicMock()
-    cell_mock.row = 2
-    mock_worksheet.find.return_value = cell_mock
+    mock_worksheet.col_values.return_value = ["scan_id", "recache-test"]
     mock_worksheet.row_values.return_value = [
         "recache-test", "2025-02-19", "recache query", "radar",
         json.dumps(scan_data),
@@ -347,13 +343,13 @@ def test_get_scan_recaches_from_sheets(sheets_storage, mock_worksheet):
     # First retrieval - should hit Sheets
     result = sheets_storage.get_scan("recache-test")
     assert result is not None
-    mock_worksheet.find.assert_called_once()
+    mock_worksheet.col_values.assert_called_once()
 
     # Reset and retrieve again - should use local cache now
-    mock_worksheet.find.reset_mock()
+    mock_worksheet.col_values.reset_mock()
     result = sheets_storage.get_scan("recache-test")
     assert result is not None
-    mock_worksheet.find.assert_not_called()
+    mock_worksheet.col_values.assert_not_called()
 
 
 def test_sheets_unavailable_falls_back_to_local(mock_worksheet):
