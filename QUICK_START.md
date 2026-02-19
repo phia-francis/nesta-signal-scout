@@ -174,9 +174,6 @@ signal-scout-complete/
 │       ├── tailwind-theme.js    # Nesta colours
 │       └── friction-config.js   # Friction mode
 │
-├── templates/
-│   └── index.html               # ✅ Modern responsive UI
-│
 ├── .env.example                 # Environment template
 ├── .gitignore                   # Git ignore rules
 ├── requirements.txt             # Python dependencies
