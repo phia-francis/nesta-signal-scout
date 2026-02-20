@@ -1283,3 +1283,41 @@ article:hover .hover-preview {
     flex: 1;
   }
 }
+
+/* Card Summary Expandable Text */
+
+.card-summary {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.card-summary.expanded {
+    display: block;
+    -webkit-line-clamp: unset;
+}
+
+.show-more-btn {
+    background: none;
+    border: none;
+    color: var(--btn-accent, #0000FF);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 0.25rem;
+    text-decoration: underline;
+    display: inline-block;
+}
+
+.show-more-btn:hover {
+    color: #0F1932;
+}
+
+.summary-tooltip-icon {
+    display: none !important;
+}

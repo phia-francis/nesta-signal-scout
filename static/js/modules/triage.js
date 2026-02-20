@@ -6,7 +6,10 @@ function buildTriageCard(signal) {
         <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-navy">${signal.typology || 'Unsorted'}</span>
       </div>
       <h3 class="font-display text-2xl text-nesta-navy leading-tight">${signal.title || 'Untitled Signal'}</h3>
-      <p class="text-sm text-nesta-dark-grey leading-relaxed">${signal.summary || ''}</p>
+      <div class="summary-container">
+        <p class="card-summary text-sm text-nesta-dark-grey leading-relaxed">${signal.summary || ''}</p>
+        <button type="button" class="show-more-btn" data-action="toggle-summary">Show More</button>
+      </div>
       <a href="${signal.url || '#'}" target="_blank" rel="noopener noreferrer" class="text-xs text-nesta-blue underline">Open source</a>
     </article>
   `;
@@ -37,6 +40,17 @@ export function initialiseTriage({
 
     const currentSignal = queue[index];
     cardContainer.innerHTML = buildTriageCard(currentSignal);
+    const toggleBtn = cardContainer.querySelector('[data-action="toggle-summary"]');
+    toggleBtn?.addEventListener('click', function() {
+      const summaryEl = this.closest('.summary-container').querySelector('.card-summary');
+      if (summaryEl.classList.contains('expanded')) {
+        summaryEl.classList.remove('expanded');
+        this.textContent = 'Show More';
+      } else {
+        summaryEl.classList.add('expanded');
+        this.textContent = 'Show Less';
+      }
+    });
     const progress = ((index + 1) / queue.length) * 100;
     progressBar.style.width = `${progress}%`;
   }

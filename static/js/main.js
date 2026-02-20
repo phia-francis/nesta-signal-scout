@@ -627,7 +627,10 @@ function renderSignalCard(signal) {
       ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
     </h3>
     <div class="snippet-content text-sm text-slate-600 leading-relaxed">
-      ${parsedSnippet}
+      <div class="summary-container">
+        <div class="card-summary">${parsedSnippet}</div>
+        <button type="button" class="show-more-btn" data-action="toggle-summary">Show More</button>
+      </div>
     </div>
     ${isSynthesis ? '<div class="expand-hint text-xs text-slate-400">Click to expand ▼</div>' : ''}
     <div onclick="event.stopPropagation()">
@@ -667,6 +670,19 @@ function renderSignalCard(signal) {
   // Attach event listeners (no inline onclick)
   el.querySelectorAll('[data-action="read-link"], [data-action="read-preview"]').forEach(link => {
     link.addEventListener('click', () => markAsRead(signalUrl));
+  });
+
+  const toggleSummaryBtn = el.querySelector('[data-action="toggle-summary"]');
+  toggleSummaryBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const summaryEl = toggleSummaryBtn.closest('.summary-container').querySelector('.card-summary');
+    if (summaryEl.classList.contains('expanded')) {
+      summaryEl.classList.remove('expanded');
+      toggleSummaryBtn.textContent = 'Show More';
+    } else {
+      summaryEl.classList.add('expanded');
+      toggleSummaryBtn.textContent = 'Show Less';
+    }
   });
 
   const starBtn = el.querySelector('[data-action="star"]');

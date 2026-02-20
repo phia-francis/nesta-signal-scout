@@ -501,3 +501,24 @@ async def test_execute_scan_truncates_long_fields(orchestrator, mock_services):
     assert len(result["signals"]) == 1
     assert len(result["signals"][0].title) <= 200
     assert len(result["signals"][0].summary) <= 500
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_assigns_freshness_tiers(orchestrator, mock_services):
+    """Test that execute_scan assigns cascading freshness tiers to search queries."""
+    # 6 queries to test cycling through all 4 tiers plus wrap-around
+    mock_services["llm"].generate_agentic_queries = AsyncMock(
+        return_value=["q1", "q2", "q3", "q4", "q5", "q6"]
+    )
+
+    await orchestrator.execute_scan("test topic", "General", "research")
+
+    calls = mock_services["search"].search.call_args_list
+    expected_tiers = ["m1", "m3", "m6", "y1", "m1", "m3"]
+    assert len(calls) == len(expected_tiers), (
+        f"Expected {len(expected_tiers)} search calls, got {len(calls)}"
+    )
+    for i, call in enumerate(calls):
+        assert call.kwargs.get("freshness") == expected_tiers[i], (
+            f"Query {i} expected freshness={expected_tiers[i]}, got {call.kwargs.get('freshness')}"
+        )

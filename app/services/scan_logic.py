@@ -289,14 +289,16 @@ class ScanOrchestrator:
             num_queries=num_queries,
         )
 
-        # 2. Execute searches concurrently
+        # 2. Execute searches concurrently with cascading freshness tiers
         raw_results: list[dict[str, Any]] = []
-        search_tasks = [
-            self.search_service.search(
-                q, num=5, freshness="year" if mode == "governance" else None
+        freshness_tiers = ["m1", "m3", "m6", "y1"]
+        search_tasks = []
+
+        for i, q in enumerate(generated_queries):
+            tier = freshness_tiers[i % len(freshness_tiers)]
+            search_tasks.append(
+                self.search_service.search(q, num=5, freshness=tier)
             )
-            for q in generated_queries
-        ]
 
         search_responses = await asyncio.gather(*search_tasks, return_exceptions=True)
         for i, response in enumerate(search_responses):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -89,12 +90,19 @@ class SearchService:
             raise SearchAPIError("Google Search API keys are missing in configuration. Please check GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX environment variables.")
 
         # dateRestrict format: 'd[number]', 'w[number]', 'm[number]', 'y[number]'
-        # We map simple strings to Google's format.
-        date_restrict = None
-        if freshness == "day": date_restrict = "d1"
-        elif freshness == "week": date_restrict = "w1"
-        elif freshness == "month": date_restrict = "m1"
-        elif freshness == "year": date_restrict = "y1"
+        # We map simple strings to Google's format, or pass through validated raw values.
+        _freshness_map = {"day": "d1", "week": "w1", "month": "m1", "year": "y1"}
+        if freshness:
+            date_restrict = _freshness_map.get(freshness)
+            if date_restrict is None:
+                if re.fullmatch(r"[dwmy]\d+", freshness):
+                    date_restrict = freshness
+                else:
+                    raise SearchAPIError(
+                        f"Invalid freshness value '{freshness}'. Must be 'day', 'week', 'month', 'year', or a raw dateRestrict like 'm3', 'y1'."
+                    )
+        else:
+            date_restrict = None
 
         params = {
             "key": self.settings.GOOGLE_SEARCH_API_KEY,
