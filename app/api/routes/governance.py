@@ -21,10 +21,12 @@ async def run_governance_scan(
     sheet_service: SheetService = Depends(get_sheet_service),
 ):
     try:
+        existing_urls = await sheet_service.get_existing_urls()
         result = await orchestrator.execute_scan(
             query=request.query,
             mission=request.mission,
             mode="governance",
+            existing_urls=existing_urls,
         )
         if result.get("signals"):
             try:

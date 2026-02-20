@@ -18,7 +18,7 @@ from app.main import app
 
 def test_radar_route_returns_signalcard_payload_with_orchestrator_override():
     class FakeOrchestrator:
-        async def execute_scan(self, query, mission, mode):
+        async def execute_scan(self, query, mission, mode, existing_urls=None):
             return {
                 "signals": [
                     SignalCard(

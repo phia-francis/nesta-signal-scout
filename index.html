@@ -137,6 +137,25 @@
 
                 <div id="matrixContainer" class="hidden w-full h-[600px] bg-slate-50 rounded-xl border border-slate-200 p-4 mb-8"></div>
 
+                <div id="cluster-map-wrapper" class="hidden w-full h-[600px] bg-white rounded-xl border border-slate-200 p-4 mb-8 flex flex-col relative shadow-sm">
+                    <div class="flex justify-between items-center mb-2 border-b border-slate-100 pb-2">
+                        <h4 class="font-bold text-nesta-navy text-sm">Cluster Relationship Map</h4>
+                        <div class="flex gap-2">
+                            <button id="btn-generate-analysis" class="text-xs font-bold px-3 py-1 bg-nesta-purple/10 text-nesta-purple hover:bg-nesta-purple/20 rounded-md transition-colors">
+                                🧠 Generate Trend Analysis
+                            </button>
+                            <button id="btn-regroup-clusters" class="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-md transition-colors">
+                                🔄 Re-group Clusters
+                            </button>
+                        </div>
+                    </div>
+                    <div id="cluster-network-canvas" class="flex-1 w-full bg-slate-50 rounded"></div>
+                    <div id="cluster-analysis-preview" class="hidden absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur shadow-lg rounded-lg border border-slate-200 p-4 z-10">
+                        <h5 class="font-bold text-nesta-navy text-sm mb-1">Agent Trend Synthesis</h5>
+                        <p id="cluster-analysis-text" class="text-xs text-slate-600 line-clamp-3"></p>
+                    </div>
+                </div>
+
                 <div id="scan-loader" class="hidden bg-white/80 flex flex-col items-center justify-center backdrop-blur-sm rounded-3xl">
                     <div class="w-12 h-12 border-4 border-nesta-blue border-t-transparent rounded-full animate-spin"></div>
                     <p id="loader-text" class="mt-4 font-bold text-nesta-navy animate-pulse">Scanning Layers 1-5...</p>
@@ -181,7 +200,13 @@
                 <button id="close-db-btn" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
             </div>
         </div>
-        <div id="database-grid" class="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        <div class="p-8">
+            <h3 class="font-display text-xl text-nesta-navy mb-4 border-b border-slate-200 pb-2">Active Signals</h3>
+            <div id="database-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"></div>
+
+            <h3 class="font-display text-xl text-slate-400 mb-4 border-b border-slate-200 pb-2">Archive</h3>
+            <div id="db-archive-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-75"></div>
+        </div>
     </div>
 
     <!-- Help Modal -->

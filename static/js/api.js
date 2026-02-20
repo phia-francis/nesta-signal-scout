@@ -103,7 +103,7 @@ export async function runResearchScan(payload) {
 }
 
 export async function updateSignalStatus(url, status) {
-  const response = await fetch(`${API_BASE}/update_signal`, {
+  const response = await fetch(`${API_BASE}/saved`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, status }),

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.routes.cluster import router as cluster_router
 from app.api.routes.cron import router as cron_router
 from app.api.routes.governance import router as governance_router
 from app.api.routes.radar import router as radar_router
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     application.include_router(radar_router)
     application.include_router(research_router)
     application.include_router(governance_router)
+    application.include_router(cluster_router)
     application.include_router(system_router)
     application.include_router(cron_router)
 

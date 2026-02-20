@@ -5,7 +5,7 @@ import atexit
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import gspread
@@ -290,6 +290,18 @@ class SheetService:
     async def flush_pending_sync(self) -> None:
         """Force-flush any queued signals, including partial batches."""
         await self.batch_sync_to_sheets(force=True)
+
+    async def save_trend_analysis(self, cluster_name: str, analysis_text: str, strength: str) -> None:
+        """Append a trend analysis row to the 'Trend Analysis' worksheet."""
+        try:
+            worksheet = self._get_worksheet("Trend Analysis")
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            await asyncio.to_thread(
+                worksheet.append_row,
+                [date_str, cluster_name, strength, analysis_text],
+            )
+        except Exception as e:
+            logging.error("Failed to save trend analysis to sheet: %s", e)
 
     def _flush_queue_on_exit(self) -> None:
         """Best-effort queue flush during interpreter shutdown."""

@@ -1,7 +1,7 @@
 import {
   clusterSignals,
   fetchSavedSignals,
-  runRadarScan,
+  triggerScan,
   updateSignalStatus,
   wakeServer,
 } from './api.js';
@@ -46,23 +46,11 @@ async function runScan() {
   clearConsole();
   startScan();
 
-  let receivedBlip = false;
   try {
-    const data = await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
-    appendLog(message.msg || message.status, message.status || 'info');
-
-    if (message.blip) {
-      receivedBlip = true;
-      state.radarSignals.push(message.blip);
-      state.triageQueue.push(message.blip);
-      renderSignals(state.radarSignals, feed, topic);
-      updateTriageBadge();
-    }
-  });
+    const data = await triggerScan(topic, mission, state.currentMode);
 
     if (data && data.signals) {
       state.radarSignals = data.signals;
-      receivedBlip = data.signals.length > 0;
       if (feed) {
         feed.innerHTML = '';
 

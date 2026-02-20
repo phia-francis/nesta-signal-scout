@@ -51,7 +51,7 @@ export async function clusterSignals(signals) {
 }
 
 export async function updateSignalStatus(url, status) {
-  await fetch(`${state.apiBaseUrl}/api/update_signal`, {
+  await fetch(`${state.apiBaseUrl}/api/saved`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, status }),

@@ -704,62 +704,102 @@ function renderSignalCard(signal) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Database & System Actions
 // ─────────────────────────────────────────────────────────────────────────────
-async function refreshDatabase() {
-  const grid = document.getElementById("database-grid");
-  if (!grid) return;
+window.refreshDatabase = async function () {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/saved`);
+        if (!response.ok) {
+            console.error("Failed to fetch saved signals:", response.status);
+            return;
+        }
+        const raw = await response.json();
 
-  grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/saved`); // Updated to use API_BASE_URL
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    const items = await res.json();
+        const uiModule = await import('./modules/ui.js');
+        const createSignalCard = uiModule.createSignalCard;
 
-    grid.innerHTML = "";
-    if (!Array.isArray(items) || items.length === 0) {
-      grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Database is empty.</div>';
-      return;
+        // Normalise sheet-header keys to lowercase for consistent access
+        const signals = raw.map((item) => ({
+            title: item.title || item.Title || "Untitled",
+            url: item.url || item.URL || "",
+            summary: item.summary || item.Summary || "",
+            mission: item.mission || item.Mission || "General",
+            typology: item.typology || item.Typology || "Signal",
+            status: item.status || item.Status || "New",
+            score_activity: item.score_activity || item.Score_Activity || 0,
+            score_attention: item.score_attention || item.Score_Attention || 0,
+            source: item.source || item.Source || "Web",
+            narrative_group: item.narrative_group || item.Narrative_Group || "",
+            date: item.date || item.Source_Date || item.source_date || "",
+        }));
+
+        // Exclude Synthesis cards from standard radar/governance lists
+        const activeSignals = signals.filter(
+            (s) => s.status !== "Archived" && s.status !== "Rejected" && s.typology !== "Synthesis"
+        );
+        const archivedSignals = signals.filter((s) => s.status === "Archived");
+
+        const dbGrid = document.getElementById("database-grid");
+        dbGrid.innerHTML = "";
+        activeSignals.forEach((s) => dbGrid.appendChild(createSignalCard(s, "db")));
+
+        const archiveGrid = document.getElementById("db-archive-grid");
+        archiveGrid.innerHTML = "";
+        archivedSignals.forEach((s) => archiveGrid.appendChild(createSignalCard(s, "db")));
+
+        const previewGrid = document.getElementById("recent-preview-grid");
+        previewGrid.innerHTML = "";
+        activeSignals.slice(0, 3).forEach((s) =>
+            previewGrid.appendChild(createSignalCard(s, "preview"))
+        );
+
+        if (window.renderClusterMap) window.renderClusterMap(activeSignals);
+    } catch (e) {
+        console.error("Failed to refresh database", e);
+    }
+};
+
+window.renderClusterMap = function (signals) {
+    const container = document.getElementById("cluster-network-canvas");
+    if (!container || !window.vis) {
+        if (!window.vis) console.warn("vis.js not loaded — cluster map will not render.");
+        return;
     }
 
-    items.forEach((item) => {
-      const title = item.title || item.Title || "Untitled";
-      const mission = item.mission || item.Mission || "General";
-      const summary = item.summary || item.Summary || "";
-      const url = item.url || item.URL || "";
-      const typology = item.typology || item.Typology || "Signal";
-      const scoreActivity = item.score_activity || item.Score_Activity || "N/A";
-      const scoreAttention = item.score_attention || item.Score_Attention || "N/A";
-      const sourceDate = item.date || item.Source_Date || item.source_date || "";
+    document.getElementById("cluster-map-wrapper").classList.remove("hidden");
 
-      const card = document.createElement("div");
-      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
-      card.innerHTML = `
-        <div class="flex justify-between mb-2 gap-2">
-           <span class="text-xs font-bold bg-nesta-blue text-white px-2 py-1 rounded">${escapeHtml(mission)}</span>
-           <span class="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-1 rounded-lg">${escapeHtml(typology)}</span>
-        </div>
-        <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(title)}</h4>
-        <div class="text-xs text-slate-500 mb-4 line-clamp-3 flex-grow">${escapeHtml(summary.slice(0, 150))}</div>
-        <div class="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-3 mb-3">
-          <span>Activity: ${escapeHtml(String(scoreActivity))}</span>
-          <span>Attention: ${escapeHtml(String(scoreAttention))}</span>
-        </div>
-        ${sourceDate ? `<div class="text-[10px] text-slate-400 mb-3">Published: ${escapeHtml(String(sourceDate))}</div>` : ''}
-        <div class="flex justify-between items-center">
-          ${sanitizeUrl(url || "") ? `<a href="${escapeAttribute(sanitizeUrl(url))}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>` : '<span class="text-xs text-slate-400">No source link</span>'}
-          <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
-        </div>
-      `;
-      card.querySelector('[data-action="archive"]')?.addEventListener("click", async () => {
-        await archiveSignal(url);
-        card.remove();
-        if (grid.children.length === 0) grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Database is empty.</div>';
-      });
-      grid.appendChild(card);
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+    const clusters = new Set();
+
+    signals.forEach((sig) => {
+        if (sig.narrative_group && sig.narrative_group !== "Unsorted") {
+            clusters.add(sig.narrative_group);
+            nodes.add({
+                id: sig.url,
+                label: sig.title.length > 20 ? sig.title.substring(0, 20) + "..." : sig.title,
+                shape: "dot",
+                color: "#B2C5FE",
+            });
+            edges.add({ from: sig.url, to: `cluster_${sig.narrative_group}` });
+        }
     });
-  } catch (error) {
-    grid.innerHTML = `<div class="text-red-500">Error: ${escapeHtml(error.message)}</div>`;
-  }
-}
+
+    clusters.forEach((c) => {
+        nodes.add({
+            id: `cluster_${c}`,
+            label: c,
+            shape: "star",
+            size: 30,
+            color: "#0F1932",
+            font: { color: "#0F1932", bold: true },
+        });
+    });
+
+    new vis.Network(
+        container,
+        { nodes, edges },
+        { physics: { stabilization: true }, interaction: { hover: true } }
+    );
+};
 
 async function toggleStar(url) {
   if (!url) return;
@@ -1435,6 +1475,73 @@ document.addEventListener('DOMContentLoaded', () => {
     shareBtn.style.display = 'none'; // Hide until scan completes
     resultsHeader.appendChild(shareBtn);
   }
+
+  // Wire "Generate Trend Analysis" button
+  document.getElementById("btn-generate-analysis")?.addEventListener("click", async (e) => {
+      const btn = e.target;
+      btn.innerHTML = "⏳ Analyzing...";
+      btn.disabled = true;
+
+      try {
+          const response = await fetch(`${API_BASE_URL}/api/saved`);
+          const signals = await response.json();
+          const activeSignals = signals.filter(
+              (s) => s.status !== "Archived" && s.typology !== "Synthesis"
+          );
+
+          const clustersMap = {};
+          activeSignals.forEach((sig) => {
+              if (sig.narrative_group && sig.narrative_group !== "Unsorted") {
+                  if (!clustersMap[sig.narrative_group]) {
+                      clustersMap[sig.narrative_group] = {
+                          cluster_name: sig.narrative_group,
+                          signals: [],
+                      };
+                  }
+                  clustersMap[sig.narrative_group].signals.push(sig.summary);
+              }
+          });
+
+          const analyzeRes = await fetch(`${API_BASE_URL}/cluster/analyze`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  clusters: Object.values(clustersMap),
+                  mission: "General",
+              }),
+          });
+
+          if (!analyzeRes.ok) {
+              console.error("Trend analysis request failed:", analyzeRes.status, analyzeRes.statusText);
+              showToast(`Failed to generate analysis: Server returned ${analyzeRes.status}`, "error");
+              return;
+          }
+
+          const data = await analyzeRes.json();
+
+          if (data.insights?.length > 0) {
+              const first = data.insights[0];
+              const clusterAnalysisEl = document.getElementById("cluster-analysis-text");
+              if (clusterAnalysisEl) {
+                  clusterAnalysisEl.textContent = "";
+                  const strongEl = document.createElement("strong");
+                  strongEl.textContent = `${first.cluster_name} (${first.strength}):`;
+                  clusterAnalysisEl.appendChild(strongEl);
+                  clusterAnalysisEl.appendChild(
+                      document.createTextNode(` ${first.trend_summary}`)
+                  );
+              }
+              document.getElementById("cluster-analysis-preview").classList.remove("hidden");
+              showToast("Analysis generated and saved to Database!", "success");
+          }
+      } catch (err) {
+          console.error("Trend analysis failed:", err);
+          showToast("Failed to generate analysis.", "error");
+      } finally {
+          btn.innerHTML = "🧠 Generate Trend Analysis";
+          btn.disabled = false;
+      }
+  });
 });
 
 // Expose functions globally
