@@ -120,7 +120,15 @@ export function createSignalCard(signal, context = 'feed') {
   showMoreBtn.type = 'button';
   showMoreBtn.className = 'show-more-btn';
   showMoreBtn.textContent = 'Show More';
-  showMoreBtn.addEventListener('click', function() { window.toggleCardSummary(this); });
+  showMoreBtn.addEventListener('click', function() {
+    if (summary.classList.contains('expanded')) {
+      summary.classList.remove('expanded');
+      this.textContent = 'Show More';
+    } else {
+      summary.classList.add('expanded');
+      this.textContent = 'Show Less';
+    }
+  });
   summaryContainer.append(summary, showMoreBtn);
 
   // Metadata bar

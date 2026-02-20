@@ -428,7 +428,7 @@ RULES:
     - title: A concise, accurate title.
     - summary: A 2-sentence analytical summary of the trend.
     - url: The exact URL from the input. Do not modify.
-    - date: Publication date in YYYY-MM-DD format. If unknown, use "{now.strftime('%Y-%m-%d')}".
+    - date: Publication date in YYYY-MM-DD format, if available. If the publication date is unknown, use null or omit this field.
     - score: Novelty/impact score from 1.0 to 10.0. Score higher for more recent signals.
 
     RAW RESULTS TO EVALUATE:
@@ -449,5 +449,5 @@ RULES:
             content = json.loads(raw)
             return content.get("signals", [])
         except Exception as e:
-            logging.error(f"Verification failed: {e}")
+            logging.error("Verification failed", exc_info=True)
             return []

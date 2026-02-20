@@ -515,6 +515,9 @@ async def test_execute_scan_assigns_freshness_tiers(orchestrator, mock_services)
 
     calls = mock_services["search"].search.call_args_list
     expected_tiers = ["m1", "m3", "m6", "y1", "m1", "m3"]
+    assert len(calls) == len(expected_tiers), (
+        f"Expected {len(expected_tiers)} search calls, got {len(calls)}"
+    )
     for i, call in enumerate(calls):
         assert call.kwargs.get("freshness") == expected_tiers[i], (
             f"Query {i} expected freshness={expected_tiers[i]}, got {call.kwargs.get('freshness')}"
