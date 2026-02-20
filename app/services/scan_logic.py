@@ -20,6 +20,7 @@ from app.services.analytics_svc import HorizonAnalyticsService
 from app.services.gtr_svc import GatewayResearchService
 from app.services.openalex_svc import OpenAlexService
 from app.services.search_svc import SearchService
+from app.services.cluster_svc import ClusterService
 
 ACTIVITY_WEIGHT = 0.2  # Lowered to reduce academic bias
 ATTENTION_WEIGHT = 0.5  # Increased to favour social/web buzz
@@ -353,11 +354,51 @@ class ScanOrchestrator:
 
         cards.sort(key=lambda x: x.final_score, reverse=True)
 
+        cluster_insights = []
+
+        if len(cards) >= 3:
+            try:
+                cluster_service = ClusterService()
+
+                cluster_input = [
+                    {"title": c.title, "summary": c.summary, "index": i}
+                    for i, c in enumerate(cards)
+                ]
+
+                narrative_clusters = cluster_service.cluster_signals(cluster_input)
+
+                llm_cluster_payload = []
+                for cluster in narrative_clusters:
+                    clean_narrative = cluster["title"].replace("Narrative: ", "").strip()
+
+                    signal_texts = [
+                        cards[sig_ref["index"]].summary
+                        for sig_ref in cluster["signals"]
+                    ]
+
+                    llm_cluster_payload.append({
+                        "cluster_name": clean_narrative,
+                        "signals": signal_texts
+                    })
+
+                    for sig_ref in cluster["signals"]:
+                        cards[sig_ref["index"]].narrative_group = clean_narrative
+
+                if llm_cluster_payload:
+                    cluster_insights = await self.llm_service.analyze_trend_clusters(
+                        clusters_data=llm_cluster_payload,
+                        mission=mission
+                    )
+
+            except Exception as e:
+                logging.warning(f"Auto-clustering and analysis failed: {e}")
+
         return {
             "signals": cards,
             "related_terms": generated_queries,
             "warnings": self._warnings if self._warnings else None,
             "mode": mode,
+            "cluster_insights": cluster_insights
         }
 
     async def fetch_signals(

@@ -522,3 +522,75 @@ async def test_execute_scan_assigns_freshness_tiers(orchestrator, mock_services)
         assert call.kwargs.get("freshness") == expected_tiers[i], (
             f"Query {i} expected freshness={expected_tiers[i]}, got {call.kwargs.get('freshness')}"
         )
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_returns_cluster_insights(orchestrator, mock_services):
+    """Test that execute_scan returns cluster_insights when enough signals exist."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": f"Signal {i}", "summary": f"Summary {i}", "url": f"https://example.com/{i}", "score": 7.0}
+        for i in range(5)
+    ])
+    mock_services["llm"].analyze_trend_clusters = AsyncMock(return_value=[
+        {"cluster_name": "Trend A", "trend_summary": "Summary A", "strength": "Strong", "reasoning": "Evidence A"}
+    ])
+
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert "cluster_insights" in result
+    assert isinstance(result["cluster_insights"], list)
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_cluster_insights_empty_with_few_signals(orchestrator, mock_services):
+    """Test that cluster_insights is empty when fewer than 3 signals."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": "Signal 1", "summary": "Summary 1", "url": "https://example.com/1", "score": 7.0},
+    ])
+
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert "cluster_insights" in result
+    assert result["cluster_insights"] == []
+
+
+@pytest.mark.asyncio
+async def test_execute_agentic_scan(mock_services):
+    """Test the full agentic scan pipeline with mocked LLM service.
+
+    Uses unittest.mock.patch to ensure no real OpenAI API calls are made.
+    Validates that generate_agentic_queries and verify_and_synthesize are
+    called correctly and that the result contains the expected structure.
+    """
+    with patch.object(
+        mock_services["llm"], "generate_agentic_queries",
+        new=AsyncMock(return_value=["AI regulation 2025", "AI safety policy", "AI governance trends"]),
+    ) as mock_queries, patch.object(
+        mock_services["llm"], "verify_and_synthesize",
+        new=AsyncMock(return_value=[
+            {"title": "AI Safety Framework", "summary": "New global AI safety standard.", "url": "https://example.com/ai-safety", "score": 8.5},
+            {"title": "EU AI Act Update", "summary": "Regulatory milestone for AI.", "url": "https://example.com/eu-ai", "score": 7.0},
+        ]),
+    ) as mock_verify:
+        orchestrator = ScanOrchestrator(
+            gateway_service=mock_services["gateway"],
+            openalex_service=mock_services["openalex"],
+            search_service=mock_services["search"],
+            analytics_service=mock_services["analytics"],
+            taxonomy=mock_services["taxonomy"],
+            llm_service=mock_services["llm"],
+        )
+
+        result = await orchestrator.execute_scan("AI regulation", "A Healthy Life", "radar")
+
+        # Verify LLM methods were invoked (no real API calls)
+        mock_queries.assert_called_once()
+        mock_verify.assert_called_once()
+
+        # Validate result structure
+        assert "signals" in result
+        assert "related_terms" in result
+        assert "mode" in result
+        assert result["mode"] == "radar"
+        assert isinstance(result["signals"], list)
+        assert all(isinstance(s, SignalCard) for s in result["signals"])

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Dict, List
 
 from openai import AsyncOpenAI
 
@@ -347,6 +347,46 @@ Return valid JSON with a "signals" array. Each object MUST contain:
                 f"LLM clustering failed: {str(e)}",
                 model=self.model,
             ) from e
+
+    async def analyze_trend_clusters(self, clusters_data: List[Dict], mission: str) -> List[Dict]:
+        """Analyses ML-generated clusters and returns a macro-trend summary and strength rating for each."""
+        if not self.client:
+            logger.warning("OpenAI client not initialized. Skipping cluster analysis.")
+            return []
+
+        prompt = f"""
+    You are a Lead Horizon Scanning Analyst for the '{mission}' mission.
+    I am providing you with clusters of signals grouped by an ML algorithm.
+
+    For EACH cluster, analyse the signal summaries collectively and articulate the macro-trend.
+
+    Determine 'Emerging Strength' using this criteria:
+    - Strong: Multiple highly coherent signals from diverse or authoritative sources.
+    - Moderate: A few signals pointing the same direction, lacking widespread momentum.
+    - Weak: Vague, disparate, or speculative signals with weak consensus.
+
+    Return a JSON object with key "trend_analyses" containing an array of objects with:
+    - cluster_name: Keep the original name provided.
+    - trend_summary: 2-3 sentence analytical summary of the macro-trend.
+    - strength: Exactly one of ["Strong", "Moderate", "Weak"].
+    - reasoning: 1 sentence explaining the strength rating based on evidence.
+
+    CLUSTERS TO ANALYSE:
+    {json.dumps(clusters_data, indent=2)}
+    """
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            content = json.loads(response.choices[0].message.content)
+            return content.get("trend_analyses", [])
+        except Exception as e:
+            logging.error(f"Cluster LLM analysis failed: {e}")
+            return []
 
     async def generate_agentic_queries(
         self, topic: str, mode: str, mission: str, num_queries: int

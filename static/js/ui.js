@@ -111,50 +111,62 @@ export function createSignalCard(signal, context = 'feed') {
   `;
 
   // Summary
-  const summaryContainer = document.createElement('div');
-  summaryContainer.className = 'summary-container';
-  const summary = document.createElement('p');
-  summary.className = 'card-summary text-nesta-dark-grey leading-relaxed';
-  summary.textContent = signal.summary || 'No description available.';
-  const showMoreBtn = document.createElement('button');
-  showMoreBtn.type = 'button';
-  showMoreBtn.className = 'show-more-btn';
-  showMoreBtn.textContent = 'Show More';
-  showMoreBtn.addEventListener('click', function() {
-    if (summary.classList.contains('expanded')) {
-      summary.classList.remove('expanded');
-      this.textContent = 'Show More';
-    } else {
-      summary.classList.add('expanded');
-      this.textContent = 'Show Less';
-    }
-  });
-  summaryContainer.append(summary, showMoreBtn);
+  const isSynthesis = signal.typology === 'Synthesis';
+
+  const summaryWrap = document.createElement('div');
+  summaryWrap.className = 'flex flex-col items-start gap-1 w-full';
+
+  const summary = document.createElement('div');
+
+  if (isSynthesis && window.marked && window.DOMPurify) {
+      // Research Synthesis: render full markdown, no clamp
+      summary.className = 'prose prose-sm max-w-none text-nesta-navy/80 mt-2';
+      summary.innerHTML = DOMPurify.sanitize(marked.parse(signal.summary || ''));
+      summaryWrap.append(summary);
+      card.classList.add('col-span-full', 'bg-slate-50', 'border-nesta-blue');
+  } else {
+      // Standard card: 3-line clamp with conditional Show More toggle
+      summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200';
+      summary.textContent = signal.summary || '';
+
+      summaryWrap.append(summary);
+
+      // Only show the toggle if the content overflows the 3-line clamp
+      requestAnimationFrame(() => {
+          if (summary.scrollHeight > summary.clientHeight) {
+              const toggleBtn = document.createElement('button');
+              toggleBtn.type = 'button';
+              toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
+              toggleBtn.textContent = 'Show More';
+
+              toggleBtn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  if (summary.classList.contains('line-clamp-3')) {
+                      summary.classList.remove('line-clamp-3');
+                      toggleBtn.textContent = 'Show Less';
+                  } else {
+                      summary.classList.add('line-clamp-3');
+                      toggleBtn.textContent = 'Show More';
+                  }
+              });
+
+              summaryWrap.append(toggleBtn);
+          }
+      });
+  }
 
   // Metadata bar
   const metadata = document.createElement('div');
   metadata.className = 'flex items-center justify-between text-sm text-nesta-dark-grey border-t border-nesta-silver pt-4';
-  metadata.innerHTML = `
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-1">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-        </svg>
-        <span class="font-bold">${(signal.score_activity || 0).toFixed(1)}</span>
-      </div>
-      <div class="flex items-center gap-1">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-        </svg>
-        <span class="font-bold">${(signal.score_attention || 0).toFixed(1)}</span>
-      </div>
-    </div>
-    <div class="text-xs">
-      <span>${formatDate(signal.date)}</span>
-      ${signal.mission ? `<span class="ml-2 ${getMissionColor(signal.mission)} font-bold">${escapeHtml(signal.mission)}</span>` : ''}
-    </div>
-  `;
+
+  const metricsDiv = document.createElement('div');
+  metricsDiv.className = 'text-xs text-nesta-navy/70 cursor-help inline-block w-fit';
+  metricsDiv.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)} • AI Confidence ${Number(signal.score_confidence || signal.final_score || 0).toFixed(1)}`;
+  metricsDiv.setAttribute(
+      'data-tooltip',
+      'AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency (temporal weighting), and trend relevance.'
+  );
+  metadata.appendChild(metricsDiv);
 
   // Actions
   const actions = document.createElement('div');
@@ -181,7 +193,7 @@ export function createSignalCard(signal, context = 'feed') {
 
   // Assemble card
   card.appendChild(header);
-  card.appendChild(summaryContainer);
+  card.appendChild(summaryWrap);
   card.appendChild(metadata);
   if (actions.innerHTML.trim()) {
     card.appendChild(actions);
