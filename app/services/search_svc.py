@@ -89,12 +89,9 @@ class SearchService:
             raise SearchAPIError("Google Search API keys are missing in configuration. Please check GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX environment variables.")
 
         # dateRestrict format: 'd[number]', 'w[number]', 'm[number]', 'y[number]'
-        # We map simple strings to Google's format.
-        date_restrict = None
-        if freshness == "day": date_restrict = "d1"
-        elif freshness == "week": date_restrict = "w1"
-        elif freshness == "month": date_restrict = "m1"
-        elif freshness == "year": date_restrict = "y1"
+        # We map simple strings to Google's format, or pass through raw values.
+        _freshness_map = {"day": "d1", "week": "w1", "month": "m1", "year": "y1"}
+        date_restrict = _freshness_map.get(freshness, freshness) if freshness else None
 
         params = {
             "key": self.settings.GOOGLE_SEARCH_API_KEY,

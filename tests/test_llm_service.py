@@ -367,3 +367,24 @@ async def test_verify_and_synthesize_api_error_returns_empty(llm_service_with_ke
     result = await llm_service_with_key.verify_and_synthesize(raw_results, "AI", "General", "radar")
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_verify_and_synthesize_prompt_contains_date_context(llm_service_with_key):
+    """Test that verify_and_synthesize injects CURRENT DATE and ABSOLUTE CUTOFF DATE into the prompt."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = '{"signals": []}'
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    raw_results = [{"title": "Test", "url": "https://example.com", "snippet": "Test snippet"}]
+
+    await llm_service_with_key.verify_and_synthesize(raw_results, "AI", "General", "radar")
+
+    call_args = llm_service_with_key.client.chat.completions.create.call_args
+    prompt = call_args.kwargs["messages"][0]["content"]
+    assert "CURRENT DATE:" in prompt
+    assert "ABSOLUTE CUTOFF DATE:" in prompt
+    assert "RULES FOR DISCARDING:" in prompt

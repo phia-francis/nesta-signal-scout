@@ -182,6 +182,23 @@ async def test_search_with_freshness_parameter(search_service):
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_search_with_raw_freshness_passthrough(search_service):
+    """Test that raw dateRestrict values like m3, m6 are passed through directly."""
+    mock_response = {"items": [{"title": "Recent", "link": "https://example.com"}]}
+
+    route = respx.get("https://www.googleapis.com/customsearch/v1").mock(
+        return_value=Response(200, json=mock_response)
+    )
+
+    await search_service.search("test query", num=5, freshness="m3")
+
+    assert route.called
+    request = route.calls[0].request
+    assert "dateRestrict=m3" in str(request.url)
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_search_respects_num_parameter(search_service):
     """Test that search respects the num parameter."""
     mock_response = {"items": [{"title": f"Result {i}", "link": f"https://example.com/{i}"} for i in range(10)]}

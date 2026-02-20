@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -404,40 +405,45 @@ RULES:
         if not self.client:
             return []
 
+        now = datetime.now(timezone.utc)
+        current_date_str = now.strftime("%B %d, %Y")
+        one_year_ago_str = (now - timedelta(days=365)).strftime("%B %d, %Y")
+
         results_json = json.dumps(raw_results, indent=2)
         prompt = f"""
-You are a rigorous Horizon Scanning Fact-Checker for the '{mission}' mission.
-You are reviewing raw search API results for the topic: "{topic}" (Mode: {mode}).
+    You are a rigorous Horizon Scanning Fact-Checker for the '{mission}' mission.
+    You are reviewing raw search API results for the topic: "{topic}" (Mode: {mode}).
 
-DISCARD a result if ANY of the following are true:
-1. The snippet does not explicitly describe an emerging trend, innovation, or policy shift.
-2. The URL appears to be a generic homepage, a broken link, or an irrelevant directory.
-3. The snippet is too vague to substantiate the title's claim.
+    CURRENT DATE: {current_date_str}
+    ABSOLUTE CUTOFF DATE: {one_year_ago_str}
 
-For sources that pass verification, synthesise each into a high-quality signal summary.
+    RULES FOR DISCARDING:
+    1. DISCARD if the source is explicitly dated before {one_year_ago_str}. Prioritise recency (past 1–3 months).
+    2. DISCARD if the snippet does not describe an emerging trend, innovation, or policy shift.
+    3. DISCARD if the URL is a generic homepage, broken link, or irrelevant directory.
+    4. DISCARD if the snippet is too vague to support the title's claim.
 
-Return a JSON object with a single key "signals" containing an array of objects with:
-- title: A concise, accurate title.
-- summary: A 2-sentence analytical summary of the trend.
-- url: The EXACT url from the input — do not modify it.
-- score: A novelty/impact score from 1.0 to 10.0.
+    For sources that pass verification, return a JSON object with a single key "signals"
+    containing an array of objects with these exact keys:
+    - title: A concise, accurate title.
+    - summary: A 2-sentence analytical summary of the trend.
+    - url: The exact URL from the input. Do not modify.
+    - date: Publication date in YYYY-MM-DD format. If unknown, use "{now.strftime('%Y-%m-%d')}".
+    - score: Novelty/impact score from 1.0 to 10.0. Score higher for more recent signals.
 
-RAW RESULTS:
-{results_json}
-"""
+    RAW RESULTS TO EVALUATE:
+    {results_json}
+    """
 
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0.2,
-                max_tokens=2000,
-                response_format={"type": "json_object"},
+                response_format={"type": "json_object"}
             )
-            content = response.choices[0].message.content
-            if content:
-                return json.loads(content).get("signals", [])
-            return []
+            content = json.loads(response.choices[0].message.content)
+            return content.get("signals", [])
         except Exception as e:
-            logging.error("Verification failed: %s", e)
+            logging.error(f"Verification failed: {e}")
             return []
