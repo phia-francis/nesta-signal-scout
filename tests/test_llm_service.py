@@ -388,3 +388,46 @@ async def test_verify_and_synthesize_prompt_contains_date_context(llm_service_wi
     assert "CURRENT DATE:" in prompt
     assert "ABSOLUTE CUTOFF DATE:" in prompt
     assert "RULES FOR DISCARDING:" in prompt
+
+
+# ── Tests for analyze_trend_clusters ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_analyze_trend_clusters_success(llm_service_with_key):
+    """Test successful trend cluster analysis with mocked OpenAI response."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = '{"trend_analyses": [{"cluster_name": "AI Regulation", "trend_summary": "Growing focus on AI governance.", "strength": "Strong", "reasoning": "Multiple authoritative sources."}]}'
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    clusters_data = [
+        {"cluster_name": "AI Regulation", "signals": ["AI safety regulation", "EU AI Act"]}
+    ]
+
+    result = await llm_service_with_key.analyze_trend_clusters(clusters_data, "A Healthy Life")
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["cluster_name"] == "AI Regulation"
+    assert result[0]["strength"] == "Strong"
+    assert llm_service_with_key.client.chat.completions.create.called
+
+
+@pytest.mark.asyncio
+async def test_analyze_trend_clusters_api_error_returns_empty(llm_service_with_key):
+    """Test that analyze_trend_clusters returns empty list on API error."""
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(
+        side_effect=Exception("API Error")
+    )
+
+    clusters_data = [
+        {"cluster_name": "Test", "signals": ["signal text"]}
+    ]
+
+    result = await llm_service_with_key.analyze_trend_clusters(clusters_data, "General")
+
+    assert result == []

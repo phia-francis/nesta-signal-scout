@@ -7,7 +7,7 @@ import {
 } from './api.js';
 import { state } from './state.js';
 import { initialiseTriage } from './triage.js';
-import { appendConsoleLog, clearConsole, finishScan, renderSignals, showToast, startScan } from './ui.js';
+import { appendConsoleLog, clearConsole, finishScan, renderClusterInsights, renderSignals, showToast, startScan } from './ui.js';
 import { renderNetworkGraph } from './vis.js';
 
 let triageController;
@@ -48,7 +48,7 @@ async function runScan() {
 
   let receivedBlip = false;
   try {
-    await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
+    const data = await runRadarScan({ mission, topic, mode: state.currentMode }, async (message) => {
     appendLog(message.msg || message.status, message.status || 'info');
 
     if (message.blip) {
@@ -59,6 +59,18 @@ async function runScan() {
       updateTriageBadge();
     }
   });
+
+    if (data && data.signals) {
+      state.radarSignals = data.signals;
+      receivedBlip = data.signals.length > 0;
+      if (feed) {
+        feed.innerHTML = '';
+        if (data.cluster_insights) {
+          renderClusterInsights(data.cluster_insights, feed);
+        }
+      }
+      renderSignals(state.radarSignals, feed, topic);
+    }
 
     if (!receivedBlip) {
       renderSignals([], feed, topic);

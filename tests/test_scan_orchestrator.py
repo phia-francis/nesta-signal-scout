@@ -522,3 +522,33 @@ async def test_execute_scan_assigns_freshness_tiers(orchestrator, mock_services)
         assert call.kwargs.get("freshness") == expected_tiers[i], (
             f"Query {i} expected freshness={expected_tiers[i]}, got {call.kwargs.get('freshness')}"
         )
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_returns_cluster_insights(orchestrator, mock_services):
+    """Test that execute_scan returns cluster_insights when enough signals exist."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": f"Signal {i}", "summary": f"Summary {i}", "url": f"https://example.com/{i}", "score": 7.0}
+        for i in range(5)
+    ])
+    mock_services["llm"].analyze_trend_clusters = AsyncMock(return_value=[
+        {"cluster_name": "Trend A", "trend_summary": "Summary A", "strength": "Strong", "reasoning": "Evidence A"}
+    ])
+
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert "cluster_insights" in result
+    assert isinstance(result["cluster_insights"], list)
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_cluster_insights_empty_with_few_signals(orchestrator, mock_services):
+    """Test that cluster_insights is empty when fewer than 3 signals."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": "Signal 1", "summary": "Summary 1", "url": "https://example.com/1", "score": 7.0},
+    ])
+
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert "cluster_insights" in result
+    assert result["cluster_insights"] == []

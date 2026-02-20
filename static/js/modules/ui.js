@@ -75,25 +75,42 @@ export function createSignalCard(signal) {
   title.className = 'font-display text-xl leading-tight text-nesta-navy mb-2';
   title.textContent = signal.title || 'Untitled Signal';
 
-  const summaryContainer = document.createElement('div');
-  summaryContainer.className = 'summary-container';
-  const summary = document.createElement('p');
-  summary.className = 'card-summary font-body text-sm text-nesta-navy/80';
-  summary.textContent = signal.summary || '';
-  const showMoreBtn = document.createElement('button');
-  showMoreBtn.type = 'button';
-  showMoreBtn.className = 'show-more-btn';
-  showMoreBtn.textContent = 'Show More';
-  showMoreBtn.addEventListener('click', function() {
-    if (summary.classList.contains('expanded')) {
-      summary.classList.remove('expanded');
-      this.textContent = 'Show More';
-    } else {
-      summary.classList.add('expanded');
-      this.textContent = 'Show Less';
-    }
-  });
-  summaryContainer.append(summary, showMoreBtn);
+  const isSynthesis = signal.typology === 'Synthesis';
+
+  const summaryWrap = document.createElement('div');
+  summaryWrap.className = 'flex flex-col items-start gap-1 w-full';
+
+  const summary = document.createElement('div');
+
+  if (isSynthesis && window.marked && window.DOMPurify) {
+      // Research Synthesis: render full markdown, no clamp
+      summary.className = 'prose prose-sm max-w-none text-nesta-navy/80 mt-2';
+      summary.innerHTML = DOMPurify.sanitize(marked.parse(signal.summary || ''));
+      summaryWrap.append(summary);
+      card.classList.add('col-span-full', 'bg-slate-50', 'border-nesta-blue');
+  } else {
+      // Standard card: 3-line clamp with Show More toggle
+      summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200';
+      summary.textContent = signal.summary || '';
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
+      toggleBtn.textContent = 'Show More';
+
+      toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (summary.classList.contains('line-clamp-3')) {
+              summary.classList.remove('line-clamp-3');
+              toggleBtn.textContent = 'Show Less';
+          } else {
+              summary.classList.add('line-clamp-3');
+              toggleBtn.textContent = 'Show More';
+          }
+      });
+
+      summaryWrap.append(summary, toggleBtn);
+  }
 
   const footer = document.createElement('footer');
   footer.className = 'mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3';
@@ -102,8 +119,12 @@ export function createSignalCard(signal) {
   metricsWrap.className = 'flex flex-col gap-1';
 
   const metrics = document.createElement('div');
-  metrics.className = 'text-xs text-nesta-navy/70';
-  metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
+  metrics.className = 'text-xs text-nesta-navy/70 cursor-help inline-block w-fit';
+  metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)} • AI Confidence ${Number(signal.score_confidence || signal.final_score || 0).toFixed(1)}`;
+  metrics.setAttribute(
+      'data-tooltip',
+      'AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency (temporal weighting), and trend relevance.'
+  );
   metricsWrap.appendChild(metrics);
 
   if (signal.narrative_group) {
@@ -144,7 +165,7 @@ export function createSignalCard(signal) {
     });
   }
 
-  card.append(sourceBadge, missionPill, title, summaryContainer, footer);
+  card.append(sourceBadge, missionPill, title, summaryWrap, footer);
   return card;
 }
 
@@ -347,6 +368,61 @@ export function renderThemeChips(themes, container, onSelect) {
 
   const toggles = document.getElementById('view-toggles');
   if (toggles) toggles.classList.remove('hidden');
+}
+
+export function renderClusterInsights(clusterInsights, container) {
+    if (!clusterInsights || clusterInsights.length === 0) return;
+
+    const dashboardWrap = document.createElement('div');
+    dashboardWrap.className = 'w-full mb-8 flex flex-col gap-4';
+
+    const header = document.createElement('h3');
+    header.className = 'text-lg font-bold text-nesta-navy border-b border-nesta-sand/50 pb-2';
+    header.textContent = 'Agent Trend Analysis';
+    dashboardWrap.appendChild(header);
+
+    const gridWrap = document.createElement('div');
+    gridWrap.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4';
+
+    clusterInsights.forEach(insight => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg p-4 border border-nesta-sand shadow-sm flex flex-col';
+
+        const cardHeader = document.createElement('div');
+        cardHeader.className = 'flex justify-between items-start mb-2 gap-2';
+
+        const title = document.createElement('h4');
+        title.className = 'font-bold text-nesta-navy text-md leading-tight';
+        title.textContent = insight.cluster_name;
+
+        const strengthClassMap = {
+            'Strong':   'bg-green-100 text-green-800 border-green-200',
+            'Moderate': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+            'Weak':     'bg-red-100 text-red-800 border-red-200'
+        };
+        const strengthBadge = document.createElement('span');
+        strengthBadge.className = `text-xs font-bold px-2 py-1 rounded-full border ${strengthClassMap[insight.strength] || 'bg-gray-100 text-gray-800'}`;
+        strengthBadge.textContent = insight.strength;
+
+        cardHeader.append(title, strengthBadge);
+
+        const summary = document.createElement('p');
+        summary.className = 'text-sm text-nesta-navy/80 font-body mb-3';
+        summary.textContent = insight.trend_summary;
+
+        const reasoningWrap = document.createElement('div');
+        reasoningWrap.className = 'mt-auto pt-3 border-t border-nesta-sand/50';
+        const reasoning = document.createElement('p');
+        reasoning.className = 'text-xs text-nesta-navy/60 italic';
+        reasoning.textContent = `Evidence: ${insight.reasoning}`;
+        reasoningWrap.appendChild(reasoning);
+
+        card.append(cardHeader, summary, reasoningWrap);
+        gridWrap.appendChild(card);
+    });
+
+    dashboardWrap.appendChild(gridWrap);
+    container.insertBefore(dashboardWrap, container.firstChild);
 }
 
 export { MISSION_THEMES };
