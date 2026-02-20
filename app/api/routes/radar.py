@@ -6,10 +6,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.dependencies import get_scan_orchestrator, get_llm_service
+from app.api.dependencies import get_scan_orchestrator, get_llm_service, get_sheet_service
 from app.core.exceptions import LLMServiceError
 from app.services.scan_logic import ScanOrchestrator
 from app.services.llm_svc import LLMService
+from app.services.sheet_svc import SheetService
 from app.storage.scan_storage import get_scan_storage, ScanStorage
 
 logger = logging.getLogger(__name__)
@@ -26,13 +27,22 @@ class ScanRequest(BaseModel):
 async def run_radar_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
+    sheet_service: SheetService = Depends(get_sheet_service),
 ):
     try:
-        return await orchestrator.execute_scan(
+        result = await orchestrator.execute_scan(
             query=request.query,
             mission=request.mission,
             mode="radar",
         )
+        if result.get("signals"):
+            try:
+                await sheet_service.save_signals_batch(
+                    [s.model_dump() for s in result["signals"]]
+                )
+            except Exception as save_err:
+                logger.warning("Failed to persist radar signals to Sheets: %s", save_err)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

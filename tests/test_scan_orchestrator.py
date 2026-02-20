@@ -467,3 +467,37 @@ def test_classify_source_none_safety(orchestrator):
 
     category = orchestrator._classify_source(signal)
     assert category == "international"  # Falls through to default
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_skips_malformed_signal(orchestrator, mock_services):
+    """Test that a malformed signal from LLM is skipped rather than crashing."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": "Good Signal", "summary": "Good summary.", "url": "https://example.com/good", "score": 7.5},
+        {"title": "Bad Signal", "summary": "Bad", "url": "https://example.com/bad", "score": "not-a-number"},
+        {"title": "Also Good", "summary": "Also good.", "url": "https://example.com/also", "score": 8.0},
+    ])
+
+    result = await orchestrator.execute_scan("test query", "General", "radar")
+
+    # The two good signals should be present, the bad one skipped
+    assert len(result["signals"]) == 2
+    titles = [s.title for s in result["signals"]]
+    assert "Good Signal" in titles
+    assert "Also Good" in titles
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_truncates_long_fields(orchestrator, mock_services):
+    """Test that title and summary are truncated to prevent oversized payloads."""
+    long_title = "A" * 500
+    long_summary = "B" * 1000
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": long_title, "summary": long_summary, "url": "https://example.com", "score": 7.0},
+    ])
+
+    result = await orchestrator.execute_scan("test query", "General", "radar")
+
+    assert len(result["signals"]) == 1
+    assert len(result["signals"][0].title) <= 200
+    assert len(result["signals"][0].summary) <= 500

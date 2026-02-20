@@ -327,26 +327,30 @@ class ScanOrchestrator:
             )
 
             for sig in verified_signals:
-                score = float(sig.get("score", 7.0))
-                cards.append(SignalCard(
-                    title=sig.get("title", "Unknown Signal"),
-                    url=sig.get("url", ""),
-                    summary=sig.get("summary", ""),
-                    source="Agentic Scan",
-                    mission=mission,
-                    date=datetime.now(timezone.utc).date().isoformat(),
-                    score_activity=score,
-                    score_attention=score,
-                    score_recency=10.0,
-                    final_score=score,
-                    typology=(
-                        "Trend" if mode == "radar"
-                        else "Insight" if mode == "research"
-                        else "Policy"
-                    ),
-                    is_novel=True,
-                    related_keywords=generated_queries,
-                ))
+                try:
+                    score = float(sig.get("score", 7.0))
+                    cards.append(SignalCard(
+                        title=sig.get("title", "Unknown Signal")[:200],
+                        url=sig.get("url", ""),
+                        summary=sig.get("summary", "No summary provided.")[:500],
+                        source="Agentic Scan",
+                        mission=mission,
+                        date=datetime.now(timezone.utc).date().isoformat(),
+                        score_activity=score,
+                        score_attention=score,
+                        score_recency=10.0,
+                        final_score=score,
+                        typology=(
+                            "Trend" if mode == "radar"
+                            else "Insight" if mode == "research"
+                            else "Policy"
+                        ),
+                        is_novel=True,
+                        related_keywords=generated_queries,
+                    ))
+                except Exception as e:
+                    logging.warning("Skipping malformed signal from LLM: %s", e)
+                    continue
 
         cards.sort(key=lambda x: x.final_score, reverse=True)
 

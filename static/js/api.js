@@ -26,22 +26,45 @@ export async function fetchSavedSignals() {
 }
 
 async function triggerScan(query, mission, mode) {
-  const endpointMap = {
-    radar: "/scan/radar",
-    research: "/scan/research",
-    governance: "/scan/governance",
-  };
+    const endpointMap = {
+        radar: "/scan/radar",
+        research: "/scan/research",
+        governance: "/scan/governance",
+    };
 
-  const url = endpointMap[mode] ?? endpointMap.radar;
+    const url = endpointMap[mode] ?? endpointMap.radar;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, mission }),
-  });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query, mission }),
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.signals || data.signals.length === 0) {
+            console.warn("Agent discarded all sources — try a broader query.");
+        }
+
+        return data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === "AbortError") {
+            console.error("Scan timed out after 60 seconds.");
+        }
+        throw error;
+    }
 }
 
 export { triggerScan };

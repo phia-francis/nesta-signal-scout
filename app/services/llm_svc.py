@@ -382,6 +382,7 @@ RULES:
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0.4,
+                max_tokens=300,
                 response_format={"type": "json_object"} if "gpt" in self.model else None,
             )
             content = response.choices[0].message.content
@@ -430,6 +431,7 @@ RAW RESULTS:
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0.2,
+                max_tokens=2000,
                 response_format={"type": "json_object"},
             )
             content = response.choices[0].message.content
