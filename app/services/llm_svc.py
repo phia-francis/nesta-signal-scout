@@ -440,9 +440,13 @@ RULES:
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0.2,
+                max_tokens=2000,
                 response_format={"type": "json_object"}
             )
-            content = json.loads(response.choices[0].message.content)
+            raw = response.choices[0].message.content
+            if not raw:
+                return []
+            content = json.loads(raw)
             return content.get("signals", [])
         except Exception as e:
             logging.error(f"Verification failed: {e}")
