@@ -48,132 +48,141 @@ function clipboardIcon() {
   `;
 }
 
-export function createSignalCard(signal) {
-  const mission = signal.mission || 'General';
-  const theme = getThemeForMission(mission);
-  const source = signal.source || 'Google Search';
+export function createSignalCard(signal, context = "scan") {
+    const mission = signal.mission || "General";
+    const theme = getThemeForMission(mission);
+    const isSynthesis = signal.typology === "Synthesis";
 
-  const card = document.createElement('article');
-  card.className = `signal-card bg-white border-2 ${theme.border} shadow-hard rounded-sm p-6 flex flex-col gap-4 relative`;
+    const card = document.createElement("article");
+    card.className = isSynthesis
+        ? "signal-card bg-slate-50 border-2 border-nesta-blue shadow-hard rounded-lg p-8 flex flex-col gap-4 relative col-span-full"
+        : `signal-card bg-white border-2 ${theme.border} shadow-hard rounded-lg p-6 flex flex-col gap-4 relative`;
 
-  const sourceBadge = document.createElement('span');
-  sourceBadge.className = `absolute top-4 right-4 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getSourceBadgeTheme(source)}`;
-  sourceBadge.textContent = source;
+    // --- Header: mission pill + cluster pill ---
+    const headerWrap = document.createElement("div");
+    headerWrap.className = "flex flex-wrap items-center gap-2 mb-2";
 
-  const missionPill = document.createElement('span');
-  missionPill.className = `rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${theme.bg} ${theme.text}`;
-  missionPill.textContent = mission;
+    const missionPill = document.createElement("span");
+    missionPill.className = `rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${theme.bg} ${theme.text}`;
+    missionPill.textContent = mission;
+    headerWrap.appendChild(missionPill);
 
-  if (signal.is_novel) {
-    const noveltyPill = document.createElement('span');
-    noveltyPill.className = 'rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-nesta-teal/15 text-nesta-navy border border-nesta-teal/40';
-    noveltyPill.textContent = 'New';
-    card.appendChild(noveltyPill);
-  }
-
-  const title = document.createElement('h3');
-  title.className = 'font-display text-xl leading-tight text-nesta-navy mb-2';
-  title.textContent = signal.title || 'Untitled Signal';
-
-  const isSynthesis = signal.typology === 'Synthesis';
-
-  const summaryWrap = document.createElement('div');
-  summaryWrap.className = 'flex flex-col items-start gap-1 w-full';
-
-  const summary = document.createElement('div');
-
-  if (isSynthesis && window.marked && window.DOMPurify) {
-      // Research Synthesis: render full markdown, no clamp
-      summary.className = 'prose prose-sm max-w-none text-nesta-navy/80 mt-2';
-      summary.innerHTML = DOMPurify.sanitize(marked.parse(signal.summary || ''));
-      summaryWrap.append(summary);
-      card.classList.add('col-span-full', 'bg-slate-50', 'border-nesta-blue');
-  } else {
-      // Standard card: 3-line clamp with conditional Show More toggle
-      summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200';
-      summary.textContent = signal.summary || '';
-
-      summaryWrap.append(summary);
-
-      // Only show the toggle if the content overflows the 3-line clamp
-      requestAnimationFrame(() => {
-          if (summary.scrollHeight > summary.clientHeight) {
-              const toggleBtn = document.createElement('button');
-              toggleBtn.type = 'button';
-              toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
-              toggleBtn.textContent = 'Show More';
-
-              toggleBtn.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  if (summary.classList.contains('line-clamp-3')) {
-                      summary.classList.remove('line-clamp-3');
-                      toggleBtn.textContent = 'Show Less';
-                  } else {
-                      summary.classList.add('line-clamp-3');
-                      toggleBtn.textContent = 'Show More';
-                  }
-              });
-
-              summaryWrap.append(toggleBtn);
-          }
-      });
-  }
-
-  const footer = document.createElement('footer');
-  footer.className = 'mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3';
-
-  const metricsWrap = document.createElement('div');
-  metricsWrap.className = 'flex flex-col gap-1';
-
-  const metrics = document.createElement('div');
-  metrics.className = 'text-xs text-nesta-navy/70 cursor-help inline-block w-fit';
-  metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)} • AI Confidence ${Number(signal.score_confidence || signal.final_score || 0).toFixed(1)}`;
-  metrics.setAttribute(
-      'data-tooltip',
-      'AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency (temporal weighting), and trend relevance.'
-  );
-  metricsWrap.appendChild(metrics);
-
-  if (signal.narrative_group) {
-    const narrativeBadge = document.createElement('span');
-    narrativeBadge.className = 'inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold bg-nesta-purple/10 text-nesta-purple';
-    narrativeBadge.textContent = signal.narrative_group;
-    metricsWrap.appendChild(narrativeBadge);
-  }
-
-  const copyButton = document.createElement('button');
-  copyButton.type = 'button';
-  copyButton.className = 'text-nesta-navy/50 hover:text-nesta-blue transition-colors inline-flex items-center gap-1';
-  copyButton.title = 'Copy to Clipboard';
-  copyButton.innerHTML = `${clipboardIcon()}<span class="sr-only">Copy signal</span>`;
-  copyButton.addEventListener('click', async () => {
-    const payload = `${signal.title || 'Untitled Signal'} - ${signal.summary || ''} - ${signal.url || ''}`;
-    try {
-      await navigator.clipboard.writeText(payload);
-      showToast('Signal copied to clipboard.', 'success');
-    } catch {
-      showToast('Unable to copy signal.', 'error');
+    if (signal.narrative_group && signal.narrative_group !== "Unsorted") {
+        const clusterPill = document.createElement("span");
+        clusterPill.className =
+            "rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider bg-nesta-purple/10 text-nesta-purple border border-nesta-purple/30";
+        clusterPill.textContent = signal.narrative_group;
+        headerWrap.appendChild(clusterPill);
     }
-  });
 
-  footer.append(metricsWrap, copyButton);
+    // --- Title: hyperlinked to source ---
+    const title = document.createElement("a");
+    title.className =
+        "font-display text-xl leading-tight text-nesta-navy hover:text-nesta-blue transition-colors cursor-pointer decoration-2 hover:underline";
+    title.textContent = signal.title || "Untitled Signal";
+    if (signal.url) {
+        title.href = signal.url;
+        title.target = "_blank";
+        title.rel = "noopener noreferrer";
+        title.addEventListener("click", (e) => e.stopPropagation());
+    }
 
-  if (signal.url) {
-    title.classList.add('cursor-pointer', 'hover:text-nesta-blue', 'transition-colors');
-    title.addEventListener('click', () => {
-      try {
-        const parsedUrl = new URL(signal.url, window.location.origin);
-        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-          window.open(parsedUrl.href, '_blank', 'noopener,noreferrer');
+    // --- Summary: markdown for Synthesis, toggle for all others ---
+    const summaryWrap = document.createElement("div");
+    summaryWrap.className = "flex flex-col items-start gap-1 w-full";
+
+    const summary = document.createElement("div");
+
+    if (isSynthesis && window.marked && window.DOMPurify) {
+        summary.className = "prose prose-sm max-w-none text-nesta-navy/80 mt-2";
+        summary.innerHTML = DOMPurify.sanitize(marked.parse(signal.summary || ""));
+        summaryWrap.appendChild(summary);
+    } else {
+        summary.className =
+            "font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200";
+        summary.textContent = signal.summary || "";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className =
+            "text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1";
+        toggleBtn.textContent = "Show More";
+        toggleBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const collapsed = summary.classList.toggle("line-clamp-3");
+            toggleBtn.textContent = collapsed ? "Show More" : "Show Less";
+        });
+        summaryWrap.append(summary, toggleBtn);
+    }
+
+    // --- Footer: scores tooltip + action buttons ---
+    const footer = document.createElement("footer");
+    footer.className =
+        "mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3";
+
+    const metrics = document.createElement("div");
+    metrics.className = "text-xs text-nesta-navy/70 cursor-help relative inline-block w-fit";
+    metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
+    metrics.setAttribute(
+        "data-tooltip",
+        "AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency, and trend relevance."
+    );
+
+    const actionWrap = document.createElement("div");
+    actionWrap.className = "flex gap-2 items-center";
+
+    if (signal.status !== "Archived") {
+        const starBtn = document.createElement("button");
+        starBtn.innerHTML = "⭐ Star";
+        starBtn.className =
+            "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-yellow-100 text-slate-600 hover:text-yellow-700 transition-colors";
+        starBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Starred");
+
+        const archiveBtn = document.createElement("button");
+        archiveBtn.innerHTML = "🗑️ Archive";
+        archiveBtn.className =
+            "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-700 transition-colors";
+        archiveBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Archived");
+
+        actionWrap.append(starBtn, archiveBtn);
+    } else {
+        const unarchiveBtn = document.createElement("button");
+        unarchiveBtn.innerHTML = "📦 Unarchive";
+        unarchiveBtn.className =
+            "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-green-100 text-slate-600 hover:text-green-700 transition-colors";
+        unarchiveBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Active");
+        actionWrap.append(unarchiveBtn);
+    }
+
+    footer.append(metrics, actionWrap);
+    card.append(headerWrap, title, summaryWrap, footer);
+
+    if (context === "preview") {
+        card.classList.add("cursor-pointer", "hover:border-nesta-blue", "transition-all");
+        card.addEventListener("click", () => {
+            document.getElementById("db-overlay").classList.add("active");
+            document.getElementById("db-modal").classList.add("active");
+        });
+    }
+
+    return card;
+}
+
+async function updateSignalStatus(event, url, status) {
+    event.stopPropagation();
+    try {
+        const response = await fetch("/api/saved", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, status }),
+        });
+        if (response.ok) {
+            showToast(`Signal marked as ${status}`, "success");
+            if (typeof window.refreshDatabase === "function") window.refreshDatabase();
         }
-      } catch {
-        // Ignore malformed URL while preserving UI rendering.
-      }
-    });
-  }
-
-  card.append(sourceBadge, missionPill, title, summaryWrap, footer);
-  return card;
+    } catch {
+        showToast("Failed to update signal status.", "error");
+    }
 }
 
 export function showEmptyState(topic, container) {

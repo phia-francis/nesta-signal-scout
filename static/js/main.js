@@ -704,62 +704,77 @@ function renderSignalCard(signal) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Database & System Actions
 // ─────────────────────────────────────────────────────────────────────────────
-async function refreshDatabase() {
-  const grid = document.getElementById("database-grid");
-  if (!grid) return;
+window.refreshDatabase = async function () {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/saved`);
+        const signals = await response.json();
 
-  grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/saved`); // Updated to use API_BASE_URL
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    const items = await res.json();
+        const uiModule = await import('./modules/ui.js');
+        const createSignalCard = uiModule.createSignalCard;
 
-    grid.innerHTML = "";
-    if (!Array.isArray(items) || items.length === 0) {
-      grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Database is empty.</div>';
-      return;
+        const activeSignals = signals.filter(
+            (s) => s.status !== "Archived" && s.status !== "Rejected"
+        );
+        const archivedSignals = signals.filter((s) => s.status === "Archived");
+
+        const dbGrid = document.getElementById("database-grid");
+        dbGrid.innerHTML = "";
+        activeSignals.forEach((s) => dbGrid.appendChild(createSignalCard(s, "db")));
+
+        const archiveGrid = document.getElementById("db-archive-grid");
+        archiveGrid.innerHTML = "";
+        archivedSignals.forEach((s) => archiveGrid.appendChild(createSignalCard(s, "db")));
+
+        const previewGrid = document.getElementById("recent-preview-grid");
+        previewGrid.innerHTML = "";
+        activeSignals.slice(0, 3).forEach((s) =>
+            previewGrid.appendChild(createSignalCard(s, "preview"))
+        );
+    } catch (e) {
+        console.error("Failed to refresh database", e);
     }
+};
 
-    items.forEach((item) => {
-      const title = item.title || item.Title || "Untitled";
-      const mission = item.mission || item.Mission || "General";
-      const summary = item.summary || item.Summary || "";
-      const url = item.url || item.URL || "";
-      const typology = item.typology || item.Typology || "Signal";
-      const scoreActivity = item.score_activity || item.Score_Activity || "N/A";
-      const scoreAttention = item.score_attention || item.Score_Attention || "N/A";
-      const sourceDate = item.date || item.Source_Date || item.source_date || "";
+window.renderClusterMap = function (signals) {
+    const container = document.getElementById("cluster-network-canvas");
+    if (!container || !window.vis) return;
 
-      const card = document.createElement("div");
-      card.className = "bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
-      card.innerHTML = `
-        <div class="flex justify-between mb-2 gap-2">
-           <span class="text-xs font-bold bg-nesta-blue text-white px-2 py-1 rounded">${escapeHtml(mission)}</span>
-           <span class="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-1 rounded-lg">${escapeHtml(typology)}</span>
-        </div>
-        <h4 class="font-bold text-nesta-navy mb-2 line-clamp-2">${escapeHtml(title)}</h4>
-        <div class="text-xs text-slate-500 mb-4 line-clamp-3 flex-grow">${escapeHtml(summary.slice(0, 150))}</div>
-        <div class="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-3 mb-3">
-          <span>Activity: ${escapeHtml(String(scoreActivity))}</span>
-          <span>Attention: ${escapeHtml(String(scoreAttention))}</span>
-        </div>
-        ${sourceDate ? `<div class="text-[10px] text-slate-400 mb-3">Published: ${escapeHtml(String(sourceDate))}</div>` : ''}
-        <div class="flex justify-between items-center">
-          ${sanitizeUrl(url || "") ? `<a href="${escapeAttribute(sanitizeUrl(url))}" target="_blank" class="inline-block text-xs font-bold text-nesta-blue hover:underline">View source</a>` : '<span class="text-xs text-slate-400">No source link</span>'}
-          <button class="text-xs font-bold px-2 py-1 rounded bg-nesta-navy text-white hover:opacity-90" data-action="archive">Archive</button>
-        </div>
-      `;
-      card.querySelector('[data-action="archive"]')?.addEventListener("click", async () => {
-        await archiveSignal(url);
-        card.remove();
-        if (grid.children.length === 0) grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Database is empty.</div>';
-      });
-      grid.appendChild(card);
+    document.getElementById("cluster-map-wrapper").classList.remove("hidden");
+
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+    const clusters = new Set();
+
+    signals.forEach((sig) => {
+        if (sig.narrative_group && sig.narrative_group !== "Unsorted") {
+            clusters.add(sig.narrative_group);
+            nodes.add({
+                id: sig.url,
+                label: sig.title.substring(0, 20) + "...",
+                shape: "dot",
+                color: "#B2C5FE",
+            });
+            edges.add({ from: sig.url, to: `cluster_${sig.narrative_group}` });
+        }
     });
-  } catch (error) {
-    grid.innerHTML = `<div class="text-red-500">Error: ${escapeHtml(error.message)}</div>`;
-  }
-}
+
+    clusters.forEach((c) => {
+        nodes.add({
+            id: `cluster_${c}`,
+            label: c,
+            shape: "star",
+            size: 30,
+            color: "#0F1932",
+            font: { color: "#0F1932", bold: true },
+        });
+    });
+
+    new vis.Network(
+        container,
+        { nodes, edges },
+        { physics: { stabilization: true }, interaction: { hover: true } }
+    );
+};
 
 async function toggleStar(url) {
   if (!url) return;

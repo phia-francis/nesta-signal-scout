@@ -323,55 +323,48 @@ h3,
 }
 
 /* --- 1. NESTA HARD-EDGE TOOLTIPS --- */
+/* ========================================
+   AI Confidence Score Tooltip
+   ======================================== */
+
 [data-tooltip] {
-  position: relative;
-  cursor: help;
+    position: relative;
+    cursor: help;
 }
 
-[data-tooltip]:before {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 120%;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  background: #0f294a;
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 8px 12px;
-  width: max-content;
-  max-width: 200px;
-  text-align: center;
-  line-height: 1.4;
-  z-index: 9999;
-  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.2);
-  border: 1px solid #ffffff;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.1s ease-out;
-  pointer-events: none;
+[data-tooltip]:hover::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 260px;
+    padding: 0.5rem 0.75rem;
+    background-color: #0F1932; /* Nesta Navy */
+    color: #FFFFFF;
+    font-size: 0.75rem;
+    font-family: 'Averta', system-ui, sans-serif;
+    font-weight: normal;
+    line-height: 1.4;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    z-index: 100;
+    white-space: normal;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
 }
 
-[data-tooltip]:after {
-  content: '';
-  position: absolute;
-  bottom: 110%;
-  left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: #0f294a transparent transparent transparent;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.1s ease-out;
-}
-
-[data-tooltip]:hover:before,
-[data-tooltip]:hover:after {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
+/* Arrow */
+[data-tooltip]:hover::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 15px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #0F1932 transparent transparent transparent;
+    margin-bottom: -2px;
+    z-index: 100;
+    pointer-events: none;
 }
 
 /* --- 2. STAGGERED ENTRY ANIMATION --- */

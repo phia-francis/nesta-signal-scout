@@ -266,7 +266,7 @@ class ScanOrchestrator:
         """Sort signals by final score in descending order."""
         return sorted(signals, key=lambda s: s.final_score, reverse=True)
 
-    async def execute_scan(self, query: str, mission: str, mode: str) -> dict[str, Any]:
+    async def execute_scan(self, query: str, mission: str, mode: str, existing_urls: set[str] | None = None) -> dict[str, Any]:
         """
         Unified agentic scan entrypoint.
         Valid modes: 'radar', 'research', 'governance'
@@ -315,6 +315,13 @@ class ScanOrchestrator:
 
         # Deduplicate by URL before verification to reduce LLM token usage
         unique_results = list({r["url"]: r for r in raw_results if r["url"]}.values())
+
+        # Filter out URLs already in the database
+        if existing_urls:
+            unique_results = [
+                r for r in unique_results
+                if normalize_url_for_deduplication(r["url"]) not in existing_urls
+            ]
 
         # 3. Verify and synthesise (anti-hallucination)
         cards: list[SignalCard] = []
@@ -499,17 +506,20 @@ class ScanOrchestrator:
         mission: str,
         related_terms: list[str],
         override_cutoff_date: datetime | None = None,
+        existing_urls: set[str] | None = None,
     ) -> Generator[SignalCard, None, None]:
         """Process and score signals using extracted scoring method."""
         effective_cutoff = override_cutoff_date or self.cutoff_date
+        db_urls = existing_urls or set()
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:
+            if normalize_url_for_deduplication(raw_signal.url) in db_urls:
+                continue
             scored = self._score_signal(raw_signal, effective_cutoff)
             if scored:
                 candidate_cards.append(self._to_signal_card(scored, related_terms=related_terms))
 
-        # Dedupe and Yield
         for card in self._deduplicate_signals(candidate_cards):
             yield card
 
