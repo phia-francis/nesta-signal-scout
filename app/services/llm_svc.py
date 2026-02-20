@@ -371,7 +371,7 @@ RULES:
 1. Queries must capture different angles of the topic.
 2. Do NOT use hardcoded site operators (e.g. site:.gov.uk). Keep it global.
 3. Use advanced operators (AND, OR, "") naturally to surface high-quality reports and trends.
-4. Return ONLY a valid JSON array of strings. Example: ["query 1", "query 2", "query 3"]
+4. Return a JSON object with a single key "queries" containing an array of strings. Example: {{"queries": ["query 1", "query 2", "query 3"]}}
 """
 
         if not self.client:
@@ -386,11 +386,11 @@ RULES:
                 response_format={"type": "json_object"} if "gpt" in self.model else None,
             )
             content = response.choices[0].message.content
-            if content and "{" in content:
-                parsed = json.loads(content)
-                return next(iter(parsed.values())) if isinstance(parsed, dict) else parsed
             if content:
-                return json.loads(content)
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    return parsed.get("queries", next(iter(parsed.values())))
+                return parsed
             return [f"{topic} emerging trends", f"{topic} global policy", f"{topic} breakthrough"]
         except Exception as e:
             logging.error("Failed to generate queries: %s", e)

@@ -25,6 +25,7 @@ export async function triggerScan(query, mission, mode) {
     body: JSON.stringify({ query, mission }),
   });
 
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
@@ -45,6 +46,7 @@ export async function clusterSignals(signals) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ signals }),
   });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 

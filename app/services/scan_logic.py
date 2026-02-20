@@ -298,24 +298,17 @@ class ScanOrchestrator:
             for q in generated_queries
         ]
 
-        try:
-            search_responses = await asyncio.gather(*search_tasks, return_exceptions=True)
-            for i, response in enumerate(search_responses):
-                if isinstance(response, Exception):
-                    logging.warning("Search failed for query '%s': %s", generated_queries[i], response)
-                elif response:
-                    for item in response:
-                        raw_results.append({
-                            "title": item.get("title", ""),
-                            "url": item.get("link", ""),
-                            "snippet": item.get("snippet", ""),
-                        })
-        except Exception as e:
-            # Log full exception details on the server, but avoid exposing them to clients
-            logging.exception("Search execution error during agentic scan")
-            self._warnings.append(
-                "Search execution error: one or more search providers failed during scanning."
-            )
+        search_responses = await asyncio.gather(*search_tasks, return_exceptions=True)
+        for i, response in enumerate(search_responses):
+            if isinstance(response, Exception):
+                logging.warning("Search failed for query '%s': %s", generated_queries[i], response)
+            elif response:
+                for item in response:
+                    raw_results.append({
+                        "title": item.get("title", ""),
+                        "url": item.get("link", ""),
+                        "snippet": item.get("snippet", ""),
+                    })
 
         # Deduplicate by URL before verification to reduce LLM token usage
         unique_results = list({r["url"]: r for r in raw_results if r["url"]}.values())

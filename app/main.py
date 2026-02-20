@@ -64,9 +64,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.mount("/static", StaticFiles(directory="static"), name="static")
-    application.include_router(radar_router, tags=["Scanner"])
-    application.include_router(research_router, tags=["Scanner"])
-    application.include_router(governance_router, tags=["Scanner"])
+    application.include_router(radar_router)
+    application.include_router(research_router)
+    application.include_router(governance_router)
     application.include_router(system_router)
     application.include_router(cron_router)
 

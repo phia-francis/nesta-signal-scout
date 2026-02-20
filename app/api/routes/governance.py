@@ -34,5 +34,6 @@ async def run_governance_scan(
             except Exception as save_err:
                 logger.warning("Failed to persist governance signals to Sheets: %s", save_err)
         return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Unexpected error while running governance scan")
+        raise HTTPException(status_code=500, detail="Internal server error while running governance scan")
