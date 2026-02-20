@@ -31,13 +31,23 @@ def mock_services():
     analytics_service.classify_sweet_spot = Mock(return_value="Nascent")
     
     taxonomy = Mock()
+
+    llm_service = Mock()
+    llm_service.generate_agentic_queries = AsyncMock(
+        return_value=["test emerging trends", "test global policy", "test breakthrough"]
+    )
+    llm_service.verify_and_synthesize = AsyncMock(return_value=[
+        {"title": "Verified Signal", "summary": "A verified summary.", "url": "https://example.com", "score": 7.5}
+    ])
+    llm_service.client = True  # Simulate available client
     
     return {
         "gateway": gateway_service,
         "openalex": openalex_service,
         "search": search_service,
         "analytics": analytics_service,
-        "taxonomy": taxonomy
+        "taxonomy": taxonomy,
+        "llm": llm_service,
     }
 
 
@@ -49,89 +59,157 @@ def orchestrator(mock_services):
         openalex_service=mock_services["openalex"],
         search_service=mock_services["search"],
         analytics_service=mock_services["analytics"],
-        taxonomy=mock_services["taxonomy"]
+        taxonomy=mock_services["taxonomy"],
+        llm_service=mock_services["llm"],
     )
 
 
 @pytest.mark.asyncio
-async def test_execute_quick_scan_returns_signals(orchestrator, mock_services):
-    """Test that quick scan returns signals with proper structure."""
-    # Mock keyword generation
-    with patch('keywords.generate_broad_scan_queries', return_value=["term1", "term2"]):
-        result = await orchestrator._execute_quick_scan("AI innovation", "A Healthy Life")
-    
+async def test_execute_scan_radar_mode(orchestrator, mock_services):
+    """Test that execute_scan returns signals with proper structure in radar mode."""
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
     assert "signals" in result
     assert "warnings" in result
     assert "mode" in result
-    assert result["mode"] == "quick"
+    assert result["mode"] == "radar"
     assert isinstance(result["signals"], list)
 
 
 @pytest.mark.asyncio
-async def test_execute_deep_scan_mode(orchestrator):
-    """Test deep scan execution."""
-    # Mock fetch_research_deep_dive method
-    orchestrator.fetch_research_deep_dive = AsyncMock(return_value=[])
-    
-    result = await orchestrator._execute_deep_scan("quantum computing", "A Sustainable Future")
-    
-    assert result["mode"] == "deep"
+async def test_execute_scan_research_mode(orchestrator, mock_services):
+    """Test that execute_scan works in research mode."""
+    result = await orchestrator.execute_scan("quantum computing", "A Sustainable Future", "research")
+
+    assert result["mode"] == "research"
     assert "signals" in result
-    assert orchestrator.fetch_research_deep_dive.called
+    assert "related_terms" in result
 
 
 @pytest.mark.asyncio
-async def test_execute_monitor_scan_mode(orchestrator):
-    """Test monitor scan execution."""
-    # Mock fetch_policy_scan method
-    orchestrator.fetch_policy_scan = AsyncMock(return_value=[])
-    
-    result = await orchestrator._execute_monitor_scan("climate policy", "A Sustainable Future")
-    
-    assert result["mode"] == "monitor"
+async def test_execute_scan_governance_mode(orchestrator, mock_services):
+    """Test that execute_scan works in governance mode."""
+    result = await orchestrator.execute_scan("climate policy", "A Sustainable Future", "governance")
+
+    assert result["mode"] == "governance"
     assert "signals" in result
-    assert orchestrator.fetch_policy_scan.called
 
 
 @pytest.mark.asyncio
-async def test_partial_failure_google_fails_openalex_works(orchestrator, mock_services):
-    """Test partial failure: Google fails but other sources work."""
-    # Make Google search fail but GtR succeed
-    mock_services["search"].search = AsyncMock(side_effect=Exception("Google API error"))
-    mock_services["gateway"].fetch_projects = AsyncMock(return_value=[
-        {
-            "title": "Academic Project",
-            "grantReference": "ABC123",
-            "abstract": "Test abstract",
-            "start_date": datetime.now(timezone.utc),
-            "fund_val": 100000
-        }
-    ])
-    
-    with patch('keywords.generate_broad_scan_queries', return_value=["term1"]):
-        result = await orchestrator._execute_quick_scan("test query", "General")
-    
-    # Should have warnings but still return results
-    assert result["warnings"] is not None
-    assert len(result["warnings"]) > 0
-    assert any("unavailable" in w.lower() for w in result["warnings"])
-    # Should still have academic signals
-    assert len(result["signals"]) > 0
+async def test_execute_scan_invalid_mode_defaults_to_radar(orchestrator, mock_services):
+    """Test that an invalid mode defaults to radar."""
+    result = await orchestrator.execute_scan("test query", "General", "invalid_mode")
+
+    assert result["mode"] == "radar"
 
 
 @pytest.mark.asyncio
-async def test_all_sources_fail_returns_empty(orchestrator, mock_services):
-    """Test that when all sources fail, empty results are returned."""
-    # Make all sources fail
+async def test_execute_scan_empty_query_raises_validation_error(orchestrator, mock_services):
+    """Test that execute_scan raises ValidationError for empty query."""
+    from app.core.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        await orchestrator.execute_scan("", "General", "radar")
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_returns_signal_cards(orchestrator, mock_services):
+    """Test that execute_scan returns SignalCard objects."""
+    result = await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert "signals" in result
+    for s in result["signals"]:
+        assert isinstance(s, SignalCard)
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_calls_generate_agentic_queries(orchestrator, mock_services):
+    """Test that execute_scan calls llm_service.generate_agentic_queries."""
+    await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    mock_services["llm"].generate_agentic_queries.assert_called_once_with(
+        topic="AI innovation",
+        mode="radar",
+        mission="A Healthy Life",
+        num_queries=3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_calls_verify_and_synthesize(orchestrator, mock_services):
+    """Test that execute_scan calls llm_service.verify_and_synthesize."""
+    await orchestrator.execute_scan("AI innovation", "A Healthy Life", "radar")
+
+    assert mock_services["llm"].verify_and_synthesize.called
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_research_uses_six_queries(orchestrator, mock_services):
+    """Test that research mode requests 6 queries."""
+    await orchestrator.execute_scan("quantum computing", "General", "research")
+
+    mock_services["llm"].generate_agentic_queries.assert_called_once_with(
+        topic="quantum computing",
+        mode="research",
+        mission="General",
+        num_queries=6,
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_governance_uses_three_queries(orchestrator, mock_services):
+    """Test that governance mode requests 3 queries."""
+    await orchestrator.execute_scan("climate policy", "General", "governance")
+
+    mock_services["llm"].generate_agentic_queries.assert_called_once_with(
+        topic="climate policy",
+        mode="governance",
+        mission="General",
+        num_queries=3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_handles_search_failures(orchestrator, mock_services):
+    """Test that execute_scan handles search failures gracefully."""
     mock_services["search"].search = AsyncMock(side_effect=Exception("API error"))
-    mock_services["gateway"].fetch_projects = AsyncMock(side_effect=Exception("GtR error"))
-    
-    with patch('keywords.generate_broad_scan_queries', return_value=[]):
-        result = await orchestrator._execute_quick_scan("test query", "General")
-    
-    assert result["warnings"] is not None
-    assert len(result["warnings"]) > 0
-    assert len(result["signals"]) == 0
+
+    result = await orchestrator.execute_scan("test query", "General", "radar")
+
+    # Should still return a valid result structure
+    assert "signals" in result
+    assert isinstance(result["signals"], list)
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_deduplicates_by_url(orchestrator, mock_services):
+    """Test that execute_scan deduplicates results by URL before verification."""
+    mock_services["search"].search = AsyncMock(return_value=[
+        {"title": "Test 1", "link": "https://example.com/same", "snippet": "Snippet 1"},
+        {"title": "Test 2", "link": "https://example.com/same", "snippet": "Snippet 2"},
+        {"title": "Test 3", "link": "https://example.com/different", "snippet": "Snippet 3"},
+    ])
+
+    await orchestrator.execute_scan("test query", "General", "radar")
+
+    # verify_and_synthesize should receive deduplicated results
+    call_args = mock_services["llm"].verify_and_synthesize.call_args
+    raw_results = call_args.kwargs.get("raw_results") or call_args[1].get("raw_results") or call_args[0][0]
+    assert len(raw_results) == 2  # Deduplicated
+
+
+@pytest.mark.asyncio
+async def test_execute_scan_sorts_by_score(orchestrator, mock_services):
+    """Test that execute_scan sorts results by final_score descending."""
+    mock_services["llm"].verify_and_synthesize = AsyncMock(return_value=[
+        {"title": "Low Score", "summary": "Low", "url": "https://example.com/low", "score": 3.0},
+        {"title": "High Score", "summary": "High", "url": "https://example.com/high", "score": 9.0},
+    ])
+
+    result = await orchestrator.execute_scan("test query", "General", "radar")
+
+    if len(result["signals"]) >= 2:
+        assert result["signals"][0].final_score >= result["signals"][1].final_score
 
 
 def test_score_signal_returns_scored_signal(orchestrator):
@@ -389,55 +467,3 @@ def test_classify_source_none_safety(orchestrator):
 
     category = orchestrator._classify_source(signal)
     assert category == "international"  # Falls through to default
-
-
-@pytest.mark.asyncio
-async def test_quick_scan_returns_signal_cards(orchestrator, mock_services):
-    """Test that quick scan returns SignalCard objects, not RawSignal."""
-    with patch('keywords.generate_broad_scan_queries', return_value=["term1", "term2"]):
-        result = await orchestrator._execute_quick_scan("AI innovation", "A Healthy Life")
-
-    assert "signals" in result
-    for s in result["signals"]:
-        assert isinstance(s, SignalCard)
-
-
-@pytest.mark.asyncio
-async def test_quick_scan_with_llm_service(orchestrator, mock_services):
-    """Test that quick scan calls evaluate_radar_signals when llm_service is available."""
-    llm_service = Mock()
-    llm_service.evaluate_radar_signals = AsyncMock(return_value=[
-        {"id": 0, "title": "LLM Title", "summary": "LLM Summary", "score": 8.5}
-    ])
-    orchestrator.llm_service = llm_service
-
-    with patch('keywords.generate_broad_scan_queries', return_value=["term1"]):
-        result = await orchestrator._execute_quick_scan("AI innovation", "A Healthy Life")
-
-    assert llm_service.evaluate_radar_signals.called
-    assert result["signals"]
-    assert isinstance(result["signals"][0], SignalCard)
-
-
-@pytest.mark.asyncio
-async def test_monitor_scan_passes_mission(orchestrator, mock_services):
-    """Test that monitor scan passes mission to fetch_policy_scan."""
-    orchestrator.fetch_policy_scan = AsyncMock(return_value=[])
-
-    await orchestrator._execute_monitor_scan("climate policy", "A Healthy Life")
-
-    orchestrator.fetch_policy_scan.assert_called_once_with("climate policy", mission="A Healthy Life")
-
-
-@pytest.mark.asyncio
-async def test_fetch_policy_scan_accepts_mission(orchestrator, mock_services):
-    """Test that fetch_policy_scan accepts and uses a custom mission."""
-    result = await orchestrator.fetch_policy_scan("climate", mission="A Sustainable Future")
-    assert isinstance(result, list)
-
-
-@pytest.mark.asyncio
-async def test_fetch_intelligence_brief_accepts_mission(orchestrator, mock_services):
-    """Test that fetch_intelligence_brief accepts and uses a custom mission."""
-    result = await orchestrator.fetch_intelligence_brief("quantum computing", mission="A Fairer Start")
-    assert isinstance(result, list)

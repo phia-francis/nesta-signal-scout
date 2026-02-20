@@ -51,10 +51,24 @@ async def policy_scan(
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
 ):
     """
-    Streaming Endpoint for Policy Mode.
+    Streaming Endpoint for Governance Mode (formerly Policy).
     """
     return StreamingResponse(
-        _policy_stream_generator(body.query, body.mission, orchestrator),
+        _governance_stream_generator(body.query, body.mission, orchestrator),
+        media_type="application/x-ndjson",
+    )
+
+
+@router.post("/governance")
+async def governance_scan(
+    body: RadarRequest,
+    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
+):
+    """
+    Streaming Endpoint for Governance Mode.
+    """
+    return StreamingResponse(
+        _governance_stream_generator(body.query, body.mission, orchestrator),
         media_type="application/x-ndjson",
     )
 
@@ -155,42 +169,41 @@ async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOr
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 
-async def _policy_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
+async def _governance_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
+    """Stream generator for governance mode using the unified agentic scan."""
     try:
-        yield _msg("info", f"Scanning Policy Documents for '{query}'...")
+        yield _msg("info", f"Scanning global policy landscape for '{query}'...")
 
-        # 1. Fetch Policy Signals
-        # Note: fetch_policy_scan returns Scored Cards directly in v2 logic
-        cards = await orchestrator.fetch_policy_scan(query)
+        result = await orchestrator.execute_scan(query=query, mission=mission, mode="governance")
 
+        cards = result.get("signals", [])
         if not cards:
             yield _msg("warning", "No policy documents found.")
             yield _msg("complete", "Scan finished.")
             return
 
         for card in cards:
-            card.mission = mission  # Ensure mission alignment
             data = {"status": "blip", "blip": card.model_dump()}
             yield json.dumps(data) + "\n"
 
-        yield _msg("complete", f"Policy scan complete. {len(cards)} documents found.")
+        yield _msg("complete", f"Governance scan complete. {len(cards)} signals found.")
 
     except ValidationError as e:
-        logger.warning("Policy validation error: %s", e)
+        logger.warning("Governance validation error: %s", e)
         yield _msg("error", "Invalid request. Please check your query and try again.")
     except RateLimitError as e:
-        logger.warning("Policy rate limit hit: %s", e)
+        logger.warning("Governance rate limit hit: %s", e)
         retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
         yield _msg("error", f"Rate limit exceeded.{retry_msg}")
     except SearchAPIError as e:
-        logger.error("Policy search API error: %s", e)
+        logger.error("Governance search API error: %s", e)
         yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
     except SignalScoutError as e:
-        logger.error("Policy scan error: %s", e)
+        logger.error("Governance scan error: %s", e)
         yield _msg("error", "An error occurred during scanning. Please try again later.")
     except Exception:
-        request_id = "policy-scan-failed"
-        logger.exception("Policy scan failed. Request ID: %s", request_id)
+        request_id = "governance-scan-failed"
+        logger.exception("Governance scan failed. Request ID: %s", request_id)
         yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
 
 

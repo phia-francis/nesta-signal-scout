@@ -133,10 +133,10 @@ async def intelligence_mode(
     payload: dict[str, str],
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
 ) -> dict[str, object]:
-    """Fast intelligence brief returning SignalCard-shaped data."""
+    """Deprecated: redirects to radar mode via unified agentic scan."""
     topic = (payload.get("topic") or "").strip()
-    cards = await orchestrator.fetch_intelligence_brief(topic)
-    return {"status": "success", "data": {"results": [card.model_dump() for card in cards]}}
+    result = await orchestrator.execute_scan(query=topic, mission="General", mode="radar")
+    return {"status": "success", "data": {"results": [card.model_dump() for card in result["signals"]]}}
 
 
 @router.post("/mode/{mode}")

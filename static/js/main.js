@@ -158,9 +158,9 @@ const MODE_CONFIG = {
     themeClass: 'theme-violet',
     placeholder: ''
   },
-  policy: {
-    desc: '<strong>Regulatory Horizon:</strong> Policy &amp; regulatory intelligence.',
-    btnText: 'SCAN REGULATORY HORIZON',
+  governance: {
+    desc: '<strong>Governance Radar:</strong> Global policy &amp; regulatory intelligence.',
+    btnText: 'SCAN GOVERNANCE HORIZON',
     btnClass: 'bg-nesta-yellow',
     borderClass: 'border-nesta-yellow',
     themeClass: 'theme-aqua',
@@ -805,13 +805,13 @@ const MAX_PREVIEW_SUMMARY_LENGTH = 150;
 const PREVIEW_MODE_NAMES = {
   radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
   research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
-  policy: { title: "Regulatory Horizon", pluralTitle: "Recent Regulatory Horizons", icon: "🌍" }
+  governance: { title: "Governance Radar", pluralTitle: "Recent Governance Radars", icon: "🌍" }
 };
 
 const PREVIEW_MODE_MAP = {
   radar: ["Radar", "Quick"],
   research: ["Research", "Deep", "Synthesis"],
-  policy: ["Policy", "Monitor"]
+  governance: ["Governance", "Policy", "Monitor"]
 };
 
 async function loadRecentPreview(mode) {
