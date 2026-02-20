@@ -628,7 +628,7 @@ function renderSignalCard(signal) {
     </h3>
     <div class="snippet-content text-sm text-slate-600 leading-relaxed">
       <div class="summary-container">
-        <p class="card-summary">${parsedSnippet.replace(/^<p>/, '').replace(/<\/p>$/, '')}</p>
+        <div class="card-summary">${parsedSnippet}</div>
         <button type="button" class="show-more-btn" onclick="toggleCardSummary(this)">Show More</button>
       </div>
     </div>
@@ -1453,7 +1453,7 @@ if (document.readyState === "loading") {
 }
 
 window.toggleCardSummary = function(btn) {
-    const summaryEl = btn.previousElementSibling;
+    const summaryEl = btn.closest('.summary-container').querySelector('.card-summary');
 
     if (summaryEl.classList.contains('expanded')) {
         summaryEl.classList.remove('expanded');
