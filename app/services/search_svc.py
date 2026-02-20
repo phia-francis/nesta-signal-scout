@@ -157,6 +157,18 @@ class SearchService:
                             status_code=400,
                         )
                     
+                    if response.status_code >= 500:
+                        logger.warning(
+                            "Google API server error %d (attempt %d/%d): %s",
+                            response.status_code, attempt + 1, max_retries, response.text,
+                        )
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2 ** (attempt + 1))
+                            continue
+                        else:
+                            logger.error("Google API server error after all retries — returning empty results")
+                            return []
+
                     if response.status_code != 200:
                         logger.error(f"Google API error {response.status_code}: {response.text}")
                         raise SearchAPIError(

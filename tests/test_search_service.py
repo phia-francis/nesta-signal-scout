@@ -108,15 +108,33 @@ async def test_search_handles_429_with_successful_retry(search_service):
 @pytest.mark.asyncio
 @respx.mock
 async def test_search_handles_500_server_error(search_service):
-    """Test that search handles 500 server error."""
+    """Test that search retries on 500 and returns empty list gracefully."""
     respx.get("https://www.googleapis.com/customsearch/v1").mock(
         return_value=Response(500, text="Internal Server Error")
     )
-    
-    with pytest.raises(ServiceError) as exc_info:
-        await search_service.search("test query", num=5)
-    
-    assert "500" in str(exc_info.value)
+
+    results = await search_service.search("test query", num=5)
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_retries_500_then_succeeds(search_service):
+    """Test that search retries after 500 and succeeds on subsequent attempt."""
+    mock_response = {"items": [{"title": "Recovered", "link": "https://example.com"}]}
+
+    respx.get("https://www.googleapis.com/customsearch/v1").mock(
+        side_effect=[
+            Response(500, text="Internal Server Error"),
+            Response(200, json=mock_response),
+        ]
+    )
+
+    results = await search_service.search("test query", num=5, max_retries=3)
+
+    assert len(results) == 1
+    assert results[0]["title"] == "Recovered"
 
 
 @pytest.mark.asyncio

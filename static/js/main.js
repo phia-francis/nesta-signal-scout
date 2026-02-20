@@ -712,8 +712,9 @@ window.refreshDatabase = async function () {
         const uiModule = await import('./modules/ui.js');
         const createSignalCard = uiModule.createSignalCard;
 
+        // Exclude Synthesis cards from standard radar/governance lists
         const activeSignals = signals.filter(
-            (s) => s.status !== "Archived" && s.status !== "Rejected"
+            (s) => s.status !== "Archived" && s.status !== "Rejected" && s.typology !== "Synthesis"
         );
         const archivedSignals = signals.filter((s) => s.status === "Archived");
 
@@ -730,6 +731,8 @@ window.refreshDatabase = async function () {
         activeSignals.slice(0, 3).forEach((s) =>
             previewGrid.appendChild(createSignalCard(s, "preview"))
         );
+
+        if (window.renderClusterMap) window.renderClusterMap(activeSignals);
     } catch (e) {
         console.error("Failed to refresh database", e);
     }
@@ -1453,6 +1456,58 @@ document.addEventListener('DOMContentLoaded', () => {
     shareBtn.style.display = 'none'; // Hide until scan completes
     resultsHeader.appendChild(shareBtn);
   }
+
+  // Wire "Generate Trend Analysis" button
+  document.getElementById("btn-generate-analysis")?.addEventListener("click", async (e) => {
+      const btn = e.target;
+      btn.innerHTML = "⏳ Analyzing...";
+      btn.disabled = true;
+
+      try {
+          const response = await fetch(`${API_BASE_URL}/api/saved`);
+          const signals = await response.json();
+          const activeSignals = signals.filter(
+              (s) => s.status !== "Archived" && s.typology !== "Synthesis"
+          );
+
+          const clustersMap = {};
+          activeSignals.forEach((sig) => {
+              if (sig.narrative_group && sig.narrative_group !== "Unsorted") {
+                  if (!clustersMap[sig.narrative_group]) {
+                      clustersMap[sig.narrative_group] = {
+                          cluster_name: sig.narrative_group,
+                          signals: [],
+                      };
+                  }
+                  clustersMap[sig.narrative_group].signals.push(sig.summary);
+              }
+          });
+
+          const analyzeRes = await fetch(`${API_BASE_URL}/cluster/analyze`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  clusters: Object.values(clustersMap),
+                  mission: "General",
+              }),
+          });
+
+          const data = await analyzeRes.json();
+
+          if (data.insights?.length > 0) {
+              const first = data.insights[0];
+              document.getElementById("cluster-analysis-text").innerHTML =
+                  `<strong>${first.cluster_name} (${first.strength}):</strong> ${first.trend_summary}`;
+              document.getElementById("cluster-analysis-preview").classList.remove("hidden");
+              showToast("Analysis generated and saved to Database!", "success");
+          }
+      } catch {
+          showToast("Failed to generate analysis.", "error");
+      } finally {
+          btn.innerHTML = "🧠 Generate Trend Analysis";
+          btn.disabled = false;
+      }
+  });
 });
 
 // Expose functions globally
