@@ -375,7 +375,7 @@ export function updateModeUI(mode) {
       title: 'Research Synthesis',
       description: 'Deep-dive analysis combining multiple sources into comprehensive insights',
     },
-    policy: {
+    governance: {
       title: 'Regulatory Horizon',
       description: 'Targeted search across global government and policy sources',
     },

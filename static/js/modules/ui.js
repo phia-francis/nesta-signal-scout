@@ -247,22 +247,18 @@ export function startScan() {
   const loader = document.getElementById('scan-loader');
   const feed = document.getElementById('radar-feed');
   const emptyState = document.getElementById('empty-state');
-  const intelligencePlaceholder = document.getElementById('intelligence-placeholder');
   loader?.classList.remove('hidden');
   feed?.classList.add('hidden');
   emptyState?.classList.add('hidden');
-  intelligencePlaceholder?.classList.add('hidden');
 }
 
 export function finishScan() {
   const loader = document.getElementById('scan-loader');
   const feed = document.getElementById('radar-feed');
   const emptyState = document.getElementById('empty-state');
-  const intelligencePlaceholder = document.getElementById('intelligence-placeholder');
   loader?.classList.add('hidden');
   feed?.classList.remove('hidden');
   emptyState?.classList.add('hidden');
-  intelligencePlaceholder?.classList.add('hidden');
 }
 
 export function showToast(message, type = 'info') {
