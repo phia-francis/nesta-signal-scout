@@ -65,11 +65,28 @@ async function runScan() {
       receivedBlip = data.signals.length > 0;
       if (feed) {
         feed.innerHTML = '';
-        if (data.cluster_insights) {
-          renderClusterInsights(data.cluster_insights, feed);
+
+        if (!data.signals || data.signals.length === 0) {
+            feed.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-12 text-center bg-nesta-sand/10 rounded-lg border border-nesta-sand border-dashed">
+                    <h3 class="text-xl font-bold text-nesta-navy mb-2">No Novel Trends Found</h3>
+                    <p class="text-nesta-navy/70 max-w-md">
+                        The agent scanned the web but discarded all sources because they were either
+                        outdated (older than 1 year), irrelevant, or lacked strong evidence.
+                        <br><br>Try a broader search query or a different mode.
+                    </p>
+                    <p class="text-xs text-nesta-navy/50 mt-4">
+                        Searches attempted: ${data.related_terms ? data.related_terms.join(', ') : 'None'}
+                    </p>
+                </div>
+            `;
+        } else {
+            if (data.cluster_insights) {
+              renderClusterInsights(data.cluster_insights, feed);
+            }
+            renderSignals(state.radarSignals, feed, topic);
         }
       }
-      renderSignals(state.radarSignals, feed, topic);
     }
 
     if (!receivedBlip) {

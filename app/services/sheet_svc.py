@@ -109,7 +109,7 @@ class SheetService:
             signal.get("score_attention", 0),
             signal.get("source", "Web"),
             signal.get("status", "New"),
-            signal.get("narrative_group", ""),
+            signal.get("narrative_group") or "Unclustered",
             signal.get("source_date") or signal.get("date") or "Unknown",
         ]
 
@@ -204,7 +204,7 @@ class SheetService:
                             gspread.cell.Cell(row_index, self.ACTIVITY_COLUMN_INDEX, signal.get("score_activity", 0)),
                             gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
                             gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
-                            gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group", "")),
+                            gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group") or "Unclustered"),
                             gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("source_date") or signal.get("date") or "Unknown"),
                         ]
                     )
@@ -242,7 +242,7 @@ class SheetService:
             signal.get("score_attention", 0),
             signal.get("source", "Web"),
             signal.get("status", "Starred"),
-            signal.get("narrative_group", ""),
+            signal.get("narrative_group") or "Unclustered",
             signal.get("source_date") or signal.get("date") or "Unknown",
         ]
         try:
