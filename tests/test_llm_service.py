@@ -260,3 +260,110 @@ async def test_evaluate_radar_signals_api_error_returns_empty(llm_service_with_k
     result = await llm_service_with_key.evaluate_radar_signals("test", search_results, "Any")
 
     assert result == []
+
+
+# ── Tests for generate_agentic_queries ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_generate_agentic_queries_without_client():
+    """Test that generate_agentic_queries returns fallback when no client."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    result = await service.generate_agentic_queries("AI", "radar", "General", 3)
+
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert any("AI" in q for q in result)
+
+
+@pytest.mark.asyncio
+async def test_generate_agentic_queries_success(llm_service_with_key):
+    """Test successful agentic query generation with mocked OpenAI response."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = '{"queries": ["AI regulation 2025", "AI policy global", "AI governance trends"]}'
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    result = await llm_service_with_key.generate_agentic_queries("AI", "governance", "General", 3)
+
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert llm_service_with_key.client.chat.completions.create.called
+
+
+@pytest.mark.asyncio
+async def test_generate_agentic_queries_api_error_returns_fallback(llm_service_with_key):
+    """Test that generate_agentic_queries returns fallback on API error."""
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(
+        side_effect=Exception("API Error")
+    )
+
+    result = await llm_service_with_key.generate_agentic_queries("AI", "radar", "General", 3)
+
+    assert isinstance(result, list)
+    assert len(result) == 3
+
+
+# ── Tests for verify_and_synthesize ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_verify_and_synthesize_without_client():
+    """Test that verify_and_synthesize returns empty list when no client."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    result = await service.verify_and_synthesize(
+        [{"title": "Test", "url": "https://example.com", "snippet": "Test snippet"}],
+        "AI", "General", "radar"
+    )
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_verify_and_synthesize_success(llm_service_with_key):
+    """Test successful verification and synthesis with mocked OpenAI response."""
+    mock_response = Mock()
+    mock_response.choices = [Mock()]
+    mock_response.choices[0].message.content = '{"signals": [{"title": "Verified Signal", "summary": "An analytical summary.", "url": "https://example.com", "score": 8.5}]}'
+
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    raw_results = [
+        {"title": "Raw Result", "url": "https://example.com", "snippet": "Raw snippet"}
+    ]
+
+    result = await llm_service_with_key.verify_and_synthesize(raw_results, "AI", "General", "radar")
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["title"] == "Verified Signal"
+    assert llm_service_with_key.client.chat.completions.create.called
+
+
+@pytest.mark.asyncio
+async def test_verify_and_synthesize_api_error_returns_empty(llm_service_with_key):
+    """Test that verify_and_synthesize returns empty list on API error."""
+    llm_service_with_key.client = AsyncMock()
+    llm_service_with_key.client.chat.completions.create = AsyncMock(
+        side_effect=Exception("API Error")
+    )
+
+    raw_results = [{"title": "Test", "url": "https://example.com", "snippet": "Test snippet"}]
+
+    result = await llm_service_with_key.verify_and_synthesize(raw_results, "AI", "General", "radar")
+
+    assert result == []

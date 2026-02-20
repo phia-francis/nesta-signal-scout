@@ -114,8 +114,8 @@ class ScanOrchestrator:
         Returns:
             One of: "social", "blog", "international", "academic"
         """
-        source = signal.source.lower()
-        url = signal.url.lower()
+        source = (signal.source or "").lower()
+        url = (signal.url or "").lower()
         
         # Academic sources
         if any(keyword in source for keyword in ["gtr", "openalex", "arxiv", "academic", "journal"]):
@@ -265,89 +265,98 @@ class ScanOrchestrator:
         """Sort signals by final score in descending order."""
         return sorted(signals, key=lambda s: s.final_score, reverse=True)
 
-    async def _execute_quick_scan(self, query: str, mission: str) -> dict[str, Any]:
-        """Execute quick scan (radar mode) with source diversity."""
+    async def execute_scan(self, query: str, mission: str, mode: str) -> dict[str, Any]:
+        """
+        Unified agentic scan entrypoint.
+        Valid modes: 'radar', 'research', 'governance'
+        """
         clean_topic = query.strip()
         if not clean_topic:
-            raise ValidationError("Query is required for quick scan.")
-        
-        # Generate related keywords
-        try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
-        except Exception as e:
-            logging.warning("Keyword enrichment failed: %s", e)
-            related_terms = []
-        
-        # Construct queries for different sources
-        queries = {
-            "social": f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)",
-            "blog": f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")",
-            "general": build_novelty_query(clean_topic),
-            "topic": clean_topic
-        }
-        
-        # Fetch from all sources with partial failure handling
-        raw_signals = await self._fetch_from_all_sources(queries, mission, self.cutoff_date)
-        raw_signals = self._prioritize_by_source_diversity(raw_signals)
-        
+            raise ValidationError("Query is required for scanning.")
+
+        if mode not in ["radar", "research", "governance"]:
+            mode = "radar"
+
+        num_queries = {"radar": 3, "research": 6, "governance": 3}.get(mode, 3)
+
+        self._warnings.clear()
+
+        # 1. Generate unbiased search queries
+        generated_queries = await self.llm_service.generate_agentic_queries(
+            topic=clean_topic,
+            mode=mode,
+            mission=mission,
+            num_queries=num_queries,
+        )
+
+        # 2. Execute searches concurrently
+        raw_results: list[dict[str, Any]] = []
+        search_tasks = [
+            self.search_service.search(
+                q, num=5, freshness="year" if mode == "governance" else None
+            )
+            for q in generated_queries
+        ]
+
+        search_responses = await asyncio.gather(*search_tasks, return_exceptions=True)
+        for i, response in enumerate(search_responses):
+            if isinstance(response, Exception):
+                logging.warning("Search failed for query '%s': %s", generated_queries[i], response)
+            elif response:
+                for item in response:
+                    raw_results.append({
+                        "title": item.get("title", ""),
+                        "url": item.get("link", ""),
+                        "snippet": item.get("snippet", ""),
+                    })
+
+        # Deduplicate by URL before verification to reduce LLM token usage
+        unique_results = list({r["url"]: r for r in raw_results if r["url"]}.values())
+
+        # 3. Verify and synthesise (anti-hallucination)
+        cards: list[SignalCard] = []
+        if unique_results:
+            verified_signals = await self.llm_service.verify_and_synthesize(
+                raw_results=unique_results,
+                topic=clean_topic,
+                mission=mission,
+                mode=mode,
+            )
+
+            for sig in verified_signals:
+                try:
+                    score = float(sig.get("score", 7.0))
+                    cards.append(SignalCard(
+                        title=sig.get("title", "Unknown Signal")[:200],
+                        url=sig.get("url", ""),
+                        summary=sig.get("summary", "No summary provided.")[:500],
+                        source="Agentic Scan",
+                        mission=mission,
+                        date=datetime.now(timezone.utc).date().isoformat(),
+                        score_activity=score,
+                        score_attention=score,
+                        score_recency=10.0,
+                        final_score=score,
+                        typology=(
+                            "Trend" if mode == "radar"
+                            else "Insight" if mode == "research"
+                            else "Policy"
+                        ),
+                        is_novel=True,
+                        related_keywords=generated_queries,
+                    ))
+                except Exception as e:
+                    logging.warning("Skipping malformed signal from LLM: %s", e)
+                    continue
+
+        cards.sort(key=lambda x: x.final_score, reverse=True)
+
         return {
-            "signals": raw_signals,
-            "related_terms": related_terms,
+            "signals": cards,
+            "related_terms": generated_queries,
             "warnings": self._warnings if self._warnings else None,
-            "mode": "quick"
+            "mode": mode,
         }
-
-    async def _execute_deep_scan(self, query: str, mission: str) -> dict[str, Any]:
-        """Execute deep scan (research mode) focusing on academic sources."""
-        clean_topic = query.strip()
-        if not clean_topic:
-            raise ValidationError("Query is required for deep scan.")
-        
-        self._warnings.clear()
-        # Deep scan uses research method
-        try:
-            cards = await self.fetch_research_deep_dive(clean_topic, mission=mission)
-            return {
-                "signals": cards,
-                "related_terms": [],
-                "warnings": self._warnings if self._warnings else None,
-                "mode": "deep"
-            }
-        except Exception as e:
-            self._warnings.append(f"Deep scan failed: {str(e)}")
-            logging.error("Deep scan failed: %s", e)
-            return {
-                "signals": [],
-                "related_terms": [],
-                "warnings": self._warnings,
-                "mode": "deep"
-            }
-
-    async def _execute_monitor_scan(self, query: str, mission: str) -> dict[str, Any]:
-        """Execute monitor scan (policy mode) for policy documents."""
-        clean_topic = query.strip()
-        if not clean_topic:
-            raise ValidationError("Query is required for monitor scan.")
-        
-        self._warnings.clear()
-        # Monitor scan uses policy method
-        try:
-            cards = await self.fetch_policy_scan(clean_topic)
-            return {
-                "signals": cards,
-                "related_terms": [],
-                "warnings": self._warnings if self._warnings else None,
-                "mode": "monitor"
-            }
-        except Exception as e:
-            self._warnings.append(f"Monitor scan failed: {str(e)}")
-            logging.error("Monitor scan failed: %s", e)
-            return {
-                "signals": [],
-                "related_terms": [],
-                "warnings": self._warnings,
-                "mode": "monitor"
-            }
 
     async def fetch_signals(
         self,
@@ -396,7 +405,7 @@ class ScanOrchestrator:
 
         # Generate related keywords (Layer 0)
         try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
+            related_terms = keywords.get_trend_modifiers(clean_topic)
         except Exception as e:
             logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []
@@ -603,71 +612,6 @@ class ScanOrchestrator:
 
         # Return synthesis first, then individual results
         return [synthesized_card] + individual_cards
-
-    async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
-        """
-        Scan international and grey literature for policy-related signals.
-
-        Searches government, international organisation, and NGO sites for
-        policy documents (including PDFs) related to the given topic.
-        Enhances the query with policy-specific modifiers to prioritise
-        regulatory and legislative content over encyclopedic results.
-
-        Args:
-            topic: Policy topic to scan.
-
-        Returns:
-            List of scored SignalCard objects from policy sources.
-
-        Raises:
-            ValidationError: If topic is empty.
-        """
-        if not topic.strip():
-            raise ValidationError("Policy topic is required.")
-
-        # Enhance query with policy modifiers for regulatory targeting
-        policy_terms = keywords.get_policy_modifiers(topic)
-        modifiers_str = " OR ".join(policy_terms)
-
-        # International + UK Gov + Grey Lit (PDFs)
-        query = f"{topic} ({modifiers_str}) (site:.gov OR site:.gov.uk OR site:.int OR site:.org OR filetype:pdf)"
-
-        try:
-            results = await self.search_service.search(query, num=SCAN_RESULT_LIMIT, freshness="year")
-        except (SearchAPIError, Exception):
-            results = []
-
-        raw_signals = self._normalise_google(results, mission="Policy", source_label="Policy/Intl", is_novel=False)
-        return list(self.process_signals(raw_signals, mission="Policy", related_terms=[]))
-
-    async def fetch_intelligence_brief(self, topic: str) -> list[SignalCard]:
-        """
-        Produce a fast high-level intelligence brief from GtR and OpenAlex.
-
-        Args:
-            topic: Intelligence topic to brief on.
-
-        Returns:
-            List of scored SignalCard objects from academic sources.
-
-        Raises:
-            ValidationError: If topic is empty.
-        """
-        if not topic.strip():
-            raise ValidationError("Intelligence topic is required.")
-
-        cutoff_date = self.cutoff_date
-        from_publication_date = cutoff_date.date().isoformat()
-        gtr_result, openalex_result = await asyncio.gather(
-            self.gateway_service.fetch_projects(topic, min_start_date=cutoff_date),
-            self.openalex_service.search_works(topic, from_publication_date=from_publication_date),
-            return_exceptions=True,
-        )
-        raw_signals = [
-            *self._normalise_gtr(gtr_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
-            *self._normalise_openalex(openalex_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
-        ]
-        return list(self.process_signals(raw_signals, mission="Intelligence", related_terms=[]))
 
     def _normalise_gtr(self, result: Any, *, mission: str) -> list[RawSignal]:
         if isinstance(result, Exception) or not isinstance(result, list):

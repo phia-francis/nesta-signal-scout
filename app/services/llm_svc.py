@@ -346,3 +346,98 @@ Return valid JSON with a "signals" array. Each object MUST contain:
                 f"LLM clustering failed: {str(e)}",
                 model=self.model,
             ) from e
+
+    async def generate_agentic_queries(
+        self, topic: str, mode: str, mission: str, num_queries: int
+    ) -> list[str]:
+        """Generate unbiased, mode-aware search queries via the LLM."""
+
+        mode_instructions = {
+            "radar": "Focus on broad, emerging trends, weak signals, and early-stage innovations across different sectors.",
+            "research": "Focus on deep analysis, academic breakthroughs, technological deep-dives, and whitepapers.",
+            "governance": (
+                "Focus on global policy updates, parliament debates, regulatory shifts, and international "
+                "think-tank publications. Do NOT bias any specific country (e.g. do not just look at UK/US)."
+            ),
+        }
+
+        prompt = f"""
+You are an expert Horizon Scanner and OSINT analyst working for Nesta's '{mission}' mission.
+Your task is to generate {num_queries} distinct, highly effective Google Search queries to investigate: "{topic}".
+
+MODE CONTEXT: {mode_instructions.get(mode, mode_instructions['radar'])}
+
+RULES:
+1. Queries must capture different angles of the topic.
+2. Do NOT use hardcoded site operators (e.g. site:.gov.uk). Keep it global.
+3. Use advanced operators (AND, OR, "") naturally to surface high-quality reports and trends.
+4. Return a JSON object with a single key "queries" containing an array of strings. Example: {{"queries": ["query 1", "query 2", "query 3"]}}
+"""
+
+        if not self.client:
+            return [f"{topic} emerging trends", f"{topic} global policy", f"{topic} breakthrough"]
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.4,
+                max_tokens=300,
+                response_format={"type": "json_object"} if "gpt" in self.model else None,
+            )
+            content = response.choices[0].message.content
+            if content:
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    return parsed.get("queries", next(iter(parsed.values())))
+                return parsed
+            return [f"{topic} emerging trends", f"{topic} global policy", f"{topic} breakthrough"]
+        except Exception as e:
+            logging.error("Failed to generate queries: %s", e)
+            return [f"{topic} emerging trends", f"{topic} global policy", f"{topic} breakthrough"]
+
+    async def verify_and_synthesize(
+        self, raw_results: list[dict[str, Any]], topic: str, mission: str, mode: str
+    ) -> list[dict[str, Any]]:
+        """Strictly evaluate search results, discard hallucinations, and format verified signals."""
+
+        if not self.client:
+            return []
+
+        results_json = json.dumps(raw_results, indent=2)
+        prompt = f"""
+You are a rigorous Horizon Scanning Fact-Checker for the '{mission}' mission.
+You are reviewing raw search API results for the topic: "{topic}" (Mode: {mode}).
+
+DISCARD a result if ANY of the following are true:
+1. The snippet does not explicitly describe an emerging trend, innovation, or policy shift.
+2. The URL appears to be a generic homepage, a broken link, or an irrelevant directory.
+3. The snippet is too vague to substantiate the title's claim.
+
+For sources that pass verification, synthesise each into a high-quality signal summary.
+
+Return a JSON object with a single key "signals" containing an array of objects with:
+- title: A concise, accurate title.
+- summary: A 2-sentence analytical summary of the trend.
+- url: The EXACT url from the input — do not modify it.
+- score: A novelty/impact score from 1.0 to 10.0.
+
+RAW RESULTS:
+{results_json}
+"""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.2,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            if content:
+                return json.loads(content).get("signals", [])
+            return []
+        except Exception as e:
+            logging.error("Verification failed: %s", e)
+            return []

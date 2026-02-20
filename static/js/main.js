@@ -158,9 +158,9 @@ const MODE_CONFIG = {
     themeClass: 'theme-violet',
     placeholder: ''
   },
-  policy: {
-    desc: '<strong>Regulatory Horizon:</strong> Policy &amp; regulatory intelligence.',
-    btnText: 'SCAN REGULATORY HORIZON',
+  governance: {
+    desc: '<strong>Governance Radar:</strong> Global policy &amp; regulatory intelligence.',
+    btnText: 'SCAN GOVERNANCE HORIZON',
     btnClass: 'bg-nesta-yellow',
     borderClass: 'border-nesta-yellow',
     themeClass: 'theme-aqua',
@@ -350,58 +350,36 @@ async function runScan() {
   }, 5000);
 
   try {
-    if (state.currentMode === "research") {
-      // Deep Research (JSON)
-      const res = await fetch(`${API_BASE_URL}/api/mode/research`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, mission }),
-      });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      
-      const signals = await res.json();
+    const endpointMap = {
+      radar: "/scan/radar",
+      research: "/scan/research",
+      governance: "/scan/governance",
+    };
+    const endpoint = endpointMap[state.currentMode] ?? endpointMap.radar;
+
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, mission }),
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+
+    const result = await res.json();
+    const signals = result.signals || result;
+
+    if (Array.isArray(signals)) {
       signals.forEach((signal) => {
         state.globalSignalsArray.push(signal);
         renderSignalCard(signal);
       });
-      showToast(`Deep Research complete. ${signals.length} synthesis found.`, "success");
-    
-    } else {
-      // Mini Radar / Monitor (Streaming)
-      const res = await fetch(`${API_BASE_URL}/api/mode/${state.currentMode}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, topic: query, mission, mode: state.currentMode }),
-      });
-      if (!res.ok || !res.body) throw new Error(`Request failed (${res.status})`);
+    }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+    const modeLabel = state.currentMode === 'research' ? 'Deep Research' : 'Scan';
+    showToast(`${modeLabel} complete. ${state.globalSignalsArray.length} signals found.`, "success");
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            handleStreamEvent(JSON.parse(line));
-          } catch (e) {
-            console.warn("Stream parse error", e);
-          }
-        }
-      }
-      showToast("Scan complete.", "success");
-      
-      // Auto-trigger clustering after scan
-      if (typeof window.autoClusterAfterScan === 'function') {
-        window.autoClusterAfterScan();
-      }
+    // Auto-trigger clustering after scan
+    if (typeof window.autoClusterAfterScan === 'function') {
+      window.autoClusterAfterScan();
     }
   } catch (error) {
     console.error(error);
@@ -409,7 +387,7 @@ async function runScan() {
   } finally {
     clearTimeout(slowBootWarning);
     dom.scanLoader?.classList.add("hidden");
-    if (loaderText) loaderText.textContent = "Scanning Layers 1-5...";
+    if (loaderText) loaderText.textContent = "Scanning...";
     if (dom.scanStatus) dom.scanStatus.textContent = "Scan finished.";
     if (state.globalSignalsArray.length === 0) {
       dom.emptyState.classList.remove("hidden");
@@ -805,13 +783,13 @@ const MAX_PREVIEW_SUMMARY_LENGTH = 150;
 const PREVIEW_MODE_NAMES = {
   radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
   research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
-  policy: { title: "Regulatory Horizon", pluralTitle: "Recent Regulatory Horizons", icon: "🌍" }
+  governance: { title: "Governance Radar", pluralTitle: "Recent Governance Radars", icon: "🌍" }
 };
 
 const PREVIEW_MODE_MAP = {
   radar: ["Radar", "Quick"],
   research: ["Research", "Deep", "Synthesis"],
-  policy: ["Policy", "Monitor"]
+  governance: ["Governance", "Policy", "Monitor"]
 };
 
 async function loadRecentPreview(mode) {
@@ -1168,7 +1146,7 @@ async function clusterAndRenderThemes(signals) {
   try {
     console.log(`Clustering ${signals.length} signals...`);
     
-    const response = await fetch(`${API_BASE_URL}/api/mode/cluster`, {
+    const response = await fetch(`${API_BASE_URL}/cluster`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signals: signals })
@@ -1306,7 +1284,7 @@ async function loadScan(scanId) {
     console.log(`Loading scan ${scanId}...`);
     showEnhancedToast('Loading saved scan...', 'info');
     
-    const response = await fetch(`${API_BASE_URL}/api/mode/scan/${scanId}`);
+    const response = await fetch(`${API_BASE_URL}/scan/${scanId}`);
     
     // Handle 404 - scan expired or doesn't exist
     if (response.status === 404) {

@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Scanner"])
 
 
-@router.post("/scan/research")
-async def run_research_scan(
+@router.post("/scan/governance")
+async def run_governance_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
     sheet_service: SheetService = Depends(get_sheet_service),
@@ -24,7 +24,7 @@ async def run_research_scan(
         result = await orchestrator.execute_scan(
             query=request.query,
             mission=request.mission,
-            mode="research",
+            mode="governance",
         )
         if result.get("signals"):
             try:
@@ -32,8 +32,8 @@ async def run_research_scan(
                     [s.model_dump() for s in result["signals"]]
                 )
             except Exception as save_err:
-                logger.warning("Failed to persist research signals to Sheets: %s", save_err)
+                logger.warning("Failed to persist governance signals to Sheets: %s", save_err)
         return result
     except Exception:
-        logger.exception("Unexpected error while running research scan")
-        raise HTTPException(status_code=500, detail="Internal server error while running research scan")
+        logger.exception("Unexpected error while running governance scan")
+        raise HTTPException(status_code=500, detail="Internal server error while running governance scan")
