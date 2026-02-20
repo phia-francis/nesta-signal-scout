@@ -44,7 +44,12 @@ async def run_radar_scan(
                 logger.warning("Failed to persist radar signals to Sheets: %s", save_err)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log the exception details server-side, but do not expose them to the client
+        logger.exception("Unexpected error while running radar scan")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while running radar scan",
+        )
 
 
 class ClusterRequest(BaseModel):

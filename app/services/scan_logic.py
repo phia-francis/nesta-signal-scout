@@ -311,7 +311,11 @@ class ScanOrchestrator:
                             "snippet": item.get("snippet", ""),
                         })
         except Exception as e:
-            self._warnings.append(f"Search execution error: {str(e)}")
+            # Log full exception details on the server, but avoid exposing them to clients
+            logging.exception("Search execution error during agentic scan")
+            self._warnings.append(
+                "Search execution error: one or more search providers failed during scanning."
+            )
 
         # Deduplicate by URL before verification to reduce LLM token usage
         unique_results = list({r["url"]: r for r in raw_results if r["url"]}.values())
