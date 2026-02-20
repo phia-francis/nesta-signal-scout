@@ -125,27 +125,34 @@ export function createSignalCard(signal, context = 'feed') {
       summaryWrap.append(summary);
       card.classList.add('col-span-full', 'bg-slate-50', 'border-nesta-blue');
   } else {
-      // Standard card: 3-line clamp with Show More toggle
+      // Standard card: 3-line clamp with conditional Show More toggle
       summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200';
       summary.textContent = signal.summary || '';
 
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
-      toggleBtn.textContent = 'Show More';
+      summaryWrap.append(summary);
 
-      toggleBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (summary.classList.contains('line-clamp-3')) {
-              summary.classList.remove('line-clamp-3');
-              toggleBtn.textContent = 'Show Less';
-          } else {
-              summary.classList.add('line-clamp-3');
+      // Only show the toggle if the content overflows the 3-line clamp
+      requestAnimationFrame(() => {
+          if (summary.scrollHeight > summary.clientHeight) {
+              const toggleBtn = document.createElement('button');
+              toggleBtn.type = 'button';
+              toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
               toggleBtn.textContent = 'Show More';
+
+              toggleBtn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  if (summary.classList.contains('line-clamp-3')) {
+                      summary.classList.remove('line-clamp-3');
+                      toggleBtn.textContent = 'Show Less';
+                  } else {
+                      summary.classList.add('line-clamp-3');
+                      toggleBtn.textContent = 'Show More';
+                  }
+              });
+
+              summaryWrap.append(toggleBtn);
           }
       });
-
-      summaryWrap.append(summary, toggleBtn);
   }
 
   // Metadata bar

@@ -431,3 +431,21 @@ async def test_analyze_trend_clusters_api_error_returns_empty(llm_service_with_k
     result = await llm_service_with_key.analyze_trend_clusters(clusters_data, "General")
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_analyze_trend_clusters_without_client():
+    """Test that analyze_trend_clusters returns empty list when no client."""
+    settings = Mock()
+    settings.OPENAI_API_KEY = None
+    settings.CHAT_MODEL = "gpt-4o-mini"
+
+    service = LLMService(settings=settings)
+
+    clusters_data = [
+        {"cluster_name": "Test", "signals": ["signal text"]}
+    ]
+
+    result = await service.analyze_trend_clusters(clusters_data, "General")
+
+    assert result == []

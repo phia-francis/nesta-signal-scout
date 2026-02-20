@@ -89,27 +89,34 @@ export function createSignalCard(signal) {
       summaryWrap.append(summary);
       card.classList.add('col-span-full', 'bg-slate-50', 'border-nesta-blue');
   } else {
-      // Standard card: 3-line clamp with Show More toggle
+      // Standard card: 3-line clamp with conditional Show More toggle
       summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200';
       summary.textContent = signal.summary || '';
 
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
-      toggleBtn.textContent = 'Show More';
+      summaryWrap.append(summary);
 
-      toggleBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (summary.classList.contains('line-clamp-3')) {
-              summary.classList.remove('line-clamp-3');
-              toggleBtn.textContent = 'Show Less';
-          } else {
-              summary.classList.add('line-clamp-3');
+      // Only show the toggle if the content overflows the 3-line clamp
+      requestAnimationFrame(() => {
+          if (summary.scrollHeight > summary.clientHeight) {
+              const toggleBtn = document.createElement('button');
+              toggleBtn.type = 'button';
+              toggleBtn.className = 'text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1';
               toggleBtn.textContent = 'Show More';
+
+              toggleBtn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  if (summary.classList.contains('line-clamp-3')) {
+                      summary.classList.remove('line-clamp-3');
+                      toggleBtn.textContent = 'Show Less';
+                  } else {
+                      summary.classList.add('line-clamp-3');
+                      toggleBtn.textContent = 'Show More';
+                  }
+              });
+
+              summaryWrap.append(toggleBtn);
           }
       });
-
-      summaryWrap.append(summary, toggleBtn);
   }
 
   const footer = document.createElement('footer');
@@ -385,6 +392,8 @@ export function renderClusterInsights(clusterInsights, container) {
     gridWrap.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4';
 
     clusterInsights.forEach(insight => {
+        if (!insight || typeof insight.cluster_name !== 'string' || typeof insight.trend_summary !== 'string') return;
+
         const card = document.createElement('div');
         card.className = 'bg-white rounded-lg p-4 border border-nesta-sand shadow-sm flex flex-col';
 
@@ -402,7 +411,7 @@ export function renderClusterInsights(clusterInsights, container) {
         };
         const strengthBadge = document.createElement('span');
         strengthBadge.className = `text-xs font-bold px-2 py-1 rounded-full border ${strengthClassMap[insight.strength] || 'bg-gray-100 text-gray-800'}`;
-        strengthBadge.textContent = insight.strength;
+        strengthBadge.textContent = insight.strength || 'Unknown';
 
         cardHeader.append(title, strengthBadge);
 
@@ -414,7 +423,7 @@ export function renderClusterInsights(clusterInsights, container) {
         reasoningWrap.className = 'mt-auto pt-3 border-t border-nesta-sand/50';
         const reasoning = document.createElement('p');
         reasoning.className = 'text-xs text-nesta-navy/60 italic';
-        reasoning.textContent = `Evidence: ${insight.reasoning}`;
+        reasoning.textContent = `Evidence: ${insight.reasoning || 'No reasoning provided'}`;
         reasoningWrap.appendChild(reasoning);
 
         card.append(cardHeader, summary, reasoningWrap);

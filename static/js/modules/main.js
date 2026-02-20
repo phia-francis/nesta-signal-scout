@@ -89,9 +89,6 @@ async function runScan() {
       }
     }
 
-    if (!receivedBlip) {
-      renderSignals([], feed, topic);
-    }
     showToast('Scan complete', 'success');
   } catch (error) {
     appendLog('Connection Failed', 'error');

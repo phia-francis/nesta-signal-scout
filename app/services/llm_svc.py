@@ -350,6 +350,10 @@ Return valid JSON with a "signals" array. Each object MUST contain:
 
     async def analyze_trend_clusters(self, clusters_data: List[Dict], mission: str) -> List[Dict]:
         """Analyses ML-generated clusters and returns a macro-trend summary and strength rating for each."""
+        if not self.client:
+            logger.warning("OpenAI client not initialized. Skipping cluster analysis.")
+            return []
+
         prompt = f"""
     You are a Lead Horizon Scanning Analyst for the '{mission}' mission.
     I am providing you with clusters of signals grouped by an ML algorithm.
