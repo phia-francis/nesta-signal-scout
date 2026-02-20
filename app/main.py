@@ -9,8 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.cron import router as cron_router
-from app.api.routes.policy import router as policy_router
-from app.api.routes.intelligence import router as intelligence_router
+from app.api.routes.governance import router as governance_router
 from app.api.routes.radar import router as radar_router
 from app.api.routes.research import router as research_router
 from app.api.routes.system import router as system_router
@@ -65,10 +64,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.mount("/static", StaticFiles(directory="static"), name="static")
-    application.include_router(radar_router)
-    application.include_router(research_router)
-    application.include_router(policy_router)
-    application.include_router(intelligence_router)
+    application.include_router(radar_router, tags=["Scanner"])
+    application.include_router(research_router, tags=["Scanner"])
+    application.include_router(governance_router, tags=["Scanner"])
     application.include_router(system_router)
     application.include_router(cron_router)
 

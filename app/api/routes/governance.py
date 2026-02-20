@@ -9,8 +9,8 @@ from app.services.scan_logic import ScanOrchestrator
 router = APIRouter(tags=["Scanner"])
 
 
-@router.post("/scan/research")
-async def run_research_scan(
+@router.post("/scan/governance")
+async def run_governance_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
 ):
@@ -18,7 +18,7 @@ async def run_research_scan(
         return await orchestrator.execute_scan(
             query=request.query,
             mission=request.mission,
-            mode="research",
+            mode="governance",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

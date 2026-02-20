@@ -10,39 +10,39 @@ export async function fetchSavedSignals() {
   return payload.signals || [];
 }
 
+export async function triggerScan(query, mission, mode) {
+  const endpointMap = {
+    radar: "/scan/radar",
+    research: "/scan/research",
+    governance: "/scan/governance",
+  };
+
+  const url = `${state.apiBaseUrl}${endpointMap[mode] ?? endpointMap.radar}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, mission }),
+  });
+
+  return response.json();
+}
+
 export async function runRadarScan(body, onMessage) {
-  const response = await fetch(`${state.apiBaseUrl}/api/mode/radar`, {
+  const response = await fetch(`${state.apiBaseUrl}/scan/radar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    lines.forEach((line) => {
-      if (!line.trim()) {
-        return;
-      }
-      onMessage(JSON.parse(line));
-    });
-  }
+  return await response.json();
 }
 
 export async function clusterSignals(signals) {
-  const response = await fetch(`${state.apiBaseUrl}/api/intelligence/cluster`, {
+  const response = await fetch(`${state.apiBaseUrl}/cluster`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(signals),
+    body: JSON.stringify({ signals }),
   });
   return response.json();
 }

@@ -404,7 +404,7 @@ class ScanOrchestrator:
 
         # Generate related keywords (Layer 0)
         try:
-            related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
+            related_terms = keywords.get_trend_modifiers(clean_topic)
         except Exception as e:
             logging.warning("Keyword enrichment failed for topic '%s': %s", clean_topic, e)
             related_terms = []

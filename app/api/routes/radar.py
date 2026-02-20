@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.dependencies import get_scan_orchestrator, get_llm_service
 from app.core.exceptions import (
-    RateLimitError,
-    SearchAPIError,
     LLMServiceError,
-    ValidationError,
-    SignalScoutError,
 )
 from app.services.scan_logic import ScanOrchestrator
 from app.services.llm_svc import LLMService
@@ -22,194 +16,27 @@ from app.storage.scan_storage import get_scan_storage, ScanStorage
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/mode", tags=["radar"])
+router = APIRouter(tags=["Scanner"])
 
 
-class RadarRequest(BaseModel):
+class ScanRequest(BaseModel):
     query: str
-    mission: str = "General"
+    mission: str = "A Healthy Life"
 
 
-@router.post("/radar")
-async def radar_scan(
-    body: RadarRequest,
+@router.post("/scan/radar")
+async def run_radar_scan(
+    request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
 ):
-    """
-    Streaming Endpoint for Radar Mode (Layered Scan).
-    Yields NDJSON lines: { "status": "blip", "blip": {...} }
-    """
-    return StreamingResponse(
-        _radar_stream_generator(body.query, body.mission, orchestrator),
-        media_type="application/x-ndjson",
-    )
-
-
-@router.post("/policy")
-async def policy_scan(
-    body: RadarRequest,
-    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
-):
-    """
-    Streaming Endpoint for Governance Mode (formerly Policy).
-    """
-    return StreamingResponse(
-        _governance_stream_generator(body.query, body.mission, orchestrator),
-        media_type="application/x-ndjson",
-    )
-
-
-@router.post("/governance")
-async def governance_scan(
-    body: RadarRequest,
-    orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
-):
-    """
-    Streaming Endpoint for Governance Mode.
-    """
-    return StreamingResponse(
-        _governance_stream_generator(body.query, body.mission, orchestrator),
-        media_type="application/x-ndjson",
-    )
-
-
-async def _radar_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
     try:
-        yield _msg("info", f"Initiating Layered Scan for '{query}'...")
-
-        # 1. Fetch Raw Signals (Layers 1-5)
-        raw_signals, related_terms = await orchestrator.fetch_signals(
-            topic=query, mission=mission, mode="radar"
+        return await orchestrator.execute_scan(
+            query=request.query,
+            mission=request.mission,
+            mode="radar",
         )
-
-        if not raw_signals:
-            yield _msg("warning", "No signals found. Try a broader topic.")
-            yield _msg("complete", "Scan finished.")
-            return
-
-        yield _msg("info", f"Found {len(raw_signals)} potential signals. AI is analysing and rewriting...")
-
-        # -- LLM INTERCEPTION LAYER --
-        llm = getattr(orchestrator, 'llm_service', None)
-        if llm and getattr(llm, 'client', None):
-            # Prepare top 15 results for the LLM
-            llm_input = [
-                {"id": str(i), "title": s.title, "snippet": s.abstract, "displayLink": s.url or s.source}
-                for i, s in enumerate(raw_signals[:15])
-            ]
-
-            evaluated_signals = await llm.evaluate_radar_signals(query, llm_input, mission)
-
-            if evaluated_signals:
-                evaluated_ids = set()
-                count = 0
-                for ev in evaluated_signals:
-                    try:
-                        idx = int(ev.get("id", -1))
-                        if 0 <= idx < len(raw_signals):
-                            evaluated_ids.add(idx)
-                            raw = raw_signals[idx]
-
-                            # Rewrite properties to use AI analytical text
-                            raw.abstract = ev.get("summary", raw.abstract)
-                            raw.title = ev.get("title", raw.title)
-
-                            scored = orchestrator._score_signal(raw, orchestrator.cutoff_date)
-                            if scored:
-                                if ev.get("score"):
-                                    try:
-                                        scored.final_score = float(ev.get("score"))
-                                    except ValueError:
-                                        pass
-
-                                card = orchestrator._to_signal_card(scored, related_terms=related_terms)
-                                data = {"status": "blip", "blip": card.model_dump()}
-                                yield json.dumps(data) + "\n"
-                                count += 1
-                    except (ValueError, TypeError):
-                        continue
-
-                # Also yield remaining non-evaluated signals via standard scoring
-                remaining = [s for i, s in enumerate(raw_signals) if i not in evaluated_ids]
-                for card in orchestrator.process_signals(remaining, mission=mission, related_terms=related_terms):
-                    data = {"status": "blip", "blip": card.model_dump()}
-                    yield json.dumps(data) + "\n"
-                    count += 1
-
-                if count > 0:
-                    yield _msg("complete", f"Scan complete. {count} signals analysed.")
-                    return
-
-        # -- FALLBACK if LLM unavailable or failed --
-        yield _msg("info", "Applying standard scoring...")
-        count = 0
-        for card in orchestrator.process_signals(raw_signals, mission=mission, related_terms=related_terms):
-            data = {"status": "blip", "blip": card.model_dump()}
-            yield json.dumps(data) + "\n"
-            count += 1
-
-        yield _msg("complete", f"Scan complete. {count} signals visualised.")
-
-    except ValidationError as e:
-        logger.warning("Radar validation error: %s", e)
-        yield _msg("error", "Invalid request. Please check your query and try again.")
-    except RateLimitError as e:
-        logger.warning("Radar rate limit hit: %s", e)
-        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
-        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
-    except SearchAPIError as e:
-        logger.error("Radar search API error: %s", e)
-        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
-    except SignalScoutError as e:
-        logger.error("Radar scan error: %s", e)
-        yield _msg("error", "An error occurred during scanning. Please try again later.")
-    except Exception:
-        request_id = "radar-scan-failed"
-        logger.exception("Radar scan failed. Request ID: %s", request_id)
-        yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
-
-
-async def _governance_stream_generator(query: str, mission: str, orchestrator: ScanOrchestrator):
-    """Stream generator for governance mode using the unified agentic scan."""
-    try:
-        yield _msg("info", f"Scanning global policy landscape for '{query}'...")
-
-        result = await orchestrator.execute_scan(query=query, mission=mission, mode="governance")
-
-        cards = result.get("signals", [])
-        if not cards:
-            yield _msg("warning", "No policy documents found.")
-            yield _msg("complete", "Scan finished.")
-            return
-
-        for card in cards:
-            data = {"status": "blip", "blip": card.model_dump()}
-            yield json.dumps(data) + "\n"
-
-        yield _msg("complete", f"Governance scan complete. {len(cards)} signals found.")
-
-    except ValidationError as e:
-        logger.warning("Governance validation error: %s", e)
-        yield _msg("error", "Invalid request. Please check your query and try again.")
-    except RateLimitError as e:
-        logger.warning("Governance rate limit hit: %s", e)
-        retry_msg = f" Please retry after {e.retry_after}s." if e.retry_after else ""
-        yield _msg("error", f"Rate limit exceeded.{retry_msg}")
-    except SearchAPIError as e:
-        logger.error("Governance search API error: %s", e)
-        yield _msg("error", "Search service is temporarily unavailable. Please try again later.")
-    except SignalScoutError as e:
-        logger.error("Governance scan error: %s", e)
-        yield _msg("error", "An error occurred during scanning. Please try again later.")
-    except Exception:
-        request_id = "governance-scan-failed"
-        logger.exception("Governance scan failed. Request ID: %s", request_id)
-        yield _msg("error", f"An internal error occurred. Please contact support with ID: {request_id}")
-
-
-def _msg(status: str, text: str) -> str:
-    """Helper to format a status message for the stream."""
-    return json.dumps({"status": status, "msg": text}) + "\n"
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ClusterRequest(BaseModel):
