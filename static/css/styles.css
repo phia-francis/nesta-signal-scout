@@ -127,12 +127,34 @@ body {
 
 .scan-input:focus {
   border-color: var(--btn-accent);
+  outline: none; /* Relies on border-color for focus state */
 }
 
-/* Ensure dropdown options inherit theme colors */
-.scan-input option {
-  color: var(--box-text);
-  background-color: var(--box-input-bg);
+/* ========================================
+   Custom Select Dropdown Styling Fix
+   ======================================== */
+
+/* 1. Strip vanilla HTML look and inject a custom SVG arrow */
+select.scan-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 2.5rem; /* Prevent text overlapping the arrow */
+  cursor: pointer;
+
+  /* SVG chevron — uses currentColor so it adapts across themes */
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.25rem;
+}
+
+/* 2. Fix A11y contrast: force solid colours on <option> elements */
+/* rgba() is not supported here — solid values are required */
+select.scan-input option {
+  color: #0F294A !important;        /* Nesta Navy text */
+  background-color: #FFFFFF !important; /* Solid white background */
+  font-weight: 600;
 }
 
 h1,
