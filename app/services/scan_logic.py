@@ -114,8 +114,8 @@ class ScanOrchestrator:
         Returns:
             One of: "social", "blog", "international", "academic"
         """
-        source = signal.source.lower()
-        url = signal.url.lower()
+        source = (signal.source or "").lower()
+        url = (signal.url or "").lower()
         
         # Academic sources
         if any(keyword in source for keyword in ["gtr", "openalex", "arxiv", "academic", "journal"]):
@@ -266,35 +266,74 @@ class ScanOrchestrator:
         return sorted(signals, key=lambda s: s.final_score, reverse=True)
 
     async def _execute_quick_scan(self, query: str, mission: str) -> dict[str, Any]:
-        """Execute quick scan (radar mode) with source diversity."""
+        """Execute quick scan (radar mode) with source diversity and LLM evaluation."""
         clean_topic = query.strip()
         if not clean_topic:
             raise ValidationError("Query is required for quick scan.")
-        
-        # Generate related keywords
+
         try:
             related_terms = keywords.generate_broad_scan_queries([clean_topic], num_signals=3)  # type: ignore[no-untyped-call]
         except Exception as e:
             logging.warning("Keyword enrichment failed: %s", e)
             related_terms = []
-        
-        # Construct queries for different sources
+
         queries = {
             "social": f"{clean_topic} (site:reddit.com OR site:news.ycombinator.com OR site:producthunt.com OR site:twitter.com OR site:x.com)",
             "blog": f"{clean_topic} (site:substack.com OR site:medium.com OR \"blog\" OR \"white paper\")",
             "general": build_novelty_query(clean_topic),
-            "topic": clean_topic
+            "topic": clean_topic,
         }
-        
-        # Fetch from all sources with partial failure handling
+
         raw_signals = await self._fetch_from_all_sources(queries, mission, self.cutoff_date)
         raw_signals = self._prioritize_by_source_diversity(raw_signals)
-        
+
+        cards: list[SignalCard] = []
+
+        if self.llm_service and raw_signals:
+            search_results = [
+                {
+                    "id": i,
+                    "title": s.title,
+                    "displayLink": s.source,
+                    "snippet": s.abstract,
+                    "url": s.url,
+                }
+                for i, s in enumerate(raw_signals)
+            ]
+            try:
+                llm_evaluated = await self.llm_service.evaluate_radar_signals(clean_topic, search_results, mission)
+                for item in llm_evaluated:
+                    idx = item.get("id")
+                    if idx is not None and 0 <= idx < len(raw_signals):
+                        raw = raw_signals[idx]
+                        score = float(item.get("score", 7.0))
+                        cards.append(SignalCard(
+                            title=item.get("title", raw.title),
+                            url=raw.url,
+                            summary=item.get("summary", raw.abstract),
+                            source=raw.source,
+                            mission=mission,
+                            date=raw.date.date().isoformat() if raw.date else datetime.now(timezone.utc).date().isoformat(),
+                            score_activity=score,
+                            score_attention=score,
+                            score_recency=10.0,
+                            final_score=score,
+                            typology="Signal",
+                            is_novel=True,
+                            related_keywords=related_terms,
+                        ))
+            except Exception as e:
+                logging.error("LLM evaluation failed during quick scan: %s", e)
+
+        # Fallback if LLM fails or returns nothing
+        if not cards:
+            cards = list(self.process_signals(raw_signals, mission=mission, related_terms=related_terms))
+
         return {
-            "signals": raw_signals,
+            "signals": cards,
             "related_terms": related_terms,
             "warnings": self._warnings if self._warnings else None,
-            "mode": "quick"
+            "mode": "quick",
         }
 
     async def _execute_deep_scan(self, query: str, mission: str) -> dict[str, Any]:
@@ -332,7 +371,7 @@ class ScanOrchestrator:
         self._warnings.clear()
         # Monitor scan uses policy method
         try:
-            cards = await self.fetch_policy_scan(clean_topic)
+            cards = await self.fetch_policy_scan(clean_topic, mission=mission)
             return {
                 "signals": cards,
                 "related_terms": [],
@@ -604,7 +643,7 @@ class ScanOrchestrator:
         # Return synthesis first, then individual results
         return [synthesized_card] + individual_cards
 
-    async def fetch_policy_scan(self, topic: str) -> list[SignalCard]:
+    async def fetch_policy_scan(self, topic: str, mission: str = "Policy") -> list[SignalCard]:
         """
         Scan international and grey literature for policy-related signals.
 
@@ -615,6 +654,7 @@ class ScanOrchestrator:
 
         Args:
             topic: Policy topic to scan.
+            mission: Nesta mission for tagging (default ``"Policy"``).
 
         Returns:
             List of scored SignalCard objects from policy sources.
@@ -637,15 +677,16 @@ class ScanOrchestrator:
         except (SearchAPIError, Exception):
             results = []
 
-        raw_signals = self._normalise_google(results, mission="Policy", source_label="Policy/Intl", is_novel=False)
-        return list(self.process_signals(raw_signals, mission="Policy", related_terms=[]))
+        raw_signals = self._normalise_google(results, mission=mission, source_label="Policy/Intl", is_novel=False)
+        return list(self.process_signals(raw_signals, mission=mission, related_terms=[]))
 
-    async def fetch_intelligence_brief(self, topic: str) -> list[SignalCard]:
+    async def fetch_intelligence_brief(self, topic: str, mission: str = "Intelligence") -> list[SignalCard]:
         """
         Produce a fast high-level intelligence brief from GtR and OpenAlex.
 
         Args:
             topic: Intelligence topic to brief on.
+            mission: Nesta mission for tagging (default ``"Intelligence"``).
 
         Returns:
             List of scored SignalCard objects from academic sources.
@@ -664,10 +705,10 @@ class ScanOrchestrator:
             return_exceptions=True,
         )
         raw_signals = [
-            *self._normalise_gtr(gtr_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
-            *self._normalise_openalex(openalex_result, mission="Intelligence")[: max(1, SCAN_RESULT_LIMIT // 2)],
+            *self._normalise_gtr(gtr_result, mission=mission)[: max(1, SCAN_RESULT_LIMIT // 2)],
+            *self._normalise_openalex(openalex_result, mission=mission)[: max(1, SCAN_RESULT_LIMIT // 2)],
         ]
-        return list(self.process_signals(raw_signals, mission="Intelligence", related_terms=[]))
+        return list(self.process_signals(raw_signals, mission=mission, related_terms=[]))
 
     def _normalise_gtr(self, result: Any, *, mission: str) -> list[RawSignal]:
         if isinstance(result, Exception) or not isinstance(result, list):

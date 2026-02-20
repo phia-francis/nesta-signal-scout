@@ -318,3 +318,126 @@ def test_classify_source_academic(orchestrator):
     
     category = orchestrator._classify_source(signal)
     assert category == "academic"
+
+
+def test_classify_source_none_source(orchestrator):
+    """Test source classification handles empty/missing source field."""
+    signal = RawSignal(
+        source="",
+        title="Test",
+        url="https://reddit.com/r/test",
+        abstract="Test",
+        date=datetime.now(timezone.utc),
+        raw_score=0.0,
+        mission="General",
+        metadata={}
+    )
+
+    category = orchestrator._classify_source(signal)
+    assert category == "social"
+
+
+def test_classify_source_none_url(orchestrator):
+    """Test source classification handles empty/missing url field."""
+    signal = RawSignal(
+        source="GtR Academic",
+        title="Test",
+        url="",
+        abstract="Test",
+        date=datetime.now(timezone.utc),
+        raw_score=0.0,
+        mission="General",
+        metadata={}
+    )
+
+    category = orchestrator._classify_source(signal)
+    assert category == "academic"
+
+
+def test_classify_source_both_none(orchestrator):
+    """Test source classification handles both empty source and url."""
+    signal = RawSignal(
+        source="",
+        title="Test",
+        url="",
+        abstract="Test",
+        date=datetime.now(timezone.utc),
+        raw_score=0.0,
+        mission="General",
+        metadata={}
+    )
+
+    category = orchestrator._classify_source(signal)
+    assert category == "international"
+
+
+def test_classify_source_none_safety(orchestrator):
+    """Test _classify_source handles None values at runtime without crashing."""
+    signal = RawSignal(
+        source="Test",
+        title="Test",
+        url="https://example.com",
+        abstract="Test",
+        date=datetime.now(timezone.utc),
+        raw_score=0.0,
+        mission="General",
+        metadata={}
+    )
+    # Simulate runtime None values (e.g. from upstream data bypassing validation)
+    signal.source = None  # type: ignore[assignment]
+    signal.url = None  # type: ignore[assignment]
+
+    category = orchestrator._classify_source(signal)
+    assert category == "international"  # Falls through to default
+
+
+@pytest.mark.asyncio
+async def test_quick_scan_returns_signal_cards(orchestrator, mock_services):
+    """Test that quick scan returns SignalCard objects, not RawSignal."""
+    with patch('keywords.generate_broad_scan_queries', return_value=["term1", "term2"]):
+        result = await orchestrator._execute_quick_scan("AI innovation", "A Healthy Life")
+
+    assert "signals" in result
+    for s in result["signals"]:
+        assert isinstance(s, SignalCard)
+
+
+@pytest.mark.asyncio
+async def test_quick_scan_with_llm_service(orchestrator, mock_services):
+    """Test that quick scan calls evaluate_radar_signals when llm_service is available."""
+    llm_service = Mock()
+    llm_service.evaluate_radar_signals = AsyncMock(return_value=[
+        {"id": 0, "title": "LLM Title", "summary": "LLM Summary", "score": 8.5}
+    ])
+    orchestrator.llm_service = llm_service
+
+    with patch('keywords.generate_broad_scan_queries', return_value=["term1"]):
+        result = await orchestrator._execute_quick_scan("AI innovation", "A Healthy Life")
+
+    assert llm_service.evaluate_radar_signals.called
+    assert result["signals"]
+    assert isinstance(result["signals"][0], SignalCard)
+
+
+@pytest.mark.asyncio
+async def test_monitor_scan_passes_mission(orchestrator, mock_services):
+    """Test that monitor scan passes mission to fetch_policy_scan."""
+    orchestrator.fetch_policy_scan = AsyncMock(return_value=[])
+
+    await orchestrator._execute_monitor_scan("climate policy", "A Healthy Life")
+
+    orchestrator.fetch_policy_scan.assert_called_once_with("climate policy", mission="A Healthy Life")
+
+
+@pytest.mark.asyncio
+async def test_fetch_policy_scan_accepts_mission(orchestrator, mock_services):
+    """Test that fetch_policy_scan accepts and uses a custom mission."""
+    result = await orchestrator.fetch_policy_scan("climate", mission="A Sustainable Future")
+    assert isinstance(result, list)
+
+
+@pytest.mark.asyncio
+async def test_fetch_intelligence_brief_accepts_mission(orchestrator, mock_services):
+    """Test that fetch_intelligence_brief accepts and uses a custom mission."""
+    result = await orchestrator.fetch_intelligence_brief("quantum computing", mission="A Fairer Start")
+    assert isinstance(result, list)
