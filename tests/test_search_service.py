@@ -113,7 +113,7 @@ async def test_search_handles_500_server_error(search_service):
         return_value=Response(500, text="Internal Server Error")
     )
 
-    results = await search_service.search("test query", num=5)
+    results = await search_service.search("test query", num=5, max_retries=1)
 
     assert results == []
 
@@ -131,7 +131,7 @@ async def test_search_retries_500_then_succeeds(search_service):
         ]
     )
 
-    results = await search_service.search("test query", num=5, max_retries=3)
+    results = await search_service.search("test query", num=5, max_retries=2)
 
     assert len(results) == 1
     assert results[0]["title"] == "Recovered"

@@ -707,10 +707,29 @@ function renderSignalCard(signal) {
 window.refreshDatabase = async function () {
     try {
         const response = await fetch(`${API_BASE_URL}/api/saved`);
-        const signals = await response.json();
+        if (!response.ok) {
+            console.error("Failed to fetch saved signals:", response.status);
+            return;
+        }
+        const raw = await response.json();
 
         const uiModule = await import('./modules/ui.js');
         const createSignalCard = uiModule.createSignalCard;
+
+        // Normalise sheet-header keys to lowercase for consistent access
+        const signals = raw.map((item) => ({
+            title: item.title || item.Title || "Untitled",
+            url: item.url || item.URL || "",
+            summary: item.summary || item.Summary || "",
+            mission: item.mission || item.Mission || "General",
+            typology: item.typology || item.Typology || "Signal",
+            status: item.status || item.Status || "New",
+            score_activity: item.score_activity || item.Score_Activity || 0,
+            score_attention: item.score_attention || item.Score_Attention || 0,
+            source: item.source || item.Source || "Web",
+            narrative_group: item.narrative_group || item.Narrative_Group || "",
+            date: item.date || item.Source_Date || item.source_date || "",
+        }));
 
         // Exclude Synthesis cards from standard radar/governance lists
         const activeSignals = signals.filter(
@@ -1492,12 +1511,26 @@ document.addEventListener('DOMContentLoaded', () => {
               }),
           });
 
+          if (!analyzeRes.ok) {
+              console.error("Trend analysis request failed:", analyzeRes.status, analyzeRes.statusText);
+              showToast(`Failed to generate analysis: Server returned ${analyzeRes.status}`, "error");
+              return;
+          }
+
           const data = await analyzeRes.json();
 
           if (data.insights?.length > 0) {
               const first = data.insights[0];
-              document.getElementById("cluster-analysis-text").innerHTML =
-                  `<strong>${first.cluster_name} (${first.strength}):</strong> ${first.trend_summary}`;
+              const clusterAnalysisEl = document.getElementById("cluster-analysis-text");
+              if (clusterAnalysisEl) {
+                  clusterAnalysisEl.textContent = "";
+                  const strongEl = document.createElement("strong");
+                  strongEl.textContent = `${first.cluster_name} (${first.strength}):`;
+                  clusterAnalysisEl.appendChild(strongEl);
+                  clusterAnalysisEl.appendChild(
+                      document.createTextNode(` ${first.trend_summary}`)
+                  );
+              }
               document.getElementById("cluster-analysis-preview").classList.remove("hidden");
               showToast("Analysis generated and saved to Database!", "success");
           }

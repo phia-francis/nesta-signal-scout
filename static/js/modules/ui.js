@@ -101,18 +101,29 @@ export function createSignalCard(signal, context = "scan") {
         summary.className =
             "font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200";
         summary.textContent = signal.summary || "";
+        summaryWrap.appendChild(summary);
 
-        const toggleBtn = document.createElement("button");
-        toggleBtn.type = "button";
-        toggleBtn.className =
-            "text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1";
-        toggleBtn.textContent = "Show More";
-        toggleBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const collapsed = summary.classList.toggle("line-clamp-3");
-            toggleBtn.textContent = collapsed ? "Show More" : "Show Less";
-        });
-        summaryWrap.append(summary, toggleBtn);
+        // Only render the "Show More" toggle if the summary actually overflows
+        if (typeof requestAnimationFrame === "function") {
+            requestAnimationFrame(() => {
+                const isOverflowing = summary.scrollHeight > summary.clientHeight + 1;
+                if (!isOverflowing) {
+                    return;
+                }
+
+                const toggleBtn = document.createElement("button");
+                toggleBtn.type = "button";
+                toggleBtn.className =
+                    "text-xs font-bold text-nesta-blue hover:text-nesta-navy underline mt-1";
+                toggleBtn.textContent = "Show More";
+                toggleBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const collapsed = summary.classList.toggle("line-clamp-3");
+                    toggleBtn.textContent = collapsed ? "Show More" : "Show Less";
+                });
+                summaryWrap.appendChild(toggleBtn);
+            });
+        }
     }
 
     // --- Footer: scores tooltip + action buttons ---
@@ -168,10 +179,18 @@ export function createSignalCard(signal, context = "scan") {
     return card;
 }
 
+function getApiBaseUrl() {
+    const hostname = window.location.hostname;
+    if (hostname.endsWith('.github.io')) {
+        return 'https://nesta-signal-backend.onrender.com';
+    }
+    return window.location.origin;
+}
+
 async function updateSignalStatus(event, url, status) {
     event.stopPropagation();
     try {
-        const response = await fetch("/api/saved", {
+        const response = await fetch(`${getApiBaseUrl()}/api/saved`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, status }),

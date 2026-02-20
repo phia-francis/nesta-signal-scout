@@ -318,9 +318,12 @@ class ScanOrchestrator:
 
         # Filter out URLs already in the database
         if existing_urls:
+            normalized_existing_urls = {
+                normalize_url_for_deduplication(url) for url in existing_urls
+            }
             unique_results = [
                 r for r in unique_results
-                if normalize_url_for_deduplication(r["url"]) not in existing_urls
+                if normalize_url_for_deduplication(r["url"]) not in normalized_existing_urls
             ]
 
         # 3. Verify and synthesise (anti-hallucination)
@@ -510,7 +513,7 @@ class ScanOrchestrator:
     ) -> Generator[SignalCard, None, None]:
         """Process and score signals using extracted scoring method."""
         effective_cutoff = override_cutoff_date or self.cutoff_date
-        db_urls = existing_urls or set()
+        db_urls = {normalize_url_for_deduplication(u) for u in existing_urls} if existing_urls else set()
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:

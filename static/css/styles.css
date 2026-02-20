@@ -332,7 +332,8 @@ h3,
     cursor: help;
 }
 
-[data-tooltip]:hover::before {
+[data-tooltip]:hover::before,
+[data-tooltip]:focus-visible::before {
     content: attr(data-tooltip);
     position: absolute;
     bottom: 100%;
@@ -354,7 +355,8 @@ h3,
 }
 
 /* Arrow */
-[data-tooltip]:hover::after {
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
     content: '';
     position: absolute;
     bottom: 100%;
