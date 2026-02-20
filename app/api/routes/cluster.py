@@ -17,7 +17,7 @@ router = APIRouter()
 
 class ClusterAnalysisRequest(BaseModel):
     clusters: list[dict[str, Any]]
-    mission: str = "A Healthy Life"
+    mission: str = "General"
 
 
 @router.post("/cluster/analyze")

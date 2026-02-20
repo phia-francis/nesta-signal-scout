@@ -1501,7 +1501,8 @@ document.addEventListener('DOMContentLoaded', () => {
               document.getElementById("cluster-analysis-preview").classList.remove("hidden");
               showToast("Analysis generated and saved to Database!", "success");
           }
-      } catch {
+      } catch (err) {
+          console.error("Trend analysis failed:", err);
           showToast("Failed to generate analysis.", "error");
       } finally {
           btn.innerHTML = "🧠 Generate Trend Analysis";
