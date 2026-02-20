@@ -7,9 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.dependencies import get_scan_orchestrator, get_llm_service
-from app.core.exceptions import (
-    LLMServiceError,
-)
+from app.core.exceptions import LLMServiceError
 from app.services.scan_logic import ScanOrchestrator
 from app.services.llm_svc import LLMService
 from app.storage.scan_storage import get_scan_storage, ScanStorage

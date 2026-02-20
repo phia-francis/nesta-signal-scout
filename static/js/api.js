@@ -40,6 +40,7 @@ async function triggerScan(query, mission, mode) {
     body: JSON.stringify({ query, mission }),
   });
 
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 

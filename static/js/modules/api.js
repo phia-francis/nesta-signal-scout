@@ -35,6 +35,7 @@ export async function runRadarScan(body, onMessage) {
     body: JSON.stringify(body),
   });
 
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return await response.json();
 }
 
