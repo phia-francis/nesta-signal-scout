@@ -514,7 +514,8 @@ class ScanOrchestrator:
         candidate_cards: list[SignalCard] = []
 
         for raw_signal in raw_signals:
-            if normalize_url_for_deduplication(raw_signal.url) in db_urls:
+            normalised = normalize_url_for_deduplication(raw_signal.url)
+            if normalised in db_urls:
                 continue
             scored = self._score_signal(raw_signal, effective_cutoff)
             if scored:

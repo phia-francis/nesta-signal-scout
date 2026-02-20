@@ -737,7 +737,10 @@ window.refreshDatabase = async function () {
 
 window.renderClusterMap = function (signals) {
     const container = document.getElementById("cluster-network-canvas");
-    if (!container || !window.vis) return;
+    if (!container || !window.vis) {
+        if (!window.vis) console.warn("vis.js not loaded — cluster map will not render.");
+        return;
+    }
 
     document.getElementById("cluster-map-wrapper").classList.remove("hidden");
 
@@ -750,7 +753,7 @@ window.renderClusterMap = function (signals) {
             clusters.add(sig.narrative_group);
             nodes.add({
                 id: sig.url,
-                label: sig.title.substring(0, 20) + "...",
+                label: sig.title.length > 20 ? sig.title.substring(0, 20) + "..." : sig.title,
                 shape: "dot",
                 color: "#B2C5FE",
             });
