@@ -111,9 +111,17 @@ export function createSignalCard(signal, context = 'feed') {
   `;
 
   // Summary
+  const summaryContainer = document.createElement('div');
+  summaryContainer.className = 'summary-container';
   const summary = document.createElement('p');
-  summary.className = 'text-nesta-dark-grey leading-relaxed line-clamp-4';
+  summary.className = 'card-summary text-nesta-dark-grey leading-relaxed';
   summary.textContent = signal.summary || 'No description available.';
+  const showMoreBtn = document.createElement('button');
+  showMoreBtn.type = 'button';
+  showMoreBtn.className = 'show-more-btn';
+  showMoreBtn.textContent = 'Show More';
+  showMoreBtn.addEventListener('click', function() { window.toggleCardSummary(this); });
+  summaryContainer.append(summary, showMoreBtn);
 
   // Metadata bar
   const metadata = document.createElement('div');
@@ -165,7 +173,7 @@ export function createSignalCard(signal, context = 'feed') {
 
   // Assemble card
   card.appendChild(header);
-  card.appendChild(summary);
+  card.appendChild(summaryContainer);
   card.appendChild(metadata);
   if (actions.innerHTML.trim()) {
     card.appendChild(actions);

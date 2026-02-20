@@ -6,7 +6,10 @@ function buildTriageCard(signal) {
         <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-navy">${signal.typology || 'Unsorted'}</span>
       </div>
       <h3 class="font-display text-2xl text-nesta-navy leading-tight">${signal.title || 'Untitled Signal'}</h3>
-      <p class="text-sm text-nesta-dark-grey leading-relaxed">${signal.summary || ''}</p>
+      <div class="summary-container">
+        <p class="card-summary text-sm text-nesta-dark-grey leading-relaxed">${signal.summary || ''}</p>
+        <button type="button" class="show-more-btn" onclick="toggleCardSummary(this)">Show More</button>
+      </div>
       <a href="${signal.url || '#'}" target="_blank" rel="noopener noreferrer" class="text-xs text-nesta-blue underline">Open source</a>
     </article>
   `;

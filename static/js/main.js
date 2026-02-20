@@ -627,7 +627,10 @@ function renderSignalCard(signal) {
       ${signalUrl ? `<a href="${escapeAttribute(sanitizeUrl(signalUrl))}" target="_blank" class="hover:text-nesta-blue transition-colors" data-action="read-link" onclick="event.stopPropagation()">${escapeHtml(signal.title || "Untitled")}</a>` : escapeHtml(signal.title || "Untitled")}
     </h3>
     <div class="snippet-content text-sm text-slate-600 leading-relaxed">
-      ${parsedSnippet}
+      <div class="summary-container">
+        <p class="card-summary">${parsedSnippet.replace(/^<p>/, '').replace(/<\/p>$/, '')}</p>
+        <button type="button" class="show-more-btn" onclick="toggleCardSummary(this)">Show More</button>
+      </div>
     </div>
     ${isSynthesis ? '<div class="expand-hint text-xs text-slate-400">Click to expand ▼</div>' : ''}
     <div onclick="event.stopPropagation()">
@@ -1448,3 +1451,15 @@ if (document.readyState === "loading") {
 } else {
   wakeUpServer();
 }
+
+window.toggleCardSummary = function(btn) {
+    const summaryEl = btn.previousElementSibling;
+
+    if (summaryEl.classList.contains('expanded')) {
+        summaryEl.classList.remove('expanded');
+        btn.textContent = 'Show More';
+    } else {
+        summaryEl.classList.add('expanded');
+        btn.textContent = 'Show Less';
+    }
+};

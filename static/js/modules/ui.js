@@ -75,9 +75,17 @@ export function createSignalCard(signal) {
   title.className = 'font-display text-xl leading-tight text-nesta-navy mb-2';
   title.textContent = signal.title || 'Untitled Signal';
 
+  const summaryContainer = document.createElement('div');
+  summaryContainer.className = 'summary-container';
   const summary = document.createElement('p');
-  summary.className = 'font-body text-sm text-nesta-navy/80 line-clamp-4';
+  summary.className = 'card-summary font-body text-sm text-nesta-navy/80';
   summary.textContent = signal.summary || '';
+  const showMoreBtn = document.createElement('button');
+  showMoreBtn.type = 'button';
+  showMoreBtn.className = 'show-more-btn';
+  showMoreBtn.textContent = 'Show More';
+  showMoreBtn.addEventListener('click', function() { window.toggleCardSummary(this); });
+  summaryContainer.append(summary, showMoreBtn);
 
   const footer = document.createElement('footer');
   footer.className = 'mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3';
@@ -128,7 +136,7 @@ export function createSignalCard(signal) {
     });
   }
 
-  card.append(sourceBadge, missionPill, title, summary, footer);
+  card.append(sourceBadge, missionPill, title, summaryContainer, footer);
   return card;
 }
 

@@ -8,7 +8,10 @@ function buildTriageCard(signal) {
         <span class="text-[10px] uppercase tracking-widest font-bold text-nesta-navy">${escapeHtml(signal.typology || 'Unsorted')}</span>
       </div>
       <h3 class="font-display text-2xl text-nesta-navy leading-tight">${escapeHtml(signal.title || 'Untitled Signal')}</h3>
-      <p class="text-sm text-nesta-dark-grey leading-relaxed">${escapeHtml(signal.summary || '')}</p>
+      <div class="summary-container">
+        <p class="card-summary text-sm text-nesta-dark-grey leading-relaxed">${escapeHtml(signal.summary || '')}</p>
+        <button type="button" class="show-more-btn" onclick="toggleCardSummary(this)">Show More</button>
+      </div>
       <a href="${escapeHtml(signal.url || '#')}" target="_blank" rel="noopener noreferrer" class="text-xs text-nesta-blue underline">Open source</a>
     </article>
   `;
