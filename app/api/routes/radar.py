@@ -269,9 +269,7 @@ async def get_scan(
         scan_data = storage.get_scan(scan_id)
         
         if not scan_data:
-            raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
-        
-        logger.info(f"Retrieved scan {scan_id}")
+            raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found or has expired")
         return scan_data
         
     except HTTPException:

@@ -1304,12 +1304,17 @@ function autoClusterAfterScan() {
 async function loadScan(scanId) {
   try {
     console.log(`Loading scan ${scanId}...`);
-    showToast('Loading saved scan...', 'info');
+    showEnhancedToast('Loading saved scan...', 'info');
     
     const response = await fetch(`${API_BASE_URL}/api/mode/scan/${scanId}`);
     
+    // Handle 404 - scan expired or doesn't exist
+    if (response.status === 404) {
+      throw new Error('This scan link has expired or does not exist.');
+    }
+    
     if (!response.ok) {
-      throw new Error('Scan not found');
+      throw new Error('Failed to load the requested scan.');
     }
     
     const scanData = await response.json();
@@ -1326,7 +1331,7 @@ async function loadScan(scanId) {
     // Render signals
     dom.radarFeed.innerHTML = '';
     scanData.signals.forEach((signal, index) => {
-      const cardHtml = import('./ui.js').then(uiModule => {
+      import('./ui.js').then(uiModule => {
         const card = uiModule.createSignalCard(signal, index);
         dom.radarFeed.appendChild(card);
       });
@@ -1345,13 +1350,20 @@ async function loadScan(scanId) {
     
     // Hide empty state
     dom.emptyState.classList.add('hidden');
-    
-    showToast(`Loaded scan: ${scanData.query}`, 'success');
-    console.log(`Scan ${scanId} loaded with ${scanData.signals.length} signals and ${scanData.themes.length} themes`);
+    showEnhancedToast(`Loaded scan: ${scanData.query}`, 'success');
     
   } catch (error) {
     console.error('Failed to load scan:', error);
-    showToast('Failed to load scan', 'error');
+    showEnhancedToast(error.message, 'error');
+    
+    // UX RECOVERY: Remove broken scan ID from URL
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('scan');
+    window.history.replaceState({}, '', newUrl.toString());
+    
+    // Return to functional empty state
+    if (dom.emptyState) dom.emptyState.classList.remove('hidden');
+    if (dom.radarFeed) dom.radarFeed.innerHTML = '';
   }
 }
 
