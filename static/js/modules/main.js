@@ -37,7 +37,7 @@ function updateTriageBadge() {
 
 async function runScan() {
   const mission = document.getElementById('mission-select')?.value || 'A Sustainable Future';
-  const topic = (document.getElementById('topic-input')?.value || '').trim();
+  const topic = (document.getElementById('query-input')?.value || '').trim();
   const feed = document.getElementById('radar-feed');
 
   state.radarSignals = [];
@@ -178,7 +178,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('database-group')?.addEventListener('change', refreshDatabase);
   document.getElementById('btn-view-grid')?.addEventListener('click', () => switchVisualMode('grid'));
   document.getElementById('btn-view-network')?.addEventListener('click', () => switchVisualMode('network'));
-  document.getElementById('btn-cluster')?.addEventListener('click', runAutoCluster);
+  document.getElementById('btn-generate-analysis')?.addEventListener('click', runAutoCluster);
+  document.getElementById('btn-regroup-clusters')?.addEventListener('click', runAutoCluster);
   document.getElementById('btn-triage')?.addEventListener('click', () => triageController?.open());
 
   switchMode('radar');
