@@ -38,6 +38,21 @@ try {
 }
 const readSignals = new Set(storedReadSignals);
 
+// ── Preview Panel Constants (must be declared before any event listeners fire) ──
+const MAX_PREVIEW_CARDS = 3;
+const MAX_PREVIEW_SUMMARY_LENGTH = 150;
+const PREVIEW_MODE_NAMES = {
+  radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
+  research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
+  governance: { title: "Governance Radar", pluralTitle: "Recent Governance Radars", icon: "🌍" }
+};
+
+const PREVIEW_MODE_MAP = {
+  radar: ["Radar", "Quick"],
+  research: ["Research", "Deep", "Synthesis"],
+  governance: ["Governance", "Policy", "Monitor"]
+};
+
 function markAsRead(url) {
   readSignals.add(url);
   try {
@@ -704,7 +719,9 @@ function renderSignalCard(signal) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Database & System Actions
 // ─────────────────────────────────────────────────────────────────────────────
-window.refreshDatabase = async function () {
+// Declared as a function declaration (hoisted) so it is available for event
+// listeners registered earlier in the file.
+async function refreshDatabase() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/saved`);
         if (!response.ok) {
@@ -755,7 +772,8 @@ window.refreshDatabase = async function () {
     } catch (e) {
         console.error("Failed to refresh database", e);
     }
-};
+}
+window.refreshDatabase = refreshDatabase;
 
 window.renderClusterMap = function (signals) {
     const container = document.getElementById("cluster-network-canvas");
@@ -834,20 +852,6 @@ async function updateSignalStatus(url, status) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6b. Recent Preview Panel (Context-Aware)
 // ─────────────────────────────────────────────────────────────────────────────
-const MAX_PREVIEW_CARDS = 3;
-const MAX_PREVIEW_SUMMARY_LENGTH = 150;
-const PREVIEW_MODE_NAMES = {
-  radar: { title: "Mini Radar", pluralTitle: "Recent Mini Radars", icon: "⚡" },
-  research: { title: "Deep Research", pluralTitle: "Recent Deep Research", icon: "🧠" },
-  governance: { title: "Governance Radar", pluralTitle: "Recent Governance Radars", icon: "🌍" }
-};
-
-const PREVIEW_MODE_MAP = {
-  radar: ["Radar", "Quick"],
-  research: ["Research", "Deep", "Synthesis"],
-  governance: ["Governance", "Policy", "Monitor"]
-};
-
 async function loadRecentPreview(mode) {
   const container = document.getElementById("recent-preview-container");
   const grid = document.getElementById("recent-preview-grid");
@@ -859,7 +863,7 @@ async function loadRecentPreview(mode) {
   container.classList.remove("hidden");
   grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
 
-  const modeInfo = PREVIEW_MODE_NAMES[mode] || PREVIEW_MODE_NAMES.radar;
+  const modeInfo = PREVIEW_MODE_NAMES[mode] ?? PREVIEW_MODE_NAMES.radar;
   title.textContent = modeInfo.pluralTitle;
   icon.textContent = modeInfo.icon;
 
