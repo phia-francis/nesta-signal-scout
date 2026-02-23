@@ -286,6 +286,25 @@
         </div>
     </div>
 
+    <!-- Triage Modal -->
+    <div id="triage-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-nesta-navy/80 backdrop-blur-sm">
+        <div class="relative w-full max-w-xl mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-white text-lg font-display font-bold">Triage Queue</h2>
+                <button id="triage-close" class="text-white/60 hover:text-white text-2xl leading-none transition-colors" aria-label="Close triage">&times;</button>
+            </div>
+            <div class="w-full bg-white/20 rounded-full h-1.5 mb-4">
+                <div id="triage-progress" class="bg-nesta-blue h-1.5 rounded-full transition-all" style="width: 0%"></div>
+            </div>
+            <div id="triage-card-container" class="min-h-[200px]"></div>
+            <div class="flex justify-center gap-4 mt-6">
+                <button data-triage-action="archive" class="px-6 py-3 bg-red-500/20 text-red-300 rounded-lg font-bold text-sm hover:bg-red-500/30 transition-colors">🗑 Archive (A)</button>
+                <button data-triage-action="keep" class="px-6 py-3 bg-white/20 text-white rounded-lg font-bold text-sm hover:bg-white/30 transition-colors">➡ Skip (→)</button>
+                <button data-triage-action="star" class="px-6 py-3 bg-yellow-500/20 text-yellow-300 rounded-lg font-bold text-sm hover:bg-yellow-500/30 transition-colors">⭐ Star (S)</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- Markdown parser for Research mode (self-hosted, version-pinned) -->

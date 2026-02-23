@@ -42,6 +42,7 @@ async function runScan() {
 
   state.radarSignals = [];
   state.triageQueue = [];
+  updateTriageBadge();
   if (feed) feed.innerHTML = '';
   clearConsole();
   startScan();
@@ -51,6 +52,8 @@ async function runScan() {
 
     if (data && data.signals) {
       state.radarSignals = data.signals;
+      state.triageQueue = data.signals.slice();
+      updateTriageBadge();
       if (feed) {
         feed.innerHTML = '';
 
