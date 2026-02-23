@@ -865,8 +865,8 @@ async function loadRecentPreview(mode) {
   grid.innerHTML = '<div class="col-span-3 text-center text-slate-400">Loading...</div>';
 
   const modeInfo = PREVIEW_MODE_NAMES[mode] ?? PREVIEW_MODE_NAMES.radar;
-  if (title) title.textContent = modeInfo.pluralTitle;
-  if (icon) icon.textContent = modeInfo.icon;
+  title.textContent = modeInfo.pluralTitle;
+  icon.textContent = modeInfo.icon;
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/saved`);
