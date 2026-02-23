@@ -719,6 +719,10 @@ function renderSignalCard(signal) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Database & System Actions
 // ─────────────────────────────────────────────────────────────────────────────
+// Declared as a function declaration (hoisted) so it is available for event
+// listeners registered earlier in the file. In non-module scripts, top-level
+// function declarations are also exposed as window.refreshDatabase for
+// external callers (e.g. modules/ui.js).
 async function refreshDatabase() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/saved`);
