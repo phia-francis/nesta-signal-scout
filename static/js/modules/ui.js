@@ -460,6 +460,15 @@ export function renderClusterInsights(clusterInsights, container) {
     container.insertBefore(dashboardWrap, container.firstChild);
 }
 
+function sanitizeUrl(url) {
+    if (!url) return "#";
+    const cleaned = String(url).trim();
+    if (/^https?:\/\//i.test(cleaned) || /^mailto:/i.test(cleaned)) {
+        return cleaned;
+    }
+    return "#";
+}
+
 export function renderResearchResult(data, container) {
     container.innerHTML = "";
 
@@ -510,7 +519,7 @@ export function renderResearchResult(data, container) {
                     <span>Target Mission: ${escapeHtml(researchData.Mission || "General")}</span>
                     <span>Lenses: ${escapeHtml(researchData.Lenses || "N/A")}</span>
                 </div>
-                <a href="${escapeHtml(researchData.URL || "#")}" target="_blank"
+                <a href="${sanitizeUrl(researchData.URL || "")}" target="_blank"
                    class="text-nesta-purple hover:underline font-semibold flex items-center gap-1">
                     View Source
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
