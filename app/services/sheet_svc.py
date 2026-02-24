@@ -303,46 +303,6 @@ class SheetService:
         except Exception as e:
             logging.error("Failed to save trend analysis to sheet: %s", e)
 
-    def add_signals_to_sheet(self, signals: list[dict[str, Any]]) -> None:
-        """Append signal rows to the 'Signal Vault' worksheet using append_rows.
-
-        Uses ``append_rows`` so that gspread determines the next free row
-        automatically, avoiding overwrites caused by manual range calculations.
-        """
-        try:
-            spreadsheet = self._open_spreadsheet()
-            try:
-                worksheet = spreadsheet.worksheet("Signal Vault")
-            except gspread.exceptions.WorksheetNotFound:
-                worksheet = spreadsheet.add_worksheet(title="Signal Vault", rows=1000, cols=20)
-
-            rows_to_append = []
-            for s in signals:
-                rows_to_append.append([
-                    s.get("Title", ""),
-                    s.get("Score", 0),
-                    s.get("Hook", ""),
-                    s.get("URL", ""),
-                    s.get("Mission", ""),
-                    s.get("Origin_Country", ""),
-                    s.get("Lenses", ""),
-                    s.get("Score_Impact", ""),
-                    s.get("Score_Novelty", ""),
-                    s.get("Score_Evidence", ""),
-                    "Generated",   # User_Status
-                    "",            # User_Comment
-                    "No",          # Shareable
-                    "",            # Feedback
-                    datetime.now().strftime("%Y-%m-%d"),  # Source_Date
-                ])
-
-            if rows_to_append:
-                worksheet.append_rows(rows_to_append, value_input_option="USER_ENTERED")
-
-        except Exception as e:
-            logging.error("Error writing to Sheets: %s", e)
-            raise
-
     def _flush_queue_on_exit(self) -> None:
         """Best-effort queue flush during interpreter shutdown."""
         if not self._sync_queue:

@@ -499,7 +499,7 @@ export function renderResearchResult(data, container) {
             <section>
                 <h3 class="text-xl font-bold text-nesta-black mb-3 border-b border-gray-100 pb-2">Executive Summary</h3>
                 <div class="prose max-w-none text-gray-600 leading-relaxed">
-                    ${marked.parse(researchData.Analysis || researchData.Description || "No analysis provided.")}
+                    ${typeof marked !== 'undefined' ? marked.parse(researchData.Analysis || researchData.Description || "No analysis provided.") : escapeHtml(researchData.Analysis || researchData.Description || "No analysis provided.")}
                 </div>
             </section>
 
@@ -519,7 +519,7 @@ export function renderResearchResult(data, container) {
                     <span>Target Mission: ${escapeHtml(researchData.Mission || "General")}</span>
                     <span>Lenses: ${escapeHtml(researchData.Lenses || "N/A")}</span>
                 </div>
-                <a href="${sanitizeUrl(researchData.URL || "")}" target="_blank"
+                <a href="${escapeHtml(sanitizeUrl(researchData.URL || ""))}" target="_blank"
                    class="text-nesta-purple hover:underline font-semibold flex items-center gap-1">
                     View Source
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

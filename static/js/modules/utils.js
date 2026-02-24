@@ -1,8 +1,16 @@
 export function escapeHtml(text) {
-  if (typeof text !== 'string') return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  if (text === null || text === undefined) return '';
+  const str = String(text);
+  const escapeMap = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  const pattern = /[&<>"']/g;
+  if (!pattern.test(str)) return str;
+  return str.replace(pattern, (ch) => escapeMap[ch]);
 }
 
 export function getTypologyTooltip(type) {

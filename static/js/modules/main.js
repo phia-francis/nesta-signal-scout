@@ -1,8 +1,6 @@
 import {
   clusterSignals,
   fetchSavedSignals,
-  promoteSignal,
-  rejectSignal,
   triggerScan,
   updateSignalStatus,
   wakeServer,
@@ -169,15 +167,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     getQueue: () => state.triageQueue,
     onArchive: async (signal) => {
       await updateSignalStatus(signal.url, 'Archived');
-      if (signal.id) await rejectSignal(signal.id);
     },
     onKeep: async (signal) => {
       await updateSignalStatus(signal.url, 'New');
-      if (signal.id) await promoteSignal(signal.id);
     },
     onStar: async (signal) => {
       await updateSignalStatus(signal.url, 'Starred');
-      if (signal.id) await promoteSignal(signal.id);
     },
   });
 

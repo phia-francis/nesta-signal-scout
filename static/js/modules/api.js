@@ -64,17 +64,15 @@ export async function updateSignalStatus(url, status) {
 }
 
 export async function promoteSignal(signalId) {
-  const response = await fetch(`${state.apiBaseUrl}/api/governance/promote/${signalId}`, {
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Promote failed with status ${response.status}`);
-  return response.json();
+  // Governance promotion endpoint is not implemented in the backend.
+  throw new Error(
+    `promoteSignal is not supported: backend route "/api/governance/promote/:id" is not implemented.`
+  );
 }
 
 export async function rejectSignal(signalId) {
-  const response = await fetch(`${state.apiBaseUrl}/api/governance/reject/${signalId}`, {
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Reject failed with status ${response.status}`);
-  return response.json();
+  // Governance rejection endpoint is not implemented in the backend.
+  throw new Error(
+    `rejectSignal is not supported: backend route "/api/governance/reject/:id" is not implemented.`
+  );
 }
