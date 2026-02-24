@@ -8,9 +8,7 @@ export function escapeHtml(text) {
     '"': '&quot;',
     "'": '&#39;',
   };
-  const pattern = /[&<>"']/g;
-  if (!pattern.test(str)) return str;
-  return str.replace(pattern, (ch) => escapeMap[ch]);
+  return str.replace(/[&<>"']/g, (ch) => escapeMap[ch]);
 }
 
 export function getTypologyTooltip(type) {
