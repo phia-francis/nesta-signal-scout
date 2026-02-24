@@ -11,13 +11,18 @@ export async function fetchSavedSignals() {
 }
 
 export async function triggerScan(query, mission, mode) {
+  const isResearch = mode === "deep_dive" || mode === "research";
   const endpointMap = {
     radar: "/scan/radar",
     research: "/scan/research",
+    deep_dive: "/scan/research",
     governance: "/scan/governance",
   };
 
-  const url = `${state.apiBaseUrl}${endpointMap[mode] ?? endpointMap.radar}`;
+  const endpoint = isResearch
+    ? "/scan/research"
+    : (endpointMap[mode] ?? endpointMap.radar);
+  const url = `${state.apiBaseUrl}${endpoint}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -25,7 +30,11 @@ export async function triggerScan(query, mission, mode) {
     body: JSON.stringify({ query, mission }),
   });
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Scan failed with status ${response.status}`);
+  }
+
   return response.json();
 }
 
@@ -56,4 +65,18 @@ export async function updateSignalStatus(url, status) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, status }),
   });
+}
+
+export async function promoteSignal(signalId) {
+  const response = await fetch(`${state.apiBaseUrl}/api/governance/promote/${signalId}`, {
+    method: "POST",
+  });
+  return response.json();
+}
+
+export async function rejectSignal(signalId) {
+  const response = await fetch(`${state.apiBaseUrl}/api/governance/reject/${signalId}`, {
+    method: "POST",
+  });
+  return response.json();
 }
