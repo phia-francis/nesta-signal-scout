@@ -11,7 +11,6 @@ export async function fetchSavedSignals() {
 }
 
 export async function triggerScan(query, mission, mode) {
-  const isResearch = mode === "deep_dive" || mode === "research";
   const endpointMap = {
     radar: "/scan/radar",
     research: "/scan/research",
@@ -19,10 +18,7 @@ export async function triggerScan(query, mission, mode) {
     governance: "/scan/governance",
   };
 
-  const endpoint = isResearch
-    ? "/scan/research"
-    : (endpointMap[mode] ?? endpointMap.radar);
-  const url = `${state.apiBaseUrl}${endpoint}`;
+  const url = `${state.apiBaseUrl}${endpointMap[mode] ?? endpointMap.radar}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -71,6 +67,7 @@ export async function promoteSignal(signalId) {
   const response = await fetch(`${state.apiBaseUrl}/api/governance/promote/${signalId}`, {
     method: "POST",
   });
+  if (!response.ok) throw new Error(`Promote failed with status ${response.status}`);
   return response.json();
 }
 
@@ -78,5 +75,6 @@ export async function rejectSignal(signalId) {
   const response = await fetch(`${state.apiBaseUrl}/api/governance/reject/${signalId}`, {
     method: "POST",
   });
+  if (!response.ok) throw new Error(`Reject failed with status ${response.status}`);
   return response.json();
 }
