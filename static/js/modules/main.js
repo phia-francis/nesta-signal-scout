@@ -7,7 +7,7 @@ import {
 } from './api.js';
 import { state } from './state.js';
 import { initialiseTriage } from './triage.js';
-import { appendConsoleLog, clearConsole, finishScan, renderClusterInsights, renderSignals, showToast, startScan } from './ui.js';
+import { appendConsoleLog, clearConsole, finishScan, renderClusterInsights, renderResearchResult, renderSignals, showToast, startScan } from './ui.js';
 import { renderNetworkGraph } from './vis.js';
 
 let triageController;
@@ -50,7 +50,16 @@ async function runScan() {
   try {
     const data = await triggerScan(topic, mission, state.currentMode);
 
-    if (data && data.signals) {
+    if (state.currentMode === 'deep_dive' || state.currentMode === 'research') {
+      if (feed) {
+        renderResearchResult(data, feed);
+      }
+      if (data && data.signals) {
+        state.radarSignals = data.signals;
+        state.triageQueue = data.signals.slice();
+        updateTriageBadge();
+      }
+    } else if (data && data.signals) {
       state.radarSignals = data.signals;
       state.triageQueue = data.signals.slice();
       updateTriageBadge();

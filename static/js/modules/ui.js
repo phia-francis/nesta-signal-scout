@@ -1,3 +1,5 @@
+import { escapeHtml } from './utils.js';
+
 const MISSION_THEMES = {
   'A Sustainable Future': {
     color: 'nesta-green',
@@ -456,6 +458,80 @@ export function renderClusterInsights(clusterInsights, container) {
 
     dashboardWrap.appendChild(gridWrap);
     container.insertBefore(dashboardWrap, container.firstChild);
+}
+
+function sanitizeUrl(url) {
+    if (!url) return "#";
+    const cleaned = String(url).trim();
+    if (/^https?:\/\//i.test(cleaned) || /^mailto:/i.test(cleaned)) {
+        return cleaned;
+    }
+    return "#";
+}
+
+export function renderResearchResult(data, container) {
+    container.innerHTML = "";
+
+    const researchData = data.signals ? data.signals[0] : data;
+
+    const card = document.createElement("div");
+    card.className =
+        "w-full max-w-4xl mx-auto bg-white border border-nesta-purple/20 rounded-xl shadow-lg overflow-hidden mb-8";
+
+    card.innerHTML = `
+        <div class="bg-nesta-purple text-white p-6">
+            <div class="flex justify-between items-start">
+                <div>
+                    <span class="inline-block px-2 py-1 bg-white/20 rounded text-xs font-bold uppercase tracking-wider mb-2">
+                        Deep Dive Research
+                    </span>
+                    <h2 class="text-3xl font-display font-bold mb-2">${escapeHtml(researchData.Title || "Untitled Research")}</h2>
+                    <p class="text-white/90 text-lg italic">"${escapeHtml(researchData.Hook || "")}"</p>
+                </div>
+                <div class="flex flex-col items-center bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+                    <span class="text-3xl font-bold">${researchData.Score || 0}%</span>
+                    <span class="text-xs opacity-75">Relevance</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-8 space-y-8">
+            <section>
+                <h3 class="text-xl font-bold text-nesta-black mb-3 border-b border-gray-100 pb-2">Executive Summary</h3>
+                <div class="prose max-w-none text-gray-600 leading-relaxed">
+                    ${typeof marked !== 'undefined' ? marked.parse(researchData.Analysis || researchData.Description || "No analysis provided.") : escapeHtml(researchData.Analysis || researchData.Description || "No analysis provided.")}
+                </div>
+            </section>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-50 p-5 rounded-lg border border-gray-100">
+                    <h4 class="font-bold text-nesta-purple mb-2">Strategic Implications</h4>
+                    <p class="text-sm text-gray-700">${escapeHtml(researchData.Implications || "N/A")}</p>
+                </div>
+                <div class="bg-gray-50 p-5 rounded-lg border border-gray-100">
+                    <h4 class="font-bold text-teal-600 mb-2">Future Outlook (2030)</h4>
+                    <p class="text-sm text-gray-700">${escapeHtml(researchData.Future_Outlook || "N/A")}</p>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between text-sm text-gray-400 border-t pt-4 mt-4">
+                <div class="flex gap-4">
+                    <span>Target Mission: ${escapeHtml(researchData.Mission || "General")}</span>
+                    <span>Lenses: ${escapeHtml(researchData.Lenses || "N/A")}</span>
+                </div>
+                <a href="${escapeHtml(sanitizeUrl(researchData.URL || ""))}" target="_blank"
+                   class="text-nesta-purple hover:underline font-semibold flex items-center gap-1">
+                    View Source
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(card);
 }
 
 export { MISSION_THEMES };

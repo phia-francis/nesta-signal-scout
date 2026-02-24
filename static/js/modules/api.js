@@ -14,6 +14,7 @@ export async function triggerScan(query, mission, mode) {
   const endpointMap = {
     radar: "/scan/radar",
     research: "/scan/research",
+    deep_dive: "/scan/research",
     governance: "/scan/governance",
   };
 
@@ -25,7 +26,11 @@ export async function triggerScan(query, mission, mode) {
     body: JSON.stringify({ query, mission }),
   });
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Scan failed with status ${response.status}`);
+  }
+
   return response.json();
 }
 
@@ -56,4 +61,18 @@ export async function updateSignalStatus(url, status) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, status }),
   });
+}
+
+export async function promoteSignal(signalId) {
+  // Governance promotion endpoint is not implemented in the backend.
+  throw new Error(
+    `promoteSignal is not supported: backend route "/api/governance/promote/:id" is not implemented.`
+  );
+}
+
+export async function rejectSignal(signalId) {
+  // Governance rejection endpoint is not implemented in the backend.
+  throw new Error(
+    `rejectSignal is not supported: backend route "/api/governance/reject/:id" is not implemented.`
+  );
 }
