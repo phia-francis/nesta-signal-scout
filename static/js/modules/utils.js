@@ -1,3 +1,10 @@
+export function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 export function getTypologyTooltip(type) {
   const definitions = {
     'Hidden Gem': 'High investment activity but low public attention. A prime innovation opportunity.',
