@@ -27,16 +27,16 @@ async function refreshDatabase() {
 function toggleDatabaseModal(show) {
   const modal = document.getElementById('db-modal');
   const overlay = document.getElementById('db-overlay');
-  modal?.classList.toggle('active', show);
-  overlay?.classList.toggle('active', show);
+  modal?.classList.toggle('open', show);
+  overlay?.classList.toggle('open', show);
   if (show) refreshDatabase();
 }
 
 function toggleHelpModal(show) {
   const modal = document.getElementById('help-modal');
   const overlay = document.getElementById('help-overlay');
-  modal?.classList.toggle('active', show);
-  overlay?.classList.toggle('active', show);
+  modal?.classList.toggle('open', show);
+  overlay?.classList.toggle('open', show);
 }
 
 function appendLog(message, type = 'info') {
