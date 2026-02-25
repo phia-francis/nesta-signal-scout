@@ -45,7 +45,7 @@ The platform uses a decoupled architecture: a **FastAPI backend** (Render) handl
 │  Frontend (GitHub Pages) │          │  Backend (Render)             │
 │                         │   REST   │                              │
 │  • Modular ES6 JS       │ ◄──────► │  • FastAPI Orchestrator      │
-│  • Tailwind CSS         │          │  • LangChain Agents          │
+│  • Tailwind CSS         │          │  • LLM Orchestration & Agents│
 │  • Vis.js Network Graph │          │                              │
 │                         │          │  ┌────────────────────────┐  │
 └─────────────────────────┘          │  │ Integration Layer      │  │
@@ -63,7 +63,7 @@ The platform uses a decoupled architecture: a **FastAPI backend** (Render) handl
 
 - Python 3.10+
 - OpenAI API key (GPT-4o recommended)
-- Google Custom Search JSON API key
+- Google Custom Search JSON API key and Custom Search Engine ID (`GOOGLE_SEARCH_CX`)
 - Google Service Account (for Sheets integration)
 
 ---
