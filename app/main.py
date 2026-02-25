@@ -83,7 +83,8 @@ def create_app() -> FastAPI:
             },
         )
 
-    @application.get("/")
+    # Accept both GET and HEAD so Render health checks return 200
+    @application.api_route("/", methods=["GET", "HEAD"])
     def read_root() -> dict[str, str]:
         return {"status": "System Operational", "message": "Signal Scout Backend is Running"}
 
