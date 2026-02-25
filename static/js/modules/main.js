@@ -149,6 +149,18 @@ async function runAutoCluster() {
         return;
     }
     showToast("Clustering in progress...", "info");
+    const narratives = await clusterSignals(state.radarSignals);
+    const drawer = document.getElementById('narrative-drawer');
+    const container = document.getElementById('narrative-container');
+    if (!drawer || !container) return;
+
+    drawer.classList.remove('hidden');
+    container.innerHTML = narratives
+        .map(
+            (narrative) =>
+                `<article class="bg-white border border-slate-200 p-4"><h4 class="font-bold text-sm text-nesta-navy">${narrative.title}</h4><p class="text-xs text-slate-600 mt-2">${narrative.count} signals</p></article>`
+        )
+        .join('');
 }
 
 // --- Initialisation ---
