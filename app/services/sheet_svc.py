@@ -168,64 +168,33 @@ class SheetService:
                 self._sync_queue = batch + self._sync_queue
 
     async def save_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
-        """Backwards-compatible helper: queue one signal instead of immediate write."""
+        """Backwards-compatible helper: delegates to save_signals_batch."""
         await self.save_signals_batch([signal])
 
-    async def save_signals_batch(
-        self,
-        signals: list[dict[str, Any]],
-    ) -> None:
-        """Upsert many signals with batched update+append operations."""
+    async def save_signals_batch(self, signals: list[dict[str, Any]]) -> None:
+        """
+        Strictly append signals as new rows.
+        The upsert/update branch has been removed to preserve full scan history.
+        """
         if not signals:
             return
-
         try:
-            sheet = self.get_database_sheet()
-            url_column = await asyncio.to_thread(sheet.col_values, self.URL_COLUMN_INDEX)
-            db_row_by_url = {
-                url.strip(): index
-                for index, url in enumerate(url_column, start=1)
-                if isinstance(url, str) and url.strip() and url.strip() != "URL"
-            }
-
-            cells_to_update: list[gspread.cell.Cell] = []
-            rows_to_append: list[list[Any]] = []
-
-            for signal in signals:
-                url = str(signal.get("url") or "").strip()
-                row_index = db_row_by_url.get(url)
-                if row_index:
-                    cells_to_update.extend(
-                        [
-                            gspread.cell.Cell(row_index, self.MISSION_COLUMN_INDEX, signal.get("mission", "General")),
-                            gspread.cell.Cell(row_index, self.TITLE_COLUMN_INDEX, signal.get("title", "Untitled")),
-                            gspread.cell.Cell(row_index, self.SUMMARY_COLUMN_INDEX, (signal.get("summary", "") or "")[:500]),
-                            gspread.cell.Cell(row_index, self.TYPOLOGY_COLUMN_INDEX, signal.get("typology", "Unsorted")),
-                            gspread.cell.Cell(row_index, self.ACTIVITY_COLUMN_INDEX, signal.get("score_activity", 0)),
-                            gspread.cell.Cell(row_index, self.ATTENTION_COLUMN_INDEX, signal.get("score_attention", 0)),
-                            gspread.cell.Cell(row_index, self.SOURCE_COLUMN_INDEX, signal.get("source", "Web")),
-                            gspread.cell.Cell(row_index, self.NARRATIVE_GROUP_COLUMN_INDEX, signal.get("narrative_group") or "Unclustered"),
-                            gspread.cell.Cell(row_index, self.SOURCE_DATE_COLUMN_INDEX, signal.get("source_date") or signal.get("date") or "Unknown"),
-                        ]
-                    )
-                else:
-                    rows_to_append.append(self._signal_to_row(signal))
-
-            if cells_to_update:
-                await asyncio.to_thread(sheet.update_cells, cells_to_update, value_input_option="USER_ENTERED")
-
-            if rows_to_append:
-                await asyncio.to_thread(sheet.append_rows, rows_to_append)
-
+            rows_to_append = [self._signal_to_row(signal) for signal in signals]
+            await asyncio.to_thread(
+                self.get_database_sheet().append_rows,
+                rows_to_append,
+                value_input_option="USER_ENTERED",
+                insert_data_option="INSERT_ROWS",
+            )
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to save signal batch: {sheet_error}") from sheet_error
 
     async def upsert_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
-        """Compatibility wrapper for existing callers."""
+        """Compatibility wrapper — now delegates to append-only save_signals_batch."""
         await self.save_signal(signal, existing_urls)
 
     async def _update_existing_signal(self, url: str, signal: dict[str, Any]) -> None:
-        """Backwards compatibility wrapper using batch upsert implementation."""
+        """Compatibility wrapper — now delegates to append-only save_signals_batch."""
         await self.save_signals_batch([signal])
 
     async def add_to_watchlist(self, signal: dict[str, Any]) -> None:
