@@ -110,12 +110,17 @@ python -m http.server 8080
 ```
 nesta-signal-scout/
 ├── app/
-│   ├── api/routes/       # Endpoints: radar, research, governance
-│   ├── services/         # Logic: search_svc, sheet_svc, llm_svc
+│   ├── api/routes/       # Endpoints: radar, research, governance, cluster, cron
+│   ├── core/             # Configuration, prompts, security, resilience
+│   ├── domain/           # Data models and taxonomy
+│   ├── services/         # Logic: search_svc, sheet_svc, llm_svc, cluster_svc
+│   ├── storage/          # Scan persistence
 │   └── main.py           # Application entry point
 ├── static/
 │   ├── js/modules/       # Modular frontend: main, api, ui, triage
-│   └── css/              # Tailwind styles
+│   ├── css/              # Tailwind styles
+│   └── fonts/            # Custom typefaces
+├── tests/                # pytest test suite
 ├── index.html            # Main UI entry point
 ├── render.yaml           # Deployment config
 └── requirements.txt      # Python dependencies
