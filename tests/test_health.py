@@ -17,3 +17,10 @@ def test_health_endpoint_returns_awake():
     data = response.json()
     assert data["status"] == "awake"
     assert "message" in data
+
+
+def test_root_head_returns_200():
+    """Render health checks use HEAD /; ensure it returns 200."""
+    client = TestClient(app)
+    response = client.head("/")
+    assert response.status_code == 200
