@@ -24,6 +24,21 @@ async function refreshDatabase() {
   }
 }
 
+function toggleDatabaseModal(show) {
+  const modal = document.getElementById('db-modal');
+  const overlay = document.getElementById('db-overlay');
+  modal?.classList.toggle('active', show);
+  overlay?.classList.toggle('active', show);
+  if (show) refreshDatabase();
+}
+
+function toggleHelpModal(show) {
+  const modal = document.getElementById('help-modal');
+  const overlay = document.getElementById('help-overlay');
+  modal?.classList.toggle('active', show);
+  overlay?.classList.toggle('active', show);
+}
+
 function appendLog(message, type = 'info') {
   appendConsoleLog(message, type);
 }
@@ -109,23 +124,6 @@ function switchMode(mode) {
   });
 }
 
-function switchView(view) {
-  const radarView = document.getElementById('view-radar');
-  const databaseView = document.getElementById('view-database');
-  const databaseBtn = document.getElementById('nav-database');
-  
-  if (view === 'database') {
-    radarView?.classList.add('hidden');
-    databaseView?.classList.remove('hidden');
-    databaseBtn?.classList.add('active');
-    refreshDatabase();
-  } else {
-    radarView?.classList.remove('hidden');
-    databaseView?.classList.add('hidden');
-    databaseBtn?.classList.remove('active');
-  }
-}
-
 function switchVisualMode(mode) {
   const networkContainer = document.getElementById('view-network-container');
   const gridButton = document.getElementById('btn-view-grid');
@@ -174,16 +172,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.querySelectorAll('.mode-toggle').forEach((button) => {
-    button.addEventListener('click', () => {
-      switchMode(button.dataset.mode);
-      switchView('radar');
-    });
+    button.addEventListener('click', () => switchMode(button.dataset.mode));
   });
 
-  document.getElementById('nav-database')?.addEventListener('click', () => switchView('database'));
-  document.getElementById('scan-btn')?.addEventListener('click', runScan);
+  // 3. Database modal
+  document.getElementById('open-db-btn')?.addEventListener('click', () => toggleDatabaseModal(true));
+  document.getElementById('close-db-btn')?.addEventListener('click', () => toggleDatabaseModal(false));
+  document.getElementById('db-overlay')?.addEventListener('click', () => toggleDatabaseModal(false));
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
   document.getElementById('database-group')?.addEventListener('change', refreshDatabase);
+
+  // 4. Help modal
+  document.getElementById('help-btn')?.addEventListener('click', () => toggleHelpModal(true));
+  document.getElementById('close-help-btn')?.addEventListener('click', () => toggleHelpModal(false));
+  document.getElementById('close-help-btn-top')?.addEventListener('click', () => toggleHelpModal(false));
+  document.getElementById('help-overlay')?.addEventListener('click', () => toggleHelpModal(false));
+
+  // 5. Actions
+  document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('btn-view-grid')?.addEventListener('click', () => switchVisualMode('grid'));
   document.getElementById('btn-view-network')?.addEventListener('click', () => switchVisualMode('network'));
   document.getElementById('btn-generate-analysis')?.addEventListener('click', runAutoCluster);
