@@ -13,11 +13,15 @@ import { renderNetworkGraph } from './vis.js';
 let triageController;
 
 async function refreshDatabase() {
-  const databaseGrid = document.getElementById('database-grid');
-  const groupByValue = document.getElementById('database-group')?.value || 'none';
-  const groupBy = groupByValue === 'none' ? null : groupByValue;
-  state.databaseItems = await fetchSavedSignals();
-  renderSignals(state.databaseItems, databaseGrid, 'database', groupBy);
+  try {
+    const databaseGrid = document.getElementById('database-grid');
+    const groupByValue = document.getElementById('database-group')?.value || 'none';
+    const groupBy = groupByValue === 'none' ? null : groupByValue;
+    state.databaseItems = await fetchSavedSignals();
+    renderSignals(state.databaseItems, databaseGrid, 'database', groupBy);
+  } catch (error) {
+    console.error("Failed to load database:", error);
+  }
 }
 
 function appendLog(message, type = 'info') {
@@ -159,21 +163,14 @@ async function runAutoCluster() {
     .join('');
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await wakeServer();
-  await refreshDatabase();
+document.addEventListener('DOMContentLoaded', () => {
 
+  // 1. Attach all event listeners synchronously — nothing awaited here
   triageController = initialiseTriage({
     getQueue: () => state.triageQueue,
-    onArchive: async (signal) => {
-      await updateSignalStatus(signal.url, 'Archived');
-    },
-    onKeep: async (signal) => {
-      await updateSignalStatus(signal.url, 'New');
-    },
-    onStar: async (signal) => {
-      await updateSignalStatus(signal.url, 'Starred');
-    },
+    onArchive: async (signal) => updateSignalStatus(signal.url, 'Archived'),
+    onKeep: async (signal) => updateSignalStatus(signal.url, 'New'),
+    onStar: async (signal) => updateSignalStatus(signal.url, 'Starred'),
   });
 
   document.querySelectorAll('.mode-toggle').forEach((button) => {
@@ -184,7 +181,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('nav-database')?.addEventListener('click', () => switchView('database'));
-
   document.getElementById('scan-btn')?.addEventListener('click', runScan);
   document.getElementById('refresh-db-btn')?.addEventListener('click', refreshDatabase);
   document.getElementById('database-group')?.addEventListener('change', refreshDatabase);
@@ -197,4 +193,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   switchMode('radar');
   switchVisualMode('grid');
   updateTriageBadge();
+
+  // 2. Fire network calls in a non-blocking IIFE — a failure here
+  //    cannot prevent the listeners above from working.
+  //    Note: refreshDatabase handles its own errors internally;
+  //    the outer catch covers wakeServer failures.
+  (async () => {
+    try {
+      await wakeServer();
+      await refreshDatabase();
+    } catch (err) {
+      console.warn('Background initialisation warning:', err);
+      const message = err && err.message ? err.message : 'Unknown error';
+      showToast(`Initialisation issue: ${message}`, 'error');
+    }
+  })();
 });
