@@ -195,7 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
   updateTriageBadge();
 
   // 2. Fire network calls in a non-blocking IIFE — a failure here
-  //    cannot prevent the listeners above from working
+  //    cannot prevent the listeners above from working.
+  //    Note: refreshDatabase handles its own errors internally;
+  //    the outer catch covers wakeServer failures.
   (async () => {
     try {
       await wakeServer();
