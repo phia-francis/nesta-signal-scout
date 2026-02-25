@@ -167,15 +167,8 @@ class SheetService:
             async with self._queue_lock:
                 self._sync_queue = batch + self._sync_queue
 
-    async def save_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
-        """Backwards-compatible helper: delegates to save_signals_batch."""
-        await self.save_signals_batch([signal])
-
     async def save_signals_batch(self, signals: list[dict[str, Any]]) -> None:
-        """
-        Strictly append signals as new rows.
-        The upsert/update branch has been removed to preserve full scan history.
-        """
+        """Append signals as new rows, preserving full scan history."""
         if not signals:
             return
         try:
@@ -188,14 +181,6 @@ class SheetService:
             )
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to save signal batch: {sheet_error}") from sheet_error
-
-    async def upsert_signal(self, signal: dict[str, Any], existing_urls: set[str] | None = None) -> None:
-        """Compatibility wrapper — now delegates to append-only save_signals_batch."""
-        await self.save_signal(signal, existing_urls)
-
-    async def _update_existing_signal(self, url: str, signal: dict[str, Any]) -> None:
-        """Compatibility wrapper — now delegates to append-only save_signals_batch."""
-        await self.save_signals_batch([signal])
 
     async def add_to_watchlist(self, signal: dict[str, Any]) -> None:
         """Persist starred signals into Watchlist tab for analyst triage."""
