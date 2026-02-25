@@ -200,6 +200,12 @@
         <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center z-10" style="border-radius: 16px 16px 0 0;">
             <h2 id="db-modal-title" class="text-2xl font-display font-bold">Signal Database</h2>
             <div class="flex items-center gap-3">
+                <select id="database-group" class="bg-white border border-gray-300 text-sm rounded-lg p-2.5">
+                    <option value="none">No Grouping</option>
+                    <option value="Mission">Group by Mission</option>
+                    <option value="User_Status">Group by Status</option>
+                    <option value="Source_Date">Group by Date</option>
+                </select>
                 <button id="refresh-db-btn" class="text-xs font-bold uppercase text-slate-400 hover:text-nesta-blue transition-colors">Refresh</button>
                 <button id="close-db-btn" class="text-slate-400 hover:text-nesta-navy text-2xl leading-none transition-colors">&times;</button>
             </div>
