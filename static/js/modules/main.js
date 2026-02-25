@@ -202,6 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await refreshDatabase();
     } catch (err) {
       console.warn('Background initialisation warning:', err);
+      const message = err && err.message ? err.message : 'Unknown error';
+      showToast(`Initialisation issue: ${message}`, 'error');
     }
   })();
 });
