@@ -6,7 +6,7 @@ import sys
 from typing import Iterable
 import logging
 
-import keywords
+from app import keywords
 
 
 def _validate_string_list(values: Iterable[object], label: str) -> list[str]:

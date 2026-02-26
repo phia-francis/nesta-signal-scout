@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-import main
+from app.api.routes import radar as main
 
 
 def _set_keywords(monkeypatch, missions, cross_cutting):

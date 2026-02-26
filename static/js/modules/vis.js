@@ -1,3 +1,8 @@
+import { state } from './state.js';
+
+let currentThemes = [];
+let currentThemeFilter = null;
+
 export function generateSparklineElement(dataPoints) {
   if (!Array.isArray(dataPoints) || dataPoints.length === 0) return null;
 
@@ -99,5 +104,122 @@ export function renderNetworkGraph(signals) {
         window.open(signalUrl, '_blank');
       }
     }
+  });
+}
+
+function updateUrlWithScanId(scanId) {
+  const newUrl = new URL(window.location.href);
+  newUrl.searchParams.set('scan', scanId);
+  window.history.pushState({ scanId }, '', newUrl.toString());
+}
+
+export function handleThemeFilter(theme) {
+  currentThemeFilter = theme;
+
+  const feed = document.getElementById('radar-feed');
+  if (!feed) return;
+
+  feed.innerHTML = '';
+
+  let filteredSignals = state.globalSignalsArray;
+
+  if (theme && theme.signal_ids) {
+    filteredSignals = state.globalSignalsArray.filter((signal, index) => {
+      return theme.signal_ids.includes(index);
+    });
+  }
+
+  import('./ui.js').then(uiModule => {
+    filteredSignals.forEach((signal, index) => {
+      const card = uiModule.createSignalCard(signal);
+      if (card) {
+        card.style.setProperty('--card-index', index);
+        feed.appendChild(card);
+      }
+    });
+  });
+
+  console.log(`Filtered to ${filteredSignals.length} signals`);
+}
+
+export async function clusterAndRenderThemes(signals) {
+  if (!signals || signals.length < 3) {
+    console.log('Not enough signals for clustering (minimum 3 required)');
+    return;
+  }
+
+  try {
+    console.log(`Clustering ${signals.length} signals...`);
+
+    const response = await fetch(`${state.apiBaseUrl}/cluster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signals: signals })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Clustering failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    currentThemes = result.themes || [];
+
+    if (result.scan_id) {
+      state.currentScanId = result.scan_id;
+      updateUrlWithScanId(result.scan_id);
+
+      const shareBtn = document.getElementById('share-scan-btn');
+      if (shareBtn) {
+        shareBtn.style.display = 'inline-flex';
+      }
+
+      console.log(`Scan saved with ID: ${result.scan_id}`);
+    }
+
+    if (currentThemes.length > 0) {
+      console.log(`Found ${currentThemes.length} themes`);
+
+      import('./ui.js').then(uiModule => {
+        const container = document.getElementById('theme-chips-container');
+        uiModule.renderThemeChips(currentThemes, container, handleThemeFilter);
+      });
+    } else {
+      console.log('No themes found');
+    }
+  } catch (error) {
+    console.error('Clustering failed:', error);
+  }
+}
+
+export function setupViewToggle() {
+  const gridBtn = document.getElementById('gridViewBtn');
+  const matrixBtn = document.getElementById('matrixViewBtn');
+  const gridView = document.getElementById('radar-feed');
+  const matrixView = document.getElementById('matrixContainer');
+
+  if (!gridBtn || !matrixBtn || !gridView || !matrixView) return;
+
+  gridBtn.addEventListener('click', () => {
+    gridBtn.classList.add('active');
+    matrixBtn.classList.remove('active');
+    gridView.classList.remove('hidden');
+    matrixView.classList.add('hidden');
+  });
+
+  matrixBtn.addEventListener('click', () => {
+    matrixBtn.classList.add('active');
+    gridBtn.classList.remove('active');
+    gridView.classList.add('hidden');
+    matrixView.classList.remove('hidden');
+
+    import('./matrix.js').then(matrixModule => {
+      let signalsToShow = state.globalSignalsArray;
+      if (currentThemeFilter && currentThemeFilter.signal_ids) {
+        signalsToShow = state.globalSignalsArray.filter((signal, index) => {
+          return currentThemeFilter.signal_ids.includes(index);
+        });
+      }
+      matrixModule.renderHorizonMatrix(signalsToShow);
+    });
   });
 }

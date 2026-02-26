@@ -469,6 +469,160 @@ function sanitizeUrl(url) {
     return "#";
 }
 
+function escapeAttribute(value) {
+  return escapeHtml(value || "");
+}
+
+/**
+ * Get mission badge class for detail view
+ */
+function getMissionBadgeClassForDetail(mission) {
+  const classes = {
+    'A Sustainable Future': 'mission-badge-green',
+    'A Healthy Life': 'mission-badge-pink',
+    'A Fairer Start': 'mission-badge-yellow',
+  };
+  return classes[mission] || 'mission-badge-green';
+}
+
+/**
+ * Open detail panel with signal information
+ */
+export function openDetailPanel(signal) {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+  
+  if (!panel || !overlay || !content) return;
+
+  const title = signal.title || signal.Title || 'Untitled';
+  const mission = signal.mission || signal.Mission || '';
+  const typology = signal.typology || signal.Typology || signal.Lenses || '';
+  const summary = signal.summary || signal.Hook || signal.Description || signal.Analysis || 'No description available.';
+  const scoreActivity = Number(signal.score_activity ?? signal.scoreActivity ?? signal.Score_Activity ?? 0);
+  const scoreAttention = Number(signal.score_attention ?? signal.scoreAttention ?? signal.Score_Attention ?? signal.Score ?? 0);
+  const scoreRecency = Number(signal.score_recency ?? signal.scoreRecency ?? signal.Score_Recency ?? 0);
+  const source = signal.source || signal.Source || 'Unknown';
+  const sourceUrl = signal.url || signal.URL || '';
+  const publishedDate = signal.date || signal.source_date || signal.published_date || signal.Source_Date || signal.Published_Date || '';
+  
+  // Populate content
+  content.innerHTML = `
+    <div class="space-y-6">
+      <div>
+        <h3 class="text-3xl font-display font-bold text-nesta-navy mb-2">${escapeHtml(title)}</h3>
+        <div class="flex flex-wrap gap-2 mb-4">
+          ${mission ? `<span class="mission-badge ${getMissionBadgeClassForDetail(mission)}">${escapeHtml(mission)}</span>` : ''}
+          ${typology ? `<span class="px-3 py-1 bg-nesta-blue text-white text-xs font-bold uppercase rounded-full">${escapeHtml(typology)}</span>` : ''}
+        </div>
+      </div>
+      
+      <div>
+        <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Summary</h4>
+        <p class="text-base text-slate-700 leading-relaxed">${escapeHtml(summary)}</p>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Activity</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreActivity.toFixed(1)}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Attention</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreAttention.toFixed(1)}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Recency</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreRecency.toFixed(1)}</div>
+        </div>
+      </div>
+      
+      <div>
+        <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Source</h4>
+        <p class="text-sm text-slate-600 mb-2">${escapeHtml(source)}</p>
+        ${sourceUrl ? `<a href="${escapeAttribute(sanitizeUrl(sourceUrl))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
+          <span>View Source</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+        </a>` : ''}
+      </div>
+      
+      ${publishedDate ? `<div class="text-xs text-slate-500">Published: ${escapeHtml(publishedDate)}</div>` : ''}
+    </div>
+  `;
+  
+  // Open panel
+  panel.classList.add('open');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Close detail panel
+ */
+export function closeDetailPanel() {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  
+  if (!panel || !overlay) return;
+  
+  panel.classList.remove('open');
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/**
+ * Enhanced toast notification with bottom-right stacking
+ */
+export function showEnhancedToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast-notification ${type}`;
+  
+  const icons = {
+    success: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>',
+    error: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>',
+    warning: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>',
+    info: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>',
+  };
+  
+  toast.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div class="flex-shrink-0">
+        ${icons[type] || icons.info}
+      </div>
+      <div class="flex-1 text-sm font-medium text-nesta-navy">
+        ${escapeHtml(message)}
+      </div>
+      <button class="toast-close flex-shrink-0 text-slate-400 hover:text-nesta-navy transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+  `;
+  
+  // Add close button handler
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn?.addEventListener('click', () => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  });
+  
+  container.appendChild(toast);
+  
+  // Auto remove after duration
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add('toast-exit');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, duration);
+}
+
 export function renderResearchResult(data, container) {
     container.innerHTML = "";
 

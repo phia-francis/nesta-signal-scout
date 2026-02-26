@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-import main
+from app.api.routes import radar as main
 
 
 def make_tool_call(tool_id, name, arguments):
@@ -24,6 +24,30 @@ def make_tool_call(tool_id, name, arguments):
 def make_response(tool_calls):
     message = SimpleNamespace(content="", tool_calls=tool_calls)
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+class _FakeCompletions:
+    def __init__(self, responses):
+        self._responses = responses
+
+    async def create(self, model, messages, tools):
+        return self._responses.pop(0)
+
+
+class _FakeLLMService:
+    def __init__(self, responses):
+        self.client = SimpleNamespace(chat=SimpleNamespace(completions=_FakeCompletions(responses)))
+
+
+class _FakeSheetService:
+    def __init__(self):
+        self.saved = []
+
+    async def get_all(self):
+        return []
+
+    async def save_signals_batch(self, signals):
+        self.saved.extend(signals)
 
 
 def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
@@ -57,25 +81,17 @@ def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
         for idx in range(4, 6)
     ]
 
-    async def immediate(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
     responses = [
         make_response(tool_calls_batch_1),
         make_response(tool_calls_batch_2),
     ]
+    llm_service = _FakeLLMService(responses)
+    sheet_service = _FakeSheetService()
 
-    def fake_create(model, messages, tools):
-        return responses.pop(0)
-
-    monkeypatch.setattr(main.client.chat.completions, "create", fake_create)
-    monkeypatch.setattr(main.asyncio, "to_thread", immediate)
-    monkeypatch.setattr(main, "get_sheet_records", lambda include_rejected=True: [])
     monkeypatch.setattr(main, "is_date_within_time_filter", lambda *_: True)
-    monkeypatch.setattr(main, "upsert_signal", lambda payload: None)
 
     request = main.ChatRequest(message="Find signals", signal_count=5, mission="All Missions")
-    result = asyncio.run(main.chat_endpoint(request, stream=False))
+    result = asyncio.run(main.chat_endpoint(request, stream=False, llm_service=llm_service, sheet_service=sheet_service))
 
     assert result["ui_type"] == "signal_list"
     assert len(result["items"]) == 5
@@ -84,33 +100,24 @@ def test_chat_endpoint_accumulates_signals_batches(monkeypatch):
 
 
 def test_chat_endpoint_signal_count_defaults_and_boundaries(monkeypatch):
-    async def immediate(func, *args, **kwargs):
-        return func(*args, **kwargs)
     prompt_capture = {}
 
-    def fake_create_first(model, messages, tools):
-        prompt_capture["prompt"] = messages[0]["content"]
-        return make_response([])
+    class _CaptureCompletions:
+        async def create(self, model, messages, tools):
+            prompt_capture["prompt"] = messages[0]["content"]
+            return make_response([])
 
-    monkeypatch.setattr(main.client.chat.completions, "create", fake_create_first)
-    monkeypatch.setattr(main.asyncio, "to_thread", immediate)
-    monkeypatch.setattr(main, "get_sheet_records", lambda include_rejected=True: [])
+    llm_service = SimpleNamespace(client=SimpleNamespace(chat=SimpleNamespace(completions=_CaptureCompletions())))
+    sheet_service = _FakeSheetService()
+
     monkeypatch.setattr(main, "is_date_within_time_filter", lambda *_: True)
 
     request = main.ChatRequest(message="Topic", signal_count=0, mission="Invalid Mission")
-    asyncio.run(main.chat_endpoint(request, stream=False))
+    asyncio.run(main.chat_endpoint(request, stream=False, llm_service=llm_service, sheet_service=sheet_service))
     assert "exactly 5 seeds" in prompt_capture["prompt"]
 
-    prompt_capture.clear()
-
-    def fake_create_second(model, messages, tools):
-        prompt_capture["prompt"] = messages[0]["content"]
-        return make_response([])
-
-    monkeypatch.setattr(main.client.chat.completions, "create", fake_create_second)
-
     request = main.ChatRequest(message="Topic", signal_count=50, mission="Invalid Mission")
-    asyncio.run(main.chat_endpoint(request, stream=False))
+    asyncio.run(main.chat_endpoint(request, stream=False, llm_service=llm_service, sheet_service=sheet_service))
     assert "exactly 50 seeds" in prompt_capture["prompt"]
 
 

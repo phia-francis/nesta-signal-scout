@@ -8,7 +8,7 @@ import respx
 from httpx import Response
 from unittest.mock import AsyncMock, Mock, patch
 
-import keywords
+from app import keywords
 from app.services.scan_logic import build_novelty_query
 
 
