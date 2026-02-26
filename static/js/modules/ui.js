@@ -494,42 +494,53 @@ export function openDetailPanel(signal) {
   const content = document.getElementById('detail-content');
   
   if (!panel || !overlay || !content) return;
+
+  const title = signal.title || signal.Title || 'Untitled';
+  const mission = signal.mission || signal.Mission || '';
+  const typology = signal.typology || signal.Typology || signal.Lenses || '';
+  const summary = signal.summary || signal.Hook || signal.Description || signal.Analysis || 'No description available.';
+  const scoreActivity = Number(signal.score_activity ?? signal.scoreActivity ?? signal.Score_Activity ?? 0);
+  const scoreAttention = Number(signal.score_attention ?? signal.scoreAttention ?? signal.Score_Attention ?? signal.Score ?? 0);
+  const scoreRecency = Number(signal.score_recency ?? signal.scoreRecency ?? signal.Score_Recency ?? 0);
+  const source = signal.source || signal.Source || 'Unknown';
+  const sourceUrl = signal.url || signal.URL || '';
+  const publishedDate = signal.date || signal.source_date || signal.published_date || signal.Source_Date || signal.Published_Date || '';
   
   // Populate content
   content.innerHTML = `
     <div class="space-y-6">
       <div>
-        <h3 class="text-3xl font-display font-bold text-nesta-navy mb-2">${escapeHtml(signal.title || 'Untitled')}</h3>
+        <h3 class="text-3xl font-display font-bold text-nesta-navy mb-2">${escapeHtml(title)}</h3>
         <div class="flex flex-wrap gap-2 mb-4">
-          ${signal.mission ? `<span class="mission-badge ${getMissionBadgeClassForDetail(signal.mission)}">${escapeHtml(signal.mission)}</span>` : ''}
-          ${signal.typology ? `<span class="px-3 py-1 bg-nesta-blue text-white text-xs font-bold uppercase rounded-full">${escapeHtml(signal.typology)}</span>` : ''}
+          ${mission ? `<span class="mission-badge ${getMissionBadgeClassForDetail(mission)}">${escapeHtml(mission)}</span>` : ''}
+          ${typology ? `<span class="px-3 py-1 bg-nesta-blue text-white text-xs font-bold uppercase rounded-full">${escapeHtml(typology)}</span>` : ''}
         </div>
       </div>
       
       <div>
         <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Summary</h4>
-        <p class="text-base text-slate-700 leading-relaxed">${escapeHtml(signal.summary || 'No description available.')}</p>
+        <p class="text-base text-slate-700 leading-relaxed">${escapeHtml(summary)}</p>
       </div>
       
       <div class="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
         <div>
           <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Activity</div>
-          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_activity || 0).toFixed(1)}</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreActivity.toFixed(1)}</div>
         </div>
         <div>
           <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Attention</div>
-          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_attention || 0).toFixed(1)}</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreAttention.toFixed(1)}</div>
         </div>
         <div>
           <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Recency</div>
-          <div class="text-2xl font-bold text-nesta-navy">${(signal.score_recency || 0).toFixed(1)}</div>
+          <div class="text-2xl font-bold text-nesta-navy">${scoreRecency.toFixed(1)}</div>
         </div>
       </div>
       
       <div>
         <h4 class="text-sm font-bold text-nesta-navy uppercase tracking-wider mb-2">Source</h4>
-        <p class="text-sm text-slate-600 mb-2">${escapeHtml(signal.source || 'Unknown')}</p>
-        ${signal.url ? `<a href="${escapeAttribute(sanitizeUrl(signal.url))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
+        <p class="text-sm text-slate-600 mb-2">${escapeHtml(source)}</p>
+        ${sourceUrl ? `<a href="${escapeAttribute(sanitizeUrl(sourceUrl))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 bg-nesta-blue text-white font-bold text-sm rounded-lg hover:bg-nesta-navy transition-colors">
           <span>View Source</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -537,7 +548,7 @@ export function openDetailPanel(signal) {
         </a>` : ''}
       </div>
       
-      ${signal.date ? `<div class="text-xs text-slate-500">Published: ${escapeHtml(signal.date)}</div>` : ''}
+      ${publishedDate ? `<div class="text-xs text-slate-500">Published: ${escapeHtml(publishedDate)}</div>` : ''}
     </div>
   `;
   

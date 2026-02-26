@@ -217,10 +217,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("radar-feed")?.addEventListener("click", (event) => {
         const card = event.target.closest(".signal-card");
         if (!card || event.target.closest("a") || event.target.closest("button")) return;
-        const title = card.querySelector("h3")?.textContent || card.querySelector("a")?.textContent || "";
-        const summary = card.querySelector("p")?.textContent || "";
         const url = card.dataset.url || "";
-        openDetailPanel({ title, summary, url });
+        const fullSignal =
+            (state.radarSignals ?? state.globalSignalsArray ?? []).find(
+                (s) => (s.url ?? s.URL) === url
+            );
+        if (fullSignal) openDetailPanel(fullSignal);
     });
     document.getElementById("btn-view-grid")?.addEventListener("click", () => switchVisualMode("grid"));
     document.getElementById("btn-view-network")?.addEventListener("click", () => switchVisualMode("network"));
