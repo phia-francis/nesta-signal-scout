@@ -10,8 +10,8 @@ from typing import Any
 
 from dateutil import parser as date_parser
 
-import keywords
-from utils import normalize_url_for_deduplication
+from app import keywords
+from app.utils import normalize_url_for_deduplication
 from app.core.config import SCAN_RESULT_LIMIT
 from app.core.exceptions import ValidationError, SearchAPIError
 from app.domain.models import RawSignal, ScoredSignal, SignalCard

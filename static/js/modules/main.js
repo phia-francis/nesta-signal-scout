@@ -5,7 +5,7 @@ import {
     updateSignalStatus,
     wakeServer,
 } from "./api.js";
-import { state } from "./state.js";
+import { loadScan, shareCurrentScan, state } from "./state.js";
 import { initialiseTriage } from "./triage.js";
 import {
     appendConsoleLog,
@@ -15,8 +15,11 @@ import {
     renderSignals,
     showToast,
     startScan,
+    openDetailPanel,
+    closeDetailPanel,
+    showEnhancedToast,
 } from "./ui.js";
-import { renderNetworkGraph } from "./vis.js";
+import { clusterAndRenderThemes, renderNetworkGraph, setupViewToggle } from "./vis.js";
 
 let triageController;
 
@@ -98,7 +101,7 @@ async function runScan() {
             }
         }
 
-        showToast("Scan complete", "success");
+        showEnhancedToast("Scan complete", "success");
     } catch (error) {
         console.error(error);
         showToast("Connection failed. Check backend.", "error");
@@ -167,6 +170,26 @@ async function runAutoCluster() {
 
 document.addEventListener("DOMContentLoaded", () => {
 
+    setupViewToggle();
+
+    const closeDetailBtn = document.getElementById("close-detail-panel");
+    closeDetailBtn?.addEventListener("click", () => closeDetailPanel());
+    document.getElementById("detail-overlay")?.addEventListener("click", () => closeDetailPanel());
+
+    document.getElementById("share-scan-btn")?.addEventListener("click", async () => {
+        await shareCurrentScan();
+    });
+
+    document.getElementById("cluster-themes-btn")?.addEventListener("click", async () => {
+        await clusterAndRenderThemes(state.globalSignalsArray.length ? state.globalSignalsArray : state.radarSignals);
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const scanId = params.get("scan");
+    if (scanId) {
+        loadScan(scanId);
+    }
+
     // Attach all listeners synchronously — nothing awaited here
     triageController = initialiseTriage({
         getQueue: () => state.triageQueue,
@@ -191,6 +214,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("help-overlay")?.addEventListener("click", () => toggleHelpModal(false));
 
     document.getElementById("scan-btn")?.addEventListener("click", runScan);
+    document.getElementById("radar-feed")?.addEventListener("click", (event) => {
+        const card = event.target.closest(".signal-card");
+        if (!card || event.target.closest("a") || event.target.closest("button")) return;
+        const title = card.querySelector("h3")?.textContent || card.querySelector("a")?.textContent || "";
+        const summary = card.querySelector("p")?.textContent || "";
+        const url = card.dataset.url || "";
+        openDetailPanel({ title, summary, url });
+    });
     document.getElementById("btn-view-grid")?.addEventListener("click", () => switchVisualMode("grid"));
     document.getElementById("btn-view-network")?.addEventListener("click", () => switchVisualMode("network"));
     document.getElementById("btn-generate-analysis")?.addEventListener("click", runAutoCluster);

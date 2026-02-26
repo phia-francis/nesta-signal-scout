@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import keywords as keyword_source
+from app import keywords as keyword_source
 
 
 class TaxonomyService:
