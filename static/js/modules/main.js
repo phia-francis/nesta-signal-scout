@@ -183,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("close-db-btn")?.addEventListener("click", () => toggleDatabaseModal(false));
     document.getElementById("db-overlay")?.addEventListener("click", () => toggleDatabaseModal(false));
     document.getElementById("refresh-db-btn")?.addEventListener("click", refreshDatabase);
+    document.getElementById("database-group")?.addEventListener("change", refreshDatabase);
 
     document.getElementById("help-btn")?.addEventListener("click", () => toggleHelpModal(true));
     document.getElementById("close-help-btn")?.addEventListener("click", () => toggleHelpModal(false));
