@@ -12,6 +12,7 @@ import {
     clearConsole,
     finishScan,
     renderClusterInsights,
+    renderResearchResult,
     renderSignals,
     showToast,
     startScan,
@@ -88,15 +89,30 @@ async function runScan() {
 
             if (feed) {
                 feed.innerHTML = "";
+
+                const modeTitles = {
+                    radar: "Mini Radar Results",
+                    research: "Deep Research Analysis",
+                    governance: "Governance & Policy Results",
+                };
+                feed.innerHTML = `<h2 class="font-display text-2xl font-bold text-nesta-navy mb-6 border-b border-nesta-sand pb-2">${modeTitles[state.currentMode] ?? "Scan Results"}</h2>`;
+
                 if (data.signals.length === 0) {
-                    feed.innerHTML = `
+                    feed.innerHTML += `
                         <div class="flex flex-col items-center justify-center p-12 text-center bg-nesta-sand/10 rounded-lg border border-nesta-sand border-dashed">
                             <h3 class="text-xl font-bold text-nesta-navy mb-2">No Novel Trends Found</h3>
                             <p class="text-nesta-navy/70 max-w-md">The agent filtered out results that were too old, irrelevant, or lacked strong evidence.</p>
                         </div>`;
                 } else {
-                    if (data.cluster_insights) renderClusterInsights(data.cluster_insights, feed);
-                    renderSignals(state.radarSignals, feed, topic);
+                    const resultsContainer = document.createElement("div");
+                    feed.appendChild(resultsContainer);
+
+                    if (state.currentMode === "research") {
+                        renderResearchResult(data, resultsContainer);
+                    } else {
+                        if (data.cluster_insights) renderClusterInsights(data.cluster_insights, feed);
+                        renderSignals(state.radarSignals, resultsContainer, topic);
+                    }
                 }
             }
         }
@@ -115,7 +131,12 @@ async function runScan() {
 function switchMode(mode) {
     state.currentMode = mode;
     document.querySelectorAll(".mode-toggle").forEach((button) => {
-        button.classList.toggle("active", button.dataset.mode === mode);
+        const isActive = button.dataset.mode === mode;
+        button.classList.toggle("active", isActive);
+        button.classList.toggle("bg-nesta-navy", isActive);
+        button.classList.toggle("text-white", isActive);
+        button.classList.toggle("bg-slate-100", !isActive);
+        button.classList.toggle("text-slate-600", !isActive);
     });
 
     const desc = document.getElementById("mode-description");
@@ -191,11 +212,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Attach all listeners synchronously — nothing awaited here
+    const handleTriage = async (signal, status) => {
+        await updateSignalStatus({ stopPropagation: () => {} }, signal.url, status);
+        state.triageQueue = state.triageQueue.filter((s) => s.url !== signal.url);
+        updateTriageBadge();
+    };
+
     triageController = initialiseTriage({
         getQueue: () => state.triageQueue,
-        onArchive: async (signal) => updateSignalStatus(signal.url, "Archived"),
-        onKeep: async (signal) => updateSignalStatus(signal.url, "New"),
-        onStar: async (signal) => updateSignalStatus(signal.url, "Starred"),
+        onArchive: async (signal) => handleTriage(signal, "Archived"),
+        onKeep: async (signal) => handleTriage(signal, "Active"),
+        onStar: async (signal) => handleTriage(signal, "Starred"),
+    });
+
+    document.getElementById("start-tour-btn")?.addEventListener("click", () => {
+        import("./guide.js").then((module) => module.startTour());
     });
 
     document.querySelectorAll(".mode-toggle").forEach((button) => {

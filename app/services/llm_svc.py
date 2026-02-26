@@ -467,7 +467,7 @@ RULES:
     containing an array of objects with these exact keys:
     - title: A concise, accurate title.
     - summary: A 2-sentence analytical summary of the trend.
-    - url: The exact URL from the input. Do not modify.
+    - url: The EXACT URL from the raw results input. DO NOT alter, truncate, or hallucinate this URL. Copy it character for character.
     - date: Publication date in YYYY-MM-DD format, if available. If the publication date is unknown, use null or omit this field.
     - score: Novelty/impact score from 1.0 to 10.0. Score higher for more recent signals.
 

@@ -128,14 +128,33 @@ export function createSignalCard(signal, context = "scan") {
         }
     }
 
-    // --- Footer: scores tooltip + action buttons ---
+    // Domain & country parsing
+    let domainName = "Unknown Source";
+    let country = "Global";
+
+    if (signal.url) {
+        try {
+            const urlObj = new URL(signal.url);
+            domainName = urlObj.hostname.replace(/^www\./, "");
+            const tld = domainName.split(".").pop().toLowerCase();
+            const countryMap = {
+                uk: "UK", au: "Australia", ca: "Canada",
+                de: "Germany", fr: "France", nz: "New Zealand",
+                gov: "US Gov", edu: "Academic",
+            };
+            country = countryMap[tld] ?? "Global";
+        } catch {
+            // Invalid URL — keep defaults
+        }
+    }
+
     const footer = document.createElement("footer");
     footer.className =
-        "mt-auto pt-3 border-t border-nesta-sand/50 flex items-center justify-between gap-3";
+        "mt-auto pt-3 border-t border-nesta-sand/50 flex flex-wrap items-center justify-between gap-3";
 
     const metrics = document.createElement("div");
-    metrics.className = "text-xs text-nesta-navy/70 cursor-help relative inline-block w-fit";
-    metrics.textContent = `Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
+    metrics.className = "text-xs text-nesta-navy/70 cursor-help relative inline-block";
+    metrics.innerHTML = `<strong>${domainName}</strong> <span class="text-slate-400">(${country})</span><br/>Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
     metrics.setAttribute(
         "data-tooltip",
         "AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency, and trend relevance."
