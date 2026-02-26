@@ -1,4 +1,4 @@
-import keywords
+from app import keywords
 from scripts import validate_keywords as vk
 
 

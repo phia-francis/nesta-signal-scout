@@ -10,7 +10,7 @@ sys.path.append(str(PROJECT_ROOT))
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
-from main import parse_source_date, is_date_within_time_filter
+from app.utils import parse_source_date, is_date_within_time_filter
 
 
 @pytest.mark.parametrize(

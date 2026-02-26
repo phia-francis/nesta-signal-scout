@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from functools import lru_cache
-from types import SimpleNamespace
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,30 +38,27 @@ class ChatRequest(BaseModel):
     scan_mode: str = "general"
 
 
-class _DummyCompletions:
-    def create(self, model: str, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> Any:
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="", tool_calls=[]))])
+async def get_sheet_records(sheet_service: SheetService, include_rejected: bool = True) -> list[dict[str, Any]]:
+    records = await sheet_service.get_all()
+    parsed: list[dict[str, Any]] = []
+    for record in records:
+        status = str(record.get("Status", "")).strip().lower()
+        if not include_rejected and status == "rejected":
+            continue
+        parsed.append({
+            "title": record.get("Title", ""),
+            "url": record.get("URL", ""),
+            "summary": record.get("Summary", ""),
+            "mission": record.get("Mission", ""),
+            "typology": record.get("Typology", ""),
+            "published_date": record.get("Source Date", ""),
+            "status": record.get("Status", ""),
+        })
+    return parsed
 
 
-class _DummyChat:
-    def __init__(self) -> None:
-        self.completions = _DummyCompletions()
-
-
-class _DummyClient:
-    def __init__(self) -> None:
-        self.chat = _DummyChat()
-
-
-client = _DummyClient()
-
-
-def get_sheet_records(include_rejected: bool = True) -> list[dict[str, Any]]:
-    return []
-
-
-def upsert_signal(payload: dict[str, Any]) -> None:
-    return None
+async def upsert_signal(sheet_service: SheetService, payload: dict[str, Any]) -> None:
+    await sheet_service.save_signals_batch([payload])
 
 
 @lru_cache(maxsize=32)
@@ -83,16 +80,24 @@ def build_allowed_keywords_menu(mission: str) -> str:
 
 
 @router.post("/chat")
-async def chat_endpoint(request: ChatRequest, stream: bool = False) -> dict[str, Any]:
+async def chat_endpoint(
+    request: ChatRequest,
+    stream: bool = False,
+    llm_service: LLMService = Depends(get_llm_service),
+    sheet_service: SheetService = Depends(get_sheet_service),
+) -> dict[str, Any]:
     desired_count = max(5, min(50, int(request.signal_count or 5)))
 
+    if not llm_service.client:
+        raise HTTPException(status_code=503, detail="OpenAI client is not configured")
+
     collected: list[dict[str, Any]] = []
-    seen_urls: set[str] = set(record.get("url", "") for record in get_sheet_records(include_rejected=True))
+    seen_urls: set[str] = set(record.get("url", "") for record in await get_sheet_records(sheet_service, include_rejected=True))
     attempts = 0
 
     while len(collected) < desired_count and attempts < 10:
         attempts += 1
-        response = client.chat.completions.create(
+        response = await llm_service.client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
@@ -105,20 +110,66 @@ async def chat_endpoint(request: ChatRequest, stream: bool = False) -> dict[str,
                 },
                 {"role": "user", "content": f"User query: {request.message}"},
             ],
-            tools=[],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_sheet_records",
+                        "description": "Fetch existing sheet records for duplicate checking.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "include_rejected": {"type": "boolean"}
+                            },
+                            "required": ["include_rejected"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "upsert_signal",
+                        "description": "Save a new signal payload to the sheet.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "payload": {"type": "object"}
+                            },
+                            "required": ["payload"],
+                            "additionalProperties": False
+                        }
+                    }
+                }
+            ],
         )
         tool_calls = getattr(response.choices[0].message, "tool_calls", []) or []
         if not tool_calls:
             break
 
         for tool_call in tool_calls:
-            if getattr(tool_call.function, "name", "") != "display_signal_card":
-                continue
+            tool_name = getattr(tool_call.function, "name", "")
             try:
-                payload = json.loads(tool_call.function.arguments)
+                arguments = json.loads(getattr(tool_call.function, "arguments", "{}"))
             except (TypeError, json.JSONDecodeError):
                 continue
 
+            if tool_name == "get_sheet_records":
+                include_rejected = bool(arguments.get("include_rejected", True))
+                records = await get_sheet_records(sheet_service, include_rejected=include_rejected)
+                seen_urls.update(record.get("url", "") for record in records if record.get("url"))
+                continue
+
+            if tool_name == "upsert_signal":
+                payload = arguments.get("payload", {})
+                if isinstance(payload, dict):
+                    await upsert_signal(sheet_service, payload)
+                continue
+
+            if tool_name != "display_signal_card":
+                continue
+
+            payload = arguments
             url = payload.get("url", "")
             if not url or url in seen_urls:
                 continue
@@ -137,7 +188,7 @@ async def chat_endpoint(request: ChatRequest, stream: bool = False) -> dict[str,
 
             seen_urls.add(url)
             collected.append(item)
-            await asyncio.to_thread(upsert_signal, item)
+            await upsert_signal(sheet_service, item)
             if len(collected) >= desired_count:
                 break
 

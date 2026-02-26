@@ -1,3 +1,5 @@
+import { handleThemeFilter } from './vis.js';
+
 const hostname = window.location.hostname;
 
 function resolveApiBaseUrl() {
@@ -79,7 +81,7 @@ export async function loadScan(scanId) {
       const container = document.getElementById('theme-chips-container');
       if (container) {
         const uiModule = await import('./ui.js');
-        uiModule.renderThemeChips(scanData.themes, container, () => {});
+        uiModule.renderThemeChips(scanData.themes, container, handleThemeFilter);
       }
     }
 

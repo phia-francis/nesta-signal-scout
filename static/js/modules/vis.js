@@ -113,7 +113,7 @@ function updateUrlWithScanId(scanId) {
   window.history.pushState({ scanId }, '', newUrl.toString());
 }
 
-function handleThemeFilter(theme) {
+export function handleThemeFilter(theme) {
   currentThemeFilter = theme;
 
   const feed = document.getElementById('radar-feed');
