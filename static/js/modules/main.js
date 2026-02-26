@@ -143,7 +143,7 @@ function switchVisualMode(mode) {
     document.getElementById("btn-view-network")?.classList.toggle("bg-white", mode === "network");
 }
 
-async function runAutoCluster() {
+function runAutoCluster() {
     if (!state.radarSignals.length) {
         showToast("No signals available to cluster yet.", "info");
         return;
