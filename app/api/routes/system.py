@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -40,7 +41,7 @@ async def get_saved_signals(
     sheet_service: SheetService = Depends(get_sheet_service)
 ) -> list[dict[str, Any]]:
     """Fetch all signals from the database."""
-    return await sheet_service.get_all()
+    return cast(list[dict[str, Any]], await sheet_service.get_all())
 
 
 @router.post("/saved")
@@ -65,7 +66,6 @@ async def update_signal_status(
             if not existing_signal:
                 # Create a minimal RawSignal object for persistence.
                 # This addresses the P1 issue of new starred signals not being persisted.
-                from datetime import datetime, timezone
                 minimal_signal: dict[str, Any] = {
                     "url": payload.url,
                     "status": payload.status,

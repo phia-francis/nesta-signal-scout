@@ -212,12 +212,21 @@ async function runAutoCluster() {
     if (!drawer || !container) return;
 
     drawer.classList.remove("hidden");
-    container.innerHTML = narratives
-        .map(
-            (narrative) =>
-                `<article class="bg-white border border-slate-200 p-4"><h4 class="font-bold text-sm text-nesta-navy">${narrative.title}</h4><p class="text-xs text-slate-600 mt-2">${narrative.count} signals</p></article>`
-        )
-        .join("");
+    container.innerHTML = "";
+    if (narratives.themes) {
+        narratives.themes.forEach((narrative) => {
+            const article = document.createElement("article");
+            article.className = "bg-white border border-slate-200 p-4";
+            const h4 = document.createElement("h4");
+            h4.className = "font-bold text-sm text-nesta-navy";
+            h4.textContent = narrative.name || "Untitled Theme";
+            const paragraph = document.createElement("p");
+            paragraph.className = "text-xs text-slate-600 mt-2";
+            paragraph.textContent = `${narrative.count || 0} signals`;
+            article.append(h4, paragraph);
+            container.appendChild(article);
+        });
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {

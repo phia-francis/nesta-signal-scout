@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from functools import lru_cache
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -148,6 +148,8 @@ async def chat_endpoint(
         if not tool_calls:
             break
 
+        request_time = datetime.now(timezone.utc)
+
         for tool_call in tool_calls:
             tool_name = getattr(tool_call.function, "name", "")
             try:
@@ -184,7 +186,7 @@ async def chat_endpoint(
                 "score": payload.get("score", 0),
                 "published_date": payload.get("published_date", ""),
             }
-            if not is_date_within_time_filter(item["published_date"], request.time_filter, datetime.now(timezone.utc)):
+            if not is_date_within_time_filter(item["published_date"], request.time_filter, request_time):
                 continue
 
             seen_urls.add(url)
@@ -217,7 +219,7 @@ async def run_radar_scan(
                 )
             except Exception as save_err:
                 logger.warning("Failed to persist radar signals to Sheets: %s", save_err)
-        return result
+        return cast(dict[str, Any], result)
     except Exception as e:
         logger.exception("Unexpected error while running radar scan")
         raise HTTPException(
@@ -288,7 +290,7 @@ async def get_scan(
 
         if not scan_data:
             raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found or has expired")
-        return scan_data
+        return cast(dict[str, Any], scan_data)
 
     except HTTPException:
         raise
