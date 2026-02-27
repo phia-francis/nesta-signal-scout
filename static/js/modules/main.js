@@ -107,10 +107,8 @@ async function runScan() {
                     const resultsContainer = document.createElement("div");
                     feed.appendChild(resultsContainer);
 
-                    if (state.currentMode === "research") {
-                        renderResearchResult(data, resultsContainer);
-                    } else {
-                        if (data.cluster_insights) renderClusterInsights(data.cluster_insights, feed);
+                        renderSignals(data.signals, resultsContainer, topic);
+                        if (data.cluster_insights) renderClusterInsights(data.cluster_insights, resultsContainer);
                         renderSignals(state.radarSignals, resultsContainer, topic);
                     }
                 }
@@ -213,7 +211,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Attach all listeners synchronously — nothing awaited here
     const handleTriage = async (signal, status) => {
-        await updateSignalStatus({ stopPropagation: () => {} }, signal.url, status);
+const handleTriage = async (signal, status) => {
+        await updateSignalStatus(signal.url, status);
         state.triageQueue = state.triageQueue.filter((s) => s.url !== signal.url);
         updateTriageBadge();
     };

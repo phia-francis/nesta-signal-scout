@@ -245,12 +245,22 @@ class SheetService:
         """Fetch a specific signal by its exact URL."""
         if not url:
             return None
-        all_records = await self.get_all()
-        for record in all_records:
-            record_url = record.get("url") or record.get("URL") or ""
-            if record_url.strip() == url.strip():
-                return record
-        return None
+        try:
+            sheet = self.get_database_sheet()
+            cell = await asyncio.to_thread(sheet.find, url.strip(), in_column=self.URL_COLUMN_INDEX)
+            if not cell:
+                return None
+            
+            headers = self._normalise_headers(await asyncio.to_thread(sheet.row_values, 1))
+            row_values = await asyncio.to_thread(sheet.row_values, cell.row)
+            
+            padded_row = row_values + [""] * (len(headers) - len(row_values))
+            return dict(zip(headers, padded_row))
+        except gspread.exceptions.CellNotFound:
+            return None
+        except gspread.exceptions.GSpreadException as sheet_error:
+            logging.error(f"Error fetching signal by URL '{url}': {sheet_error}")
+            raise ServiceError(f"Failed to fetch signal by URL: {sheet_error}") from sheet_error
 
     async def flush_pending_sync(self) -> None:
         """Force-flush any queued signals, including partial batches."""
