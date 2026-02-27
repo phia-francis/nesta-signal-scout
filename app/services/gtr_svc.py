@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Any, cast
 
 import httpx
 from dateutil import parser as date_parser
@@ -22,19 +23,19 @@ class GatewayResearchService:
     BASE_URL = "https://gtr.ukri.org/gtr/api"
 
     @staticmethod
-    def _parse_project_date(project: dict) -> datetime | None:
+    def _parse_project_date(project: dict[str, Any]) -> datetime | None:
         for key in ("start", "startDate", "start_date", "firstAuthorised"):
             value = project.get(key)
             if value:
                 try:
-                    parsed = date_parser.parse(str(value))
+                    parsed = cast(datetime, date_parser.parse(str(value)))
                     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
                 except (ValueError, TypeError, date_parser.ParserError):
                     continue
         return None
 
     @retry_with_backoff(retries=3, delay=1.0)
-    async def fetch_projects(self, query: str, min_start_date: datetime) -> list[dict]:
+    async def fetch_projects(self, query: str, min_start_date: datetime) -> list[dict[str, Any]]:
         """Fetch project data and normalise it for the scan pipeline."""
         if not query:
             logger.warning("GtR query missing.")
@@ -65,11 +66,11 @@ class GatewayResearchService:
             )
             return []
 
-        projects = payload.get("project", [])
+        projects = payload.get("project", []) if isinstance(payload, dict) else []
         if not projects:
             return []
 
-        normalised_projects: list[dict] = []
+        normalised_projects: list[dict[str, Any]] = []
         for project in projects:
             project_date = self._parse_project_date(project)
             if project_date and project_date < min_start_date:

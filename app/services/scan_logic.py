@@ -303,7 +303,7 @@ class ScanOrchestrator:
 
         search_responses = await asyncio.gather(*search_tasks, return_exceptions=True)
         for i, response in enumerate(search_responses):
-            if isinstance(response, Exception):
+            if isinstance(response, BaseException):
                 logging.warning("Search failed for query '%s': %s", generated_queries[i], response)
             elif response:
                 for item in response:
@@ -769,8 +769,9 @@ class ScanOrchestrator:
     def _parse_date(value: Any) -> datetime | None:
         if not value: return None
         try:
-            parsed: Any = date_parser.parse(str(value))
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            parsed = date_parser.parse(str(value))
+            parsed_dt = parsed if isinstance(parsed, datetime) else datetime.fromisoformat(str(parsed))
+            return parsed_dt if parsed_dt.tzinfo else parsed_dt.replace(tzinfo=timezone.utc)
         except (ValueError, TypeError, date_parser.ParserError):
             return None
 

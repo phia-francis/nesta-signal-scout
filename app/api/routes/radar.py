@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from functools import lru_cache
 
 from typing import Any
@@ -183,7 +184,7 @@ async def chat_endpoint(
                 "score": payload.get("score", 0),
                 "published_date": payload.get("published_date", ""),
             }
-            if not is_date_within_time_filter(item["published_date"], request.time_filter):
+            if not is_date_within_time_filter(item["published_date"], request.time_filter, datetime.now(timezone.utc)):
                 continue
 
             seen_urls.add(url)
@@ -200,7 +201,7 @@ async def run_radar_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
     sheet_service: SheetService = Depends(get_sheet_service),
-):
+ ) -> dict[str, Any]:
     try:
         existing_urls = await sheet_service.get_existing_urls()
         result = await orchestrator.execute_scan(
@@ -235,7 +236,7 @@ async def cluster_signals(
     body: ClusterRequest,
     llm_service: LLMService = Depends(get_llm_service),
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         if not body.signals or len(body.signals) == 0:
             return {"themes": [], "error": "No signals provided"}
@@ -281,7 +282,7 @@ async def cluster_signals(
 async def get_scan(
     scan_id: str,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         scan_data = storage.get_scan(scan_id)
 
@@ -300,7 +301,7 @@ async def get_scan(
 async def list_scans(
     limit: int = 50,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         scans = storage.list_scans(limit=limit)
         return {"scans": scans, "count": len(scans)}
@@ -313,7 +314,7 @@ async def list_scans(
 async def delete_scan(
     scan_id: str,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, str]:
     try:
         success = storage.delete_scan(scan_id)
 
@@ -332,7 +333,7 @@ async def delete_scan(
 async def cleanup_old_scans(
     days: int = 30,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         deleted_count = storage.cleanup_old_scans(days=days)
         return {

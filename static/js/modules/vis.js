@@ -45,7 +45,9 @@ export function generateSparklineElement(dataPoints) {
 }
 
 export function renderNetworkGraph(signals) {
-  const container = document.getElementById('signal-network');
+  const container =
+    document.getElementById('cluster-network-canvas') ||
+    document.getElementById('signal-network');
   if (!container || !window.vis) return;
 
   const nodes = new window.vis.DataSet(
@@ -222,4 +224,9 @@ export function setupViewToggle() {
       matrixModule.renderHorizonMatrix(signalsToShow);
     });
   });
+}
+
+
+export function initNetwork(signals) {
+  renderNetworkGraph(signals);
 }

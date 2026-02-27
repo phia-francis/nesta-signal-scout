@@ -5,12 +5,12 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, cast
 import uuid
 import fcntl
 
 import gspread
-from google.oauth2.service_account import Credentials
+from google.oauth2.service_account import Credentials  # type: ignore[import-untyped]
 
 from functools import lru_cache
 
@@ -37,7 +37,7 @@ class ScanStorage:
         self.sheets_client = sheets_client
         self.spreadsheet_id = spreadsheet_id
     
-    def _get_worksheet(self) -> Optional[gspread.Worksheet]:
+    def _get_worksheet(self) -> gspread.Worksheet | None:
         """Get or create the Saved_Scans worksheet."""
         if not self.sheets_client or not self.spreadsheet_id:
             return None
@@ -76,7 +76,7 @@ class ScanStorage:
         except Exception as e:
             logger.error(f"Failed to save scan {scan_id} to Sheets: {e}")
     
-    def _get_from_sheets(self, scan_id: str) -> Optional[dict[str, Any]]:
+    def _get_from_sheets(self, scan_id: str) -> dict[str, Any] | None:
         """Retrieve scan from Google Sheets using batch column fetch."""
         worksheet = self._get_worksheet()
         if not worksheet:
@@ -90,7 +90,9 @@ class ScanStorage:
             row = worksheet.row_values(row_index)
             if len(row) >= 5:
                 payload = json.loads(row[4])
-                return payload
+                if isinstance(payload, dict):
+                    return cast(dict[str, Any], payload)
+                return None
             return None
         except Exception as e:
             logger.error(f"Failed to load scan {scan_id} from Sheets: {e}")
@@ -159,9 +161,10 @@ class ScanStorage:
                     fcntl.flock(f.fileno(), fcntl.LOCK_SH)
                     scan_data = json.load(f)
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-                
-                logger.info(f"Retrieved scan {scan_id} from local cache")
-                return scan_data
+
+                if isinstance(scan_data, dict):
+                    logger.info(f"Retrieved scan {scan_id} from local cache")
+                    return cast(dict[str, Any], scan_data)
                 
             except Exception as e:
                 logger.error(f"Failed to load scan {scan_id} from file: {e}")
@@ -237,15 +240,19 @@ class ScanStorage:
                 try:
                     with open(scan_file, 'r') as f:
                         scan_data = json.load(f)
-                    
+
+                    if not isinstance(scan_data, dict):
+                        continue
+                    scan_data_dict = cast(dict[str, Any], scan_data)
+
                     # Return metadata only
                     scans.append({
-                        "scan_id": scan_data["scan_id"],
-                        "query": scan_data["query"],
-                        "mode": scan_data["mode"],
-                        "signal_count": scan_data.get("signal_count", 0),
-                        "theme_count": len(scan_data.get("themes", [])),
-                        "created_at": scan_data["created_at"]
+                        "scan_id": scan_data_dict["scan_id"],
+                        "query": scan_data_dict["query"],
+                        "mode": scan_data_dict["mode"],
+                        "signal_count": scan_data_dict.get("signal_count", 0),
+                        "theme_count": len(scan_data_dict.get("themes", [])),
+                        "created_at": scan_data_dict["created_at"]
                     })
                 except Exception as e:
                     logger.warning(f"Failed to read scan file {scan_file}: {e}")
@@ -292,13 +299,16 @@ class ScanStorage:
                 try:
                     with open(scan_file, 'r') as f:
                         scan_data = json.load(f)
-                    
-                    created_at = datetime.fromisoformat(scan_data["created_at"])
-                    
+
+                    if not isinstance(scan_data, dict):
+                        continue
+                    scan_data_dict = cast(dict[str, Any], scan_data)
+                    created_at = datetime.fromisoformat(str(scan_data_dict["created_at"]))
+
                     if created_at < cutoff:
                         scan_file.unlink()
                         deleted_count += 1
-                        logger.info(f"Deleted old scan {scan_data['scan_id']}")
+                        logger.info(f"Deleted old scan {scan_data_dict['scan_id']}")
                         
                 except Exception as e:
                     logger.warning(f"Failed to check/delete scan {scan_file}: {e}")

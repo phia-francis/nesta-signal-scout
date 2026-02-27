@@ -8,11 +8,9 @@ import {
 import { loadScan, shareCurrentScan, state } from "./state.js";
 import { initialiseTriage } from "./triage.js";
 import {
-    appendConsoleLog,
     clearConsole,
     finishScan,
     renderClusterInsights,
-    renderResearchResult,
     renderSignals,
     showToast,
     startScan,
@@ -30,12 +28,13 @@ const MODE_TITLES = {
     governance: "Governance & Policy Results",
 };
 
-// --- Modal system ---
-
 function toggleDatabaseModal(show) {
-    // 'open' matches styles.css (.modal-content.open)
-    document.getElementById("db-modal")?.classList.toggle("open", show);
-    document.getElementById("db-overlay")?.classList.toggle("open", show);
+    const modal = document.getElementById("db-modal");
+    const overlay = document.getElementById("db-overlay");
+    modal?.classList.toggle("open", show);
+    modal?.classList.toggle("active", show);
+    overlay?.classList.toggle("open", show);
+    overlay?.classList.toggle("active", show);
     if (show) refreshDatabase();
 }
 
@@ -44,33 +43,72 @@ function toggleHelpModal(show) {
     document.getElementById("help-overlay")?.classList.toggle("open", show);
 }
 
-// --- Database ---
-
 async function refreshDatabase() {
+    const databaseGrid = document.getElementById("database-grid");
+    const refreshBtn = document.getElementById("refresh-db-btn");
+    const originalBtnText = refreshBtn?.textContent || "Refresh";
+
     try {
-        const databaseGrid = document.getElementById("database-grid");
         const groupByValue = document.getElementById("database-group")?.value || "none";
         const groupBy = groupByValue === "none" ? null : groupByValue;
+
+        if (refreshBtn) {
+            refreshBtn.textContent = "Refreshing...";
+            refreshBtn.setAttribute("disabled", "true");
+            refreshBtn.classList.add("opacity-50", "cursor-not-allowed");
+        }
 
         if (databaseGrid && !databaseGrid.innerHTML.trim()) {
             databaseGrid.innerHTML = '<p class="text-slate-400 p-4">Loading vault...</p>';
         }
 
-        state.databaseItems = await fetchSavedSignals();
+        const latestSignals = await fetchSavedSignals();
+        state.databaseItems = latestSignals;
         renderSignals(state.databaseItems, databaseGrid, "database", groupBy);
     } catch (error) {
         console.error("Failed to refresh database:", error);
         showToast("Could not load database.", "error");
+    } finally {
+        if (refreshBtn) {
+            refreshBtn.textContent = originalBtnText;
+            refreshBtn.removeAttribute("disabled");
+            refreshBtn.classList.remove("opacity-50", "cursor-not-allowed");
+        }
     }
 }
 
-// --- Triage & scanning ---
+
+function setupDatabaseAutoSync() {
+    const dbModal = document.getElementById("db-modal");
+    if (!dbModal || typeof MutationObserver === "undefined") return;
+
+    let wasVisible = dbModal.classList.contains("open") || dbModal.classList.contains("active");
+    const observer = new MutationObserver(() => {
+        const isVisible = dbModal.classList.contains("open") || dbModal.classList.contains("active");
+        if (!wasVisible && isVisible) {
+            refreshDatabase();
+        }
+        wasVisible = isVisible;
+    });
+
+    observer.observe(dbModal, { attributes: true, attributeFilter: ["class"] });
+}
 
 function updateTriageBadge() {
     const count = document.getElementById("new-signal-count");
     const triageButton = document.getElementById("btn-triage");
     if (count) count.textContent = String(state.triageQueue.length);
     if (triageButton) triageButton.classList.toggle("hidden", state.triageQueue.length === 0);
+}
+
+function ensureClusterMapShell() {
+    const feed = document.getElementById("radar-feed");
+    if (!feed) return;
+
+    const toggles = document.getElementById("view-toggles");
+    const networkContainer = document.getElementById("view-network-container");
+    if (toggles) toggles.classList.remove("hidden");
+    if (networkContainer) networkContainer.classList.add("hidden");
 }
 
 async function runScan() {
@@ -90,12 +128,11 @@ async function runScan() {
 
         if (data?.signals) {
             state.radarSignals = data.signals;
+            state.globalSignalsArray = data.signals;
             state.triageQueue = data.signals.slice();
             updateTriageBadge();
 
             if (feed) {
-                feed.innerHTML = "";
-
                 feed.innerHTML = `<h2 class="font-display text-2xl font-bold text-nesta-navy mb-6 border-b border-nesta-sand pb-2">${MODE_TITLES[state.currentMode] ?? "Scan Results"}</h2>`;
 
                 if (data.signals.length === 0) {
@@ -105,13 +142,11 @@ async function runScan() {
                             <p class="text-nesta-navy/70 max-w-md">The agent filtered out results that were too old, irrelevant, or lacked strong evidence.</p>
                         </div>`;
                 } else {
+                    ensureClusterMapShell();
                     const resultsContainer = document.createElement("div");
                     feed.appendChild(resultsContainer);
-
-                        renderSignals(data.signals, resultsContainer, topic);
-                        if (data.cluster_insights) renderClusterInsights(data.cluster_insights, resultsContainer);
-                        renderSignals(state.radarSignals, resultsContainer, topic);
-                    }
+                    renderSignals(data.signals, resultsContainer, topic);
+                    if (data.cluster_insights) renderClusterInsights(data.cluster_insights, resultsContainer);
                 }
             }
         }
@@ -124,8 +159,6 @@ async function runScan() {
         finishScan();
     }
 }
-
-// --- View & mode ---
 
 function switchMode(mode) {
     state.currentMode = mode;
@@ -150,10 +183,11 @@ function switchMode(mode) {
 }
 
 function switchVisualMode(mode) {
-    const networkContainer =
-        document.getElementById("view-network-container") ??
-        document.getElementById("cluster-map-wrapper");
+    const toggles = document.getElementById("view-toggles");
+    const networkContainer = document.getElementById("view-network-container") ?? document.getElementById("cluster-map-wrapper");
     if (!networkContainer) return;
+
+    if (toggles) toggles.classList.remove("hidden");
 
     if (mode === "network") {
         networkContainer.classList.remove("hidden");
@@ -173,27 +207,25 @@ async function runAutoCluster() {
     }
     showToast("Clustering in progress...", "info");
     const narratives = await clusterSignals(state.radarSignals);
-    const drawer = document.getElementById('narrative-drawer');
-    const container = document.getElementById('narrative-container');
+    const drawer = document.getElementById("narrative-drawer");
+    const container = document.getElementById("narrative-container");
     if (!drawer || !container) return;
 
-    drawer.classList.remove('hidden');
+    drawer.classList.remove("hidden");
     container.innerHTML = narratives
         .map(
             (narrative) =>
                 `<article class="bg-white border border-slate-200 p-4"><h4 class="font-bold text-sm text-nesta-navy">${narrative.title}</h4><p class="text-xs text-slate-600 mt-2">${narrative.count} signals</p></article>`
         )
-        .join('');
+        .join("");
 }
 
-// --- Initialisation ---
-
 document.addEventListener("DOMContentLoaded", () => {
-
     setupViewToggle();
+    setupDatabaseAutoSync();
+    window.refreshDatabase = refreshDatabase;
 
-    const closeDetailBtn = document.getElementById("close-detail-panel");
-    closeDetailBtn?.addEventListener("click", () => closeDetailPanel());
+    document.getElementById("close-detail-panel")?.addEventListener("click", () => closeDetailPanel());
     document.getElementById("detail-overlay")?.addEventListener("click", () => closeDetailPanel());
 
     document.getElementById("share-scan-btn")?.addEventListener("click", async () => {
@@ -206,13 +238,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const params = new URLSearchParams(window.location.search);
     const scanId = params.get("scan");
-    if (scanId) {
-        loadScan(scanId);
-    }
+    if (scanId) loadScan(scanId);
 
-    // Attach all listeners synchronously — nothing awaited here
     const handleTriage = async (signal, status) => {
-const handleTriage = async (signal, status) => {
         await updateSignalStatus(signal.url, status);
         state.triageQueue = state.triageQueue.filter((s) => s.url !== signal.url);
         updateTriageBadge();
@@ -236,7 +264,9 @@ const handleTriage = async (signal, status) => {
     document.getElementById("open-db-btn")?.addEventListener("click", () => toggleDatabaseModal(true));
     document.getElementById("close-db-btn")?.addEventListener("click", () => toggleDatabaseModal(false));
     document.getElementById("db-overlay")?.addEventListener("click", () => toggleDatabaseModal(false));
-    document.getElementById("refresh-db-btn")?.addEventListener("click", refreshDatabase);
+    document.getElementById("refresh-db-btn")?.addEventListener("click", async () => {
+        await refreshDatabase();
+    });
     document.getElementById("database-group")?.addEventListener("change", refreshDatabase);
 
     document.getElementById("help-btn")?.addEventListener("click", () => toggleHelpModal(true));
@@ -249,10 +279,7 @@ const handleTriage = async (signal, status) => {
         const card = event.target.closest(".signal-card");
         if (!card || event.target.closest("a") || event.target.closest("button")) return;
         const url = card.dataset.url || "";
-        const fullSignal =
-            (state.radarSignals ?? state.globalSignalsArray ?? []).find(
-                (s) => (s.url ?? s.URL) === url
-            );
+        const fullSignal = (state.radarSignals ?? state.globalSignalsArray ?? []).find((s) => (s.url ?? s.URL) === url);
         if (fullSignal) openDetailPanel(fullSignal);
     });
     document.getElementById("btn-view-grid")?.addEventListener("click", () => switchVisualMode("grid"));
@@ -265,7 +292,6 @@ const handleTriage = async (signal, status) => {
     switchVisualMode("grid");
     updateTriageBadge();
 
-    // Non-blocking background initialisation
     (async () => {
         try {
             await wakeServer();

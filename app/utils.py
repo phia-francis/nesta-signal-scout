@@ -6,8 +6,8 @@ import logging
 import re
 import socket
 from datetime import datetime
-from typing import Optional, Tuple
-from urllib.parse import urlparse, urlunparse
+from typing import Optional, cast
+from urllib.parse import ParseResult, urlparse, urlunparse
 
 from dateutil.relativedelta import relativedelta
 from dateutil import parser
@@ -77,7 +77,7 @@ def normalize_url_for_deduplication(url: Optional[str]) -> str:
     return cleaned.rstrip("/")
 
 
-def validate_url_security(url: str) -> Tuple[object, str, str]:
+def validate_url_security(url: str) -> tuple[ParseResult, str, str]:
     try:
         parsed = urlparse(url)
     except Exception as exc:
@@ -108,7 +108,7 @@ def validate_url_security(url: str) -> Tuple[object, str, str]:
         ):
             raise ValueError("Non-public IP access blocked")
 
-    ip = addr_info[0][4][0]
+    ip = cast(str, addr_info[0][4][0])
     return parsed, ip, hostname
 
 
@@ -159,7 +159,7 @@ def parse_source_date(date_str: Optional[str]) -> Optional[datetime]:
         return datetime(int(year_match.group(1)), 1, 1)
 
     try:
-        return parser.parse(cleaned, fuzzy=True, dayfirst=True, yearfirst=True)
+        return cast(datetime, parser.parse(cleaned, fuzzy=True, dayfirst=True, yearfirst=True))
     except (ValueError, TypeError, OverflowError):
         return None
 
@@ -180,5 +180,5 @@ def is_date_within_time_filter(source_date: Optional[str], time_filter: str, req
     if parsed > request_date:
         return False
     offset = TIME_FILTER_OFFSETS.get(time_filter, TIME_FILTER_OFFSETS["Past Month"])
-    cutoff_date = request_date - offset
-    return parsed >= cutoff_date
+    cutoff_date = cast(datetime, request_date - offset)
+    return bool(parsed >= cutoff_date)

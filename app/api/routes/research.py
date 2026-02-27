@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -19,7 +20,7 @@ async def run_research_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
     sheet_service: SheetService = Depends(get_sheet_service),
-):
+) -> dict[str, Any]:
     try:
         existing_urls = await sheet_service.get_existing_urls()
         result = await orchestrator.execute_scan(

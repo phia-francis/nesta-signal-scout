@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.dependencies import get_sheet_service, get_search_service
+from app.core.exceptions import RateLimitError
 from app.services.sheet_svc import SheetService
-from app.services.search_svc import SearchService, ServiceError, RateLimitError
+from app.services.search_svc import SearchService, ServiceError
 
 router = APIRouter(prefix="/api", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ async def get_saved_signals(
 async def update_signal_status(
     payload: UpdateStatusRequest,
     sheet_service: SheetService = Depends(get_sheet_service)
-):
+) -> dict[str, str]:
     """
     Update the status of a signal (e.g. Star/Archive).
     """
@@ -65,19 +66,18 @@ async def update_signal_status(
                 # Create a minimal RawSignal object for persistence.
                 # This addresses the P1 issue of new starred signals not being persisted.
                 from datetime import datetime, timezone
-                from app.domain.models import RawSignal
-                minimal_signal = RawSignal(
-                    url=payload.url,
-                    status=payload.status,
-                    title=f"Starred: {payload.url}",
-                    summary="Signal starred by user, full details not available at time of starring.",
-                    source="User Action",
-                    mission="General",
-                    date=datetime.now(timezone.utc),
-                    raw_score=0.0,
-                    metadata={"starred_from_frontend": True},
-                    is_novel=False
-                )
+                minimal_signal: dict[str, Any] = {
+                    "url": payload.url,
+                    "status": payload.status,
+                    "title": f"Starred: {payload.url}",
+                    "summary": "Signal starred by user, full details not available at time of starring.",
+                    "source": "User Action",
+                    "mission": "General",
+                    "date": datetime.now(timezone.utc),
+                    "raw_score": 0.0,
+                    "metadata": {"starred_from_frontend": True},
+                    "is_novel": False,
+                }
                 await sheet_service.add_signal(minimal_signal)
 
         return {"status": "success", "message": f"Signal marked as {payload.status}"}
