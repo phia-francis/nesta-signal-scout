@@ -28,6 +28,14 @@ const MODE_TITLES = {
     governance: "Governance & Policy Results",
 };
 
+const MODE_CONFIG = {
+    radar: { label: "RUN MINI RADAR", color: "bg-nesta-blue" },
+    research: { label: "RUN DEEP RESEARCH", color: "bg-nesta-purple" },
+    governance: { label: "RUN GOVERNANCE RADAR", color: "bg-nesta-green" },
+};
+
+const MODE_COLORS = ["bg-nesta-blue", "bg-nesta-purple", "bg-nesta-green"];
+
 function toggleDatabaseModal(show) {
     const modal = document.getElementById("db-modal");
     const overlay = document.getElementById("db-overlay");
@@ -172,6 +180,22 @@ function switchMode(mode) {
     });
 
     const desc = document.getElementById("mode-description");
+    const scanBtn = document.getElementById("scan-btn");
+    const feed = document.getElementById("radar-feed");
+    const modeSettings = MODE_CONFIG[mode] ?? MODE_CONFIG.radar;
+
+    if (scanBtn) {
+        scanBtn.textContent = modeSettings.label;
+        // Wipe all dynamic mode classes before applying the active mode color.
+        scanBtn.classList.remove(...MODE_COLORS);
+        scanBtn.classList.add(modeSettings.color);
+    }
+
+    state.radarSignals = [];
+    if (feed) {
+        feed.innerHTML = "";
+    }
+
     if (desc) {
         const descriptions = {
             radar: "<strong>Mini Radar:</strong> Fast web &amp; social trends.",
@@ -196,8 +220,14 @@ function switchVisualMode(mode) {
         networkContainer.classList.add("hidden");
     }
 
-    document.getElementById("btn-view-grid")?.classList.toggle("bg-white", mode === "grid");
-    document.getElementById("btn-view-network")?.classList.toggle("bg-white", mode === "network");
+    ["btn-view-grid", "btn-view-network"].forEach((id) => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        // Wipe dynamic color utilities so active/inactive states never stack.
+        button.classList.remove("bg-nesta-navy", "text-white", "bg-slate-200", "text-slate-800");
+        const isActive = (id === "btn-view-grid" && mode === "grid") || (id === "btn-view-network" && mode === "network");
+        button.classList.add(...(isActive ? ["bg-nesta-navy", "text-white"] : ["bg-slate-200", "text-slate-800"]));
+    });
 }
 
 async function runAutoCluster() {
@@ -226,6 +256,75 @@ async function runAutoCluster() {
             article.append(h4, paragraph);
             container.appendChild(article);
         });
+
+        try {
+            const response = await fetch(`${state.apiBaseUrl}/trends`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    generated_at: new Date().toISOString(),
+                    themes: narratives.themes.map((theme) => ({
+                        ...theme,
+                        analysis_text: theme.analysis_text || theme.description || "",
+                    })),
+                    full_analysis_text: narratives.full_analysis_text || narratives.analysis || "",
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Trend save failed with ${response.status}`);
+            }
+        } catch (error) {
+            console.warn("Failed to save trends:", error);
+            showToast("Trend analysis generated, but saving trends failed.", "error");
+        }
+    }
+}
+
+async function fetchAndShowTrends() {
+    const modal = document.getElementById("trends-modal");
+    const content = document.getElementById("trends-modal-content");
+    if (!modal || !content) return;
+
+    content.innerHTML = '<p class="text-slate-500">Loading trends…</p>';
+    modal.classList.remove("hidden");
+
+    try {
+        const response = await fetch(`${state.apiBaseUrl}/trends`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch trends: ${response.status}`);
+        }
+
+        const trends = await response.json();
+        content.innerHTML = "";
+
+        if (!Array.isArray(trends) || trends.length === 0) {
+            content.innerHTML = '<p class="text-slate-500">No historical trends available yet.</p>';
+            return;
+        }
+
+        trends.forEach((trend) => {
+            const article = document.createElement("article");
+            article.className = "border border-slate-200 rounded-lg p-4 bg-slate-50";
+
+            const date = document.createElement("p");
+            date.className = "text-xs font-bold uppercase tracking-wide text-slate-500";
+            date.textContent = trend.date_generated || "Unknown date";
+
+            const themeName = document.createElement("h3");
+            themeName.className = "text-lg font-bold text-nesta-navy mt-1";
+            themeName.textContent = trend.trend_theme || "Untitled Theme";
+
+            const analysis = document.createElement("p");
+            analysis.className = "text-sm text-slate-700 mt-2 whitespace-pre-wrap";
+            analysis.textContent = trend.analysis_text || "No analysis text available.";
+
+            article.append(date, themeName, analysis);
+            content.appendChild(article);
+        });
+    } catch (error) {
+        console.error(error);
+        content.innerHTML = '<p class="text-red-600">Unable to load trends right now.</p>';
     }
 }
 
@@ -262,7 +361,8 @@ document.addEventListener("DOMContentLoaded", () => {
         onStar: async (signal) => handleTriage(signal, "Starred"),
     });
 
-    document.getElementById("start-tour-btn")?.addEventListener("click", () => {
+    document.getElementById("start-tour-btn")?.addEventListener("click", (e) => {
+        e.stopPropagation();
         import("./guide.js").then((module) => module.startTour());
     });
 
@@ -295,6 +395,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-view-network")?.addEventListener("click", () => switchVisualMode("network"));
     document.getElementById("btn-generate-analysis")?.addEventListener("click", runAutoCluster);
     document.getElementById("btn-regroup-clusters")?.addEventListener("click", runAutoCluster);
+    document.getElementById("btn-show-trends")?.addEventListener("click", fetchAndShowTrends);
+    document.getElementById("btn-close-trends")?.addEventListener("click", () => {
+        document.getElementById("trends-modal")?.classList.add("hidden");
+    });
+    document.getElementById("trends-modal-overlay")?.addEventListener("click", () => {
+        document.getElementById("trends-modal")?.classList.add("hidden");
+    });
     document.getElementById("btn-triage")?.addEventListener("click", () => triageController?.open());
 
     switchMode("radar");

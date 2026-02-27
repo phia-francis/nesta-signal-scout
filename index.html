@@ -85,9 +85,11 @@
                         </select>
                         <input type="text" id="query-input" placeholder="Enter a topic (e.g., 'Alternative Proteins')"
                                class="scan-input flex-1 border-2 rounded-lg px-6 text-lg font-bold outline-none transition-colors">
-                        <button id="scan-btn" class="px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform"
-                                style="background-color: var(--btn-accent); color: var(--btn-text);">
+                        <button id="scan-btn" class="px-8 rounded-lg font-bold tracking-wide shadow-hard hover:translate-y-[-2px] transition-transform bg-nesta-blue text-white">
                             RUN MINI RADAR
+                        </button>
+                        <button id="btn-show-trends" class="px-6 rounded-lg font-bold tracking-wide bg-nesta-purple text-white hover:bg-nesta-navy transition-colors">
+                            Show Trends
                         </button>
                     </div>
 
@@ -318,5 +320,18 @@
     <script src="static/js/vendor/marked.min.js"></script>
     <script src="static/js/modules/guide.js" type="module"></script>
     <script type="module" src="static/js/modules/main.js"></script>
+    <div id="trends-modal" class="hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="trends-modal-title">
+        <div id="trends-modal-overlay" class="absolute inset-0 bg-slate-900/60" aria-hidden="true"></div>
+        <div class="relative z-10 flex items-center justify-center min-h-full p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+                <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+                    <h2 id="trends-modal-title" class="text-2xl font-display font-bold text-nesta-navy">Historical Trends</h2>
+                    <button id="btn-close-trends" type="button" class="px-3 py-1.5 rounded-md bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors">Close</button>
+                </div>
+                <div id="trends-modal-content" class="p-6 overflow-y-auto space-y-4" tabindex="0" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

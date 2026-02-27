@@ -1,16 +1,3 @@
-export function escapeHtml(text) {
-  if (text === null || text === undefined) return '';
-  const str = String(text);
-  const escapeMap = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return str.replace(/[&<>"']/g, (ch) => escapeMap[ch]);
-}
-
 export function getTypologyTooltip(type) {
   const definitions = {
     'Hidden Gem': 'High investment activity but low public attention. A prime innovation opportunity.',
@@ -19,4 +6,29 @@ export function getTypologyTooltip(type) {
     Nascent: 'Low activity and low attention. Early stage or weak signal.',
   };
   return definitions[type] || 'Signal classification based on activity versus attention.';
+}
+
+export function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  const str = String(unsafe);
+  const escapeMap = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return str.replace(/[&<>"']/g, (char) => escapeMap[char]);
+}
+
+export function sanitizeUrl(url) {
+  if (!url) return '#';
+
+  try {
+    const parsedUrl = new URL(String(url).trim(), window.location.origin);
+    const allowedProtocols = ['http:', 'https:', 'mailto:'];
+    return allowedProtocols.includes(parsedUrl.protocol) ? parsedUrl.href : '#';
+  } catch {
+    return '#';
+  }
 }

@@ -20,6 +20,12 @@ class ClusterAnalysisRequest(BaseModel):
     mission: str = "General"
 
 
+class TrendsPayload(BaseModel):
+    generated_at: str | None = None
+    themes: list[dict[str, Any]]
+    full_analysis_text: str | None = None
+
+
 @router.post("/cluster/analyze")
 async def generate_cluster_analysis(
     request: ClusterAnalysisRequest,
@@ -38,3 +44,27 @@ async def generate_cluster_analysis(
     except Exception:
         logger.exception("Failed to generate cluster analysis")
         raise HTTPException(status_code=500, detail="Failed to generate cluster analysis")
+
+
+@router.post("/trends")
+async def save_trends(
+    payload: TrendsPayload,
+    sheet_service: SheetService = Depends(get_sheet_service),
+) -> dict[str, str]:
+    try:
+        await sheet_service.save_trends(payload.model_dump())
+        return {"status": "ok"}
+    except Exception:
+        logger.exception("Failed to save trends")
+        raise HTTPException(status_code=500, detail="Failed to save trends")
+
+
+@router.get("/trends")
+async def get_trends(
+    sheet_service: SheetService = Depends(get_sheet_service),
+) -> list[dict[str, Any]]:
+    try:
+        return await sheet_service.get_trends()
+    except Exception:
+        logger.exception("Failed to fetch trends")
+        raise HTTPException(status_code=500, detail="Failed to fetch trends")
