@@ -24,6 +24,12 @@ import { clusterAndRenderThemes, renderNetworkGraph, setupViewToggle } from "./v
 
 let triageController;
 
+const MODE_TITLES = {
+    radar: "Mini Radar Results",
+    research: "Deep Research Analysis",
+    governance: "Governance & Policy Results",
+};
+
 // --- Modal system ---
 
 function toggleDatabaseModal(show) {
@@ -90,12 +96,7 @@ async function runScan() {
             if (feed) {
                 feed.innerHTML = "";
 
-                const modeTitles = {
-                    radar: "Mini Radar Results",
-                    research: "Deep Research Analysis",
-                    governance: "Governance & Policy Results",
-                };
-                feed.innerHTML = `<h2 class="font-display text-2xl font-bold text-nesta-navy mb-6 border-b border-nesta-sand pb-2">${modeTitles[state.currentMode] ?? "Scan Results"}</h2>`;
+                feed.innerHTML = `<h2 class="font-display text-2xl font-bold text-nesta-navy mb-6 border-b border-nesta-sand pb-2">${MODE_TITLES[state.currentMode] ?? "Scan Results"}</h2>`;
 
                 if (data.signals.length === 0) {
                     feed.innerHTML += `
