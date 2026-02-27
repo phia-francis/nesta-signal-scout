@@ -25,7 +25,7 @@ class SheetService:
     DATABASE_TAB_NAME = "Database"
     WATCHLIST_TAB_NAME = "Watchlist"
     TRENDS_TAB_NAME = "Trends"
-    STATUS_COLUMN_INDEX = 11
+    TRENDS_HEADER = ["Date Generated", "Trend Theme", "Analysis Text", "Signal Count", "Contributing Signals"]
     URL_COLUMN_INDEX = 5
     MODE_COLUMN_INDEX = 2
     MISSION_COLUMN_INDEX = 3
@@ -323,7 +323,7 @@ class SheetService:
         records: list[dict[str, Any]] = []
         start_index = 0
         first_row = [cell.strip() for cell in values[0]]
-        expected_header = ["Date Generated", "Trend Theme", "Analysis Text", "Signal Count", "Contributing Signals"]
+        expected_header = self.TRENDS_HEADER
         if len(first_row) >= 5 and first_row[:5] == expected_header:
             start_index = 1
 
