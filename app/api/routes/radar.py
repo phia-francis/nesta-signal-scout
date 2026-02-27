@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from functools import lru_cache
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -147,6 +148,8 @@ async def chat_endpoint(
         if not tool_calls:
             break
 
+        request_time = datetime.now(timezone.utc)
+
         for tool_call in tool_calls:
             tool_name = getattr(tool_call.function, "name", "")
             try:
@@ -183,7 +186,7 @@ async def chat_endpoint(
                 "score": payload.get("score", 0),
                 "published_date": payload.get("published_date", ""),
             }
-            if not is_date_within_time_filter(item["published_date"], request.time_filter):
+            if not is_date_within_time_filter(item["published_date"], request.time_filter, request_time):
                 continue
 
             seen_urls.add(url)
@@ -200,7 +203,7 @@ async def run_radar_scan(
     request: ScanRequest,
     orchestrator: ScanOrchestrator = Depends(get_scan_orchestrator),
     sheet_service: SheetService = Depends(get_sheet_service),
-):
+ ) -> dict[str, Any]:
     try:
         existing_urls = await sheet_service.get_existing_urls()
         result = await orchestrator.execute_scan(
@@ -216,7 +219,7 @@ async def run_radar_scan(
                 )
             except Exception as save_err:
                 logger.warning("Failed to persist radar signals to Sheets: %s", save_err)
-        return result
+        return cast(dict[str, Any], result)
     except Exception as e:
         logger.exception("Unexpected error while running radar scan")
         raise HTTPException(
@@ -235,7 +238,7 @@ async def cluster_signals(
     body: ClusterRequest,
     llm_service: LLMService = Depends(get_llm_service),
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         if not body.signals or len(body.signals) == 0:
             return {"themes": [], "error": "No signals provided"}
@@ -281,13 +284,13 @@ async def cluster_signals(
 async def get_scan(
     scan_id: str,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         scan_data = storage.get_scan(scan_id)
 
         if not scan_data:
             raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found or has expired")
-        return scan_data
+        return cast(dict[str, Any], scan_data)
 
     except HTTPException:
         raise
@@ -300,7 +303,7 @@ async def get_scan(
 async def list_scans(
     limit: int = 50,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         scans = storage.list_scans(limit=limit)
         return {"scans": scans, "count": len(scans)}
@@ -313,7 +316,7 @@ async def list_scans(
 async def delete_scan(
     scan_id: str,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, str]:
     try:
         success = storage.delete_scan(scan_id)
 
@@ -332,7 +335,7 @@ async def delete_scan(
 async def cleanup_old_scans(
     days: int = 30,
     storage: ScanStorage = Depends(get_scan_storage),
-):
+) -> dict[str, Any]:
     try:
         deleted_count = storage.cleanup_old_scans(days=days)
         return {

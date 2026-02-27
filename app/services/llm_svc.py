@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, cast
 
 from openai import AsyncOpenAI
 
@@ -40,6 +40,7 @@ class LLMService:
         """
         self.settings = settings or get_settings()
         # Only initialize OpenAI client if API key is available
+        self.client: AsyncOpenAI | None
         if self.settings.OPENAI_API_KEY:
             self.client = AsyncOpenAI(api_key=self.settings.OPENAI_API_KEY)
         else:
@@ -92,16 +93,17 @@ class LLMService:
             # 3. Call OpenAI
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
-                response_format={"type": "json_object"},
+                messages=cast(Any, messages),
+                response_format=cast(Any, {"type": "json_object"}),
                 temperature=0.3,  # Low temperature for factual grounding
             )
             
             content = response.choices[0].message.content
             if content:
-                return json.loads(content)
-            else:
-                return {"synthesis": "No response generated.", "signals": []}
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    return cast(dict[str, Any], parsed)
+            return {"synthesis": "No response generated.", "signals": []}
 
         except Exception as e:
             logger.error(f"LLM Synthesis failed: {e}", exc_info=True)
@@ -172,10 +174,10 @@ class LLMService:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=[
+                messages=cast(Any, [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": context},
-                ],
+                ]),
                 temperature=0.3,
             )
             summary = (response.choices[0].message.content or "")[:500]
@@ -235,6 +237,7 @@ Return valid JSON with a "signals" array. Each object MUST contain:
 - "summary": A 2-3 sentence critical analysis. DO NOT copy-paste the snippet. Explain the core innovation, drivers, and strategic implications.
 - "score": A relevance score (1.0-10.0).
 - "confidence": AI confidence score (1-100).
+- "origin_country": Intelligently deduce the geographical origin (e.g., "UK", "USA", "Global") based on the publisher, URL, or content.
 """
         messages = [
             {"role": "system", "content": system_prompt},
@@ -243,13 +246,17 @@ Return valid JSON with a "signals" array. Each object MUST contain:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
-                response_format={"type": "json_object"},
+                messages=cast(Any, messages),
+                response_format=cast(Any, {"type": "json_object"}),
                 temperature=0.3,
             )
             content = response.choices[0].message.content
             if content:
-                return json.loads(content).get("signals", [])
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    signals = parsed.get("signals", [])
+                    if isinstance(signals, list):
+                        return [cast(dict[str, Any], signal) for signal in signals if isinstance(signal, dict)]
             return []
         except Exception as e:
             logger.error("Radar evaluation failed: %s", e)
@@ -325,8 +332,8 @@ Return valid JSON with a "signals" array. Each object MUST contain:
             # Call OpenAI
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
-                response_format={"type": "json_object"},
+                messages=cast(Any, messages),
+                response_format=cast(Any, {"type": "json_object"}),
                 temperature=0.4,  # Slightly higher for creative clustering
             )
             
@@ -334,10 +341,12 @@ Return valid JSON with a "signals" array. Each object MUST contain:
             if content:
                 result = json.loads(content)
                 # Validate structure
-                if 'themes' not in result:
-                    logger.warning("LLM response missing 'themes' key")
-                    return {"themes": []}
-                return result
+                if isinstance(result, dict):
+                    if 'themes' not in result:
+                        logger.warning("LLM response missing 'themes' key")
+                        return {"themes": []}
+                    return cast(dict[str, Any], result)
+                return {"themes": []}
             else:
                 return {"themes": []}
                 
@@ -348,7 +357,7 @@ Return valid JSON with a "signals" array. Each object MUST contain:
                 model=self.model,
             ) from e
 
-    async def analyze_trend_clusters(self, clusters_data: List[Dict], mission: str) -> List[Dict]:
+    async def analyze_trend_clusters(self, clusters_data: list[dict[str, Any]], mission: str) -> list[dict[str, Any]]:
         """Analyses ML-generated clusters and returns a macro-trend summary and strength rating for each."""
         if not self.client:
             logger.warning("OpenAI client not initialized. Skipping cluster analysis.")
@@ -378,12 +387,19 @@ Return valid JSON with a "signals" array. Each object MUST contain:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "system", "content": prompt}],
+                messages=cast(Any, [{"role": "system", "content": prompt}]),
                 temperature=0.3,
-                response_format={"type": "json_object"}
+                response_format=cast(Any, {"type": "json_object"})
             )
-            content = json.loads(response.choices[0].message.content)
-            return content.get("trend_analyses", [])
+            raw_content = response.choices[0].message.content
+            if not raw_content:
+                return []
+            content = json.loads(raw_content)
+            if isinstance(content, dict):
+                trend_analyses = content.get("trend_analyses", [])
+                if isinstance(trend_analyses, list):
+                    return [cast(dict[str, Any], analysis) for analysis in trend_analyses if isinstance(analysis, dict)]
+            return []
         except Exception as e:
             logging.error(f"Cluster LLM analysis failed: {e}")
             return []
@@ -421,17 +437,22 @@ RULES:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "system", "content": prompt}],
+                messages=cast(Any, [{"role": "system", "content": prompt}]),
                 temperature=0.4,
                 max_tokens=300,
-                response_format={"type": "json_object"} if "gpt" in self.model else None,
+                response_format=(cast(Any, {"type": "json_object"}) if "gpt" in self.model else cast(Any, None)),
             )
             content = response.choices[0].message.content
             if content:
                 parsed = json.loads(content)
                 if isinstance(parsed, dict):
-                    return parsed.get("queries", next(iter(parsed.values())))
-                return parsed
+                    queries = parsed.get("queries", next(iter(parsed.values())))
+                    if isinstance(queries, list):
+                        return [str(query) for query in queries]
+                    return [str(queries)]
+                if isinstance(parsed, list):
+                    return [str(query) for query in parsed]
+                return [str(parsed)]
             return [f"{topic} emerging trends", f"{topic} global policy", f"{topic} breakthrough"]
         except Exception as e:
             logging.error("Failed to generate queries: %s", e)
@@ -470,6 +491,7 @@ RULES:
     - url: The EXACT URL from the raw results input. DO NOT alter, truncate, or hallucinate this URL. Copy it character for character.
     - date: Publication date in YYYY-MM-DD format, if available. If the publication date is unknown, use null or omit this field.
     - score: Novelty/impact score from 1.0 to 10.0. Score higher for more recent signals.
+    - origin_country: Intelligently deduce the geographical origin of this signal (e.g., "UK", "USA", "Germany"). Use the source URL, publisher, or content context. If it represents an international effort or is ambiguous, output "Global".
 
     RAW RESULTS TO EVALUATE:
     {results_json}
@@ -478,16 +500,20 @@ RULES:
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "system", "content": prompt}],
+                messages=cast(Any, [{"role": "system", "content": prompt}]),
                 temperature=0.2,
                 max_tokens=2000,
-                response_format={"type": "json_object"}
+                response_format=cast(Any, {"type": "json_object"})
             )
             raw = response.choices[0].message.content
             if not raw:
                 return []
             content = json.loads(raw)
-            return content.get("signals", [])
+            if isinstance(content, dict):
+                signals = content.get("signals", [])
+                if isinstance(signals, list):
+                    return [cast(dict[str, Any], signal) for signal in signals if isinstance(signal, dict)]
+            return []
         except Exception as e:
             logging.error("Verification failed", exc_info=True)
             return []

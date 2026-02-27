@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -177,9 +177,13 @@ class SearchService:
                         )
 
                     data = response.json()
-                    items = data.get("items", [])
-                    logger.info(f"Google Search successful: query='{query}' returned {len(items)} results")
-                    return items
+                    if isinstance(data, dict):
+                        items = data.get("items", [])
+                        if isinstance(items, list):
+                            logger.info(f"Google Search successful: query='{query}' returned {len(items)} results")
+                            return [cast(dict[str, Any], item) for item in items if isinstance(item, dict)]
+                    logger.info(f"Google Search successful: query='{query}' returned 0 results")
+                    return []
 
             except httpx.TimeoutException as e:
                 logger.error(f"Search timeout after 30s: {e}")

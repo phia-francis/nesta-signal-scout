@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 import httpx
 
@@ -32,7 +33,7 @@ class OpenAlexService:
         self.settings = settings
 
     @retry_with_backoff(retries=3, delay=1.0)
-    async def search_works(self, topic: str, from_publication_date: str) -> list[dict]:
+    async def search_works(self, topic: str, from_publication_date: str = "") -> list[dict[str, Any]]:
         """
         Search OpenAlex works and map results to scan-friendly fields.
 
@@ -67,7 +68,7 @@ class OpenAlexService:
         if self.settings.OPENALEX_API_KEY:
             headers["api-key"] = self.settings.OPENALEX_API_KEY
 
-        params = {
+        params: dict[str, str | int] = {
             "search": topic,
             "per_page": 10,
             "sort": "relevance_score:desc",
@@ -88,9 +89,12 @@ class OpenAlexService:
             logger.error("OpenAlex request failed for topic '%s': %s", topic, exc)
             return []
 
-        works = payload.get("results", [])
-        mapped: list[dict] = []
+        works = payload.get("results", []) if isinstance(payload, dict) else []
+        mapped: list[dict[str, Any]] = []
         for work in works:
+            if not isinstance(work, dict):
+                continue
+            work = cast(dict[str, Any], work)
             cited_by_count = int(work.get("cited_by_count") or 0)
             mapped.append(
                 {

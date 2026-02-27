@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import gspread
-from google.oauth2.service_account import Credentials
+from google.oauth2.service_account import Credentials  # type: ignore[import-untyped]
 
 from app.core.config import Settings
 from app.domain.models import SignalCard
@@ -60,7 +60,7 @@ class SheetService:
         except gspread.exceptions.GSpreadException as gspread_error:
             logging.error("Failed to authorise Google Sheets client: %s", gspread_error)
 
-    def _open_spreadsheet(self):
+    def _open_spreadsheet(self) -> gspread.Spreadsheet:
         if not self.client or not self.settings.SHEET_ID:
             raise ServiceError("Database connection not initialised.")
         try:
@@ -68,7 +68,7 @@ class SheetService:
         except gspread.exceptions.GSpreadException as sheet_error:
             raise ServiceError(f"Failed to open sheet: {sheet_error}") from sheet_error
 
-    def _get_worksheet(self, tab_name: str):
+    def _get_worksheet(self, tab_name: str) -> gspread.Worksheet:
         spreadsheet = self._open_spreadsheet()
         try:
             return spreadsheet.worksheet(tab_name)
@@ -78,10 +78,10 @@ class SheetService:
             except gspread.exceptions.GSpreadException as create_error:
                 raise ServiceError(f"Failed to create worksheet '{tab_name}': {create_error}") from create_error
 
-    def get_database_sheet(self):
+    def get_database_sheet(self) -> gspread.Worksheet:
         return self._get_worksheet(self.DATABASE_TAB_NAME)
 
-    def get_watchlist_sheet(self):
+    def get_watchlist_sheet(self) -> gspread.Worksheet:
         return self._get_worksheet(self.WATCHLIST_TAB_NAME)
 
     async def get_existing_urls(self) -> set[str]:
@@ -166,6 +166,12 @@ class SheetService:
             logging.error("Failed to sync queued signals: %s", sheet_error)
             async with self._queue_lock:
                 self._sync_queue = batch + self._sync_queue
+
+
+    async def add_signal(self, signal: SignalCard | dict[str, Any]) -> None:
+        """Backward-compatible single-signal write helper."""
+        payload = signal.model_dump() if isinstance(signal, SignalCard) else signal
+        await self.save_signals_batch([payload])
 
     async def save_signals_batch(self, signals: list[dict[str, Any]]) -> None:
         """Append signals as new rows, preserving full scan history."""

@@ -25,7 +25,7 @@ async def generate_cluster_analysis(
     request: ClusterAnalysisRequest,
     llm_service: LLMService = Depends(get_llm_service),
     sheet_service: SheetService = Depends(get_sheet_service),
-):
+) -> dict[str, Any]:
     try:
         insights = await llm_service.analyze_trend_clusters(request.clusters, request.mission)
         for insight in insights:

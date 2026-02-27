@@ -7,7 +7,8 @@ export async function wakeServer() {
 export async function fetchSavedSignals() {
   const response = await fetch(`${state.apiBaseUrl}/api/saved`);
   const payload = await response.json();
-  return payload.signals || [];
+  if (Array.isArray(payload)) return payload;
+  return payload?.signals || [];
 }
 
 export async function triggerScan(query, mission, mode) {

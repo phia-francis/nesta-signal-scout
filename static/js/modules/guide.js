@@ -1,28 +1,32 @@
 const TOUR_STEPS = [
   {
-    target: 'nav',
-    title: 'Primary Navigation',
-    description: 'Access the Signal Database to view saved signals or open the User Guide.',
+    target: '#open-db-btn',
+    title: 'Signal Database',
+    description: 'Open the Database to review saved and starred signals.',
     position: 'bottom',
   },
   {
-    target: '.scan-module',
-    title: 'Scan Configuration',
-    description:
-      "Choose your lens: 'Mini Radar' for broad trends, 'Deep Research' for academic rigour, or 'Governance Radar' for policy.",
+    target: '#mission-select',
+    title: 'Mission Lens',
+    description: "Choose the mission context before scanning to focus the results.",
     position: 'bottom',
   },
   {
     target: '#query-input',
     title: 'Search Input',
-    description:
-      'Enter a topic and select a mission context. The agent automatically applies friction terms to find novel, edge-case signals.',
+    description: 'Enter a topic to scan for emerging signals and weak trends.',
+    position: 'bottom',
+  },
+  {
+    target: '#scan-btn',
+    title: 'Run Scan',
+    description: 'Start a new scan and generate fresh signal cards.',
     position: 'bottom',
   },
   {
     target: '#radar-feed',
     title: 'Results Grid',
-    description: 'Real-time results appear here, scored for Activity and Attention.',
+    description: 'Newly discovered signals appear here with scores and actions.',
     position: 'top',
   },
 ];
@@ -107,7 +111,7 @@ class MissionDiscoveryTour {
       return;
     }
 
-    const radarButton = document.getElementById('nav-radar');
+    const radarButton = document.querySelector('.mode-toggle[data-mode="radar"]');
     radarButton?.click();
   }
 

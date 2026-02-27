@@ -18,6 +18,7 @@ class RawSignal(BaseModel):
     mission: str = "General"
     metadata: dict[str, Any] = Field(default_factory=dict)
     is_novel: bool = False
+    origin_country: str = "Global"
 
 
 class ScoredSignal(RawSignal):
@@ -45,6 +46,7 @@ class SignalCard(BaseModel):
     final_score: float
     typology: str
     is_novel: bool = False
+    origin_country: str = "Global"
     sparkline: List[int] = Field(default_factory=list, description="Activity trend")
     related_keywords: list[str] = Field(default_factory=list)
     narrative_group: str | None = Field(default=None, description="Thematic cluster name")

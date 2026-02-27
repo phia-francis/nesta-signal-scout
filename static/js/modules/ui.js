@@ -128,25 +128,17 @@ export function createSignalCard(signal, context = "scan") {
         }
     }
 
-    // Domain & country parsing
     let domainName = "Unknown Source";
-    let country = "Global";
-
     if (signal.url) {
         try {
             const urlObj = new URL(signal.url);
-            domainName = urlObj.hostname.replace(/^www\./, "");
-            const tld = domainName.split(".").pop().toLowerCase();
-            const countryMap = {
-                uk: "UK", au: "Australia", ca: "Canada",
-                de: "Germany", fr: "France", nz: "New Zealand",
-                gov: "US Gov", edu: "Academic",
-            };
-            country = countryMap[tld] ?? "Global";
-        } catch {
-            // Invalid URL — keep defaults
+            domainName = urlObj.hostname.replace(/^www\./, '');
+        } catch (e) {
+            // Invalid URL, keep default
         }
     }
+
+    const country = signal.origin_country || signal.Origin_Country || "Global";
 
     const footer = document.createElement("footer");
     footer.className =
