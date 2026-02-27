@@ -24,7 +24,8 @@ class SheetService:
 
     DATABASE_TAB_NAME = "Database"
     WATCHLIST_TAB_NAME = "Watchlist"
-    STATUS_COLUMN_INDEX = 11
+    TRENDS_TAB_NAME = "Trends"
+    TRENDS_HEADER = ["Date Generated", "Trend Theme", "Analysis Text", "Signal Count", "Contributing Signals"]
     URL_COLUMN_INDEX = 5
     MODE_COLUMN_INDEX = 2
     MISSION_COLUMN_INDEX = 3
@@ -267,6 +268,76 @@ class SheetService:
         except gspread.exceptions.GSpreadException as sheet_error:
             logging.error(f"Error fetching signal by URL '{url}': {sheet_error}")
             raise ServiceError(f"Failed to fetch signal by URL: {sheet_error}") from sheet_error
+
+
+    async def save_trends(self, payload: dict[str, Any]) -> None:
+        """Append clustered trend themes into the Trends worksheet using RAW values."""
+        themes = payload.get("themes") or []
+        if not themes:
+            return
+
+        generated_at = payload.get("generated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        full_analysis_text = payload.get("full_analysis_text") or ""
+
+        rows: list[list[Any]] = []
+        for theme in themes:
+            if not isinstance(theme, dict):
+                continue
+            signal_ids = theme.get("signal_ids", [])
+            if not isinstance(signal_ids, list):
+                signal_ids = []
+            derived_count = theme.get("count") or len(signal_ids) or 0
+            # Preserve source-auditability by storing all contributing signal IDs.
+            contributing_signals = ", ".join(map(str, signal_ids))
+            rows.append([
+                generated_at,
+                theme.get("name") or "Untitled Theme",
+                theme.get("analysis_text") or full_analysis_text,
+                derived_count,
+                contributing_signals,
+            ])
+
+        if not rows:
+            return
+
+        try:
+            await asyncio.to_thread(
+                self._get_worksheet(self.TRENDS_TAB_NAME).append_rows,
+                rows,
+                value_input_option="RAW",
+                insert_data_option="INSERT_ROWS",
+            )
+        except gspread.exceptions.GSpreadException as sheet_error:
+            raise ServiceError(f"Failed to save trends: {sheet_error}") from sheet_error
+
+    async def get_trends(self) -> list[dict[str, Any]]:
+        """Fetch all trend rows and map them to API dictionaries."""
+        try:
+            values = await asyncio.to_thread(self._get_worksheet(self.TRENDS_TAB_NAME).get_all_values)
+        except gspread.exceptions.GSpreadException as sheet_error:
+            raise ServiceError(f"Failed to fetch trends: {sheet_error}") from sheet_error
+
+        if not values:
+            return []
+
+        records: list[dict[str, Any]] = []
+        start_index = 0
+        first_row = [cell.strip() for cell in values[0]]
+        expected_header = self.TRENDS_HEADER
+        if len(first_row) >= 5 and first_row[:5] == expected_header:
+            start_index = 1
+
+        for row in values[start_index:]:
+            padded = row + [""] * (5 - len(row))
+            records.append({
+                "date_generated": padded[0],
+                "trend_theme": padded[1],
+                "analysis_text": padded[2],
+                "signal_count": padded[3],
+                "contributing_signals": padded[4],
+            })
+
+        return records
 
     async def flush_pending_sync(self) -> None:
         """Force-flush any queued signals, including partial batches."""

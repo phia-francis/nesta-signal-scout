@@ -1,4 +1,4 @@
-import { escapeHtml } from './utils.js';
+import { escapeHtml, sanitizeUrl } from './utils.js';
 
 const MISSION_THEMES = {
   'A Sustainable Future': {
@@ -51,14 +51,20 @@ function clipboardIcon() {
 }
 
 export function createSignalCard(signal, context = "scan") {
-    const mission = signal.mission || "General";
+    const titleText = signal.title || signal.Title || "Untitled Signal";
+    const summaryText = signal.summary || signal.Hook || signal.Description || "";
+    const scoreActivity = Number(signal.score_activity ?? signal.Score_Activity ?? 0);
+    const scoreAttention = Number(signal.score_attention ?? signal.Score_Attention ?? signal.Score ?? 0);
+    const sourceUrl = signal.url || signal.URL || "";
+    const country = signal.origin_country || signal.Origin_Country || "Global";
+    const mission = signal.mission || signal.Mission || "General";
     const theme = getThemeForMission(mission);
-    const isSynthesis = signal.typology === "Synthesis";
+    const isSynthesis = (signal.typology || signal.Typology) === "Synthesis";
 
     const card = document.createElement("article");
     card.className = isSynthesis
-        ? "signal-card bg-slate-50 border-2 border-nesta-blue shadow-hard rounded-lg p-8 flex flex-col gap-4 relative col-span-full"
-        : `signal-card bg-white border-2 ${theme.border} shadow-hard rounded-lg p-6 flex flex-col gap-4 relative`;
+        ? "signal-card bg-slate-50 border-2 border-nesta-blue shadow-hard rounded-lg p-8 flex flex-col gap-4 relative col-span-full h-auto min-h-[250px]"
+        : `signal-card bg-white border-2 ${theme.border} shadow-hard rounded-lg p-6 flex flex-col gap-4 relative h-auto min-h-[250px]`;
 
     // --- Header: mission pill + cluster pill ---
     const headerWrap = document.createElement("div");
@@ -80,10 +86,10 @@ export function createSignalCard(signal, context = "scan") {
     // --- Title: hyperlinked to source ---
     const title = document.createElement("a");
     title.className =
-        "font-display text-xl leading-tight text-nesta-navy hover:text-nesta-blue transition-colors cursor-pointer decoration-2 hover:underline";
-    title.textContent = signal.title || "Untitled Signal";
-    if (signal.url) {
-        title.href = signal.url;
+        "font-display text-xl leading-tight text-slate-900 hover:text-nesta-blue transition-colors cursor-pointer decoration-2 hover:underline";
+    title.textContent = titleText;
+    if (sourceUrl) {
+        title.href = sanitizeUrl(sourceUrl);
         title.target = "_blank";
         title.rel = "noopener noreferrer";
         title.addEventListener("click", (e) => e.stopPropagation());
@@ -91,18 +97,18 @@ export function createSignalCard(signal, context = "scan") {
 
     // --- Summary: markdown for Synthesis, toggle for all others ---
     const summaryWrap = document.createElement("div");
-    summaryWrap.className = "flex flex-col items-start gap-1 w-full";
+    summaryWrap.className = "flex flex-col items-start gap-1 w-full flex-grow";
 
     const summary = document.createElement("div");
 
     if (isSynthesis && window.marked && window.DOMPurify) {
         summary.className = "prose prose-sm max-w-none text-nesta-navy/80 mt-2";
-        summary.innerHTML = DOMPurify.sanitize(marked.parse(signal.summary || ""));
+        summary.innerHTML = DOMPurify.sanitize(marked.parse(summaryText));
         summaryWrap.appendChild(summary);
     } else {
         summary.className =
             "font-body text-sm text-nesta-navy/80 line-clamp-3 transition-all duration-200";
-        summary.textContent = signal.summary || "";
+        summary.textContent = summaryText;
         summaryWrap.appendChild(summary);
 
         // Only render the "Show More" toggle if the summary actually overflows
@@ -129,16 +135,15 @@ export function createSignalCard(signal, context = "scan") {
     }
 
     let domainName = "Unknown Source";
-    if (signal.url) {
+    if (sourceUrl) {
         try {
-            const urlObj = new URL(signal.url);
+            const urlObj = new URL(sourceUrl);
             domainName = urlObj.hostname.replace(/^www\./, '');
         } catch (e) {
             // Invalid URL, keep default
         }
     }
 
-    const country = signal.origin_country || signal.Origin_Country || "Global";
 
     const footer = document.createElement("footer");
     footer.className =
@@ -146,7 +151,7 @@ export function createSignalCard(signal, context = "scan") {
 
     const metrics = document.createElement("div");
     metrics.className = "text-xs text-nesta-navy/70 cursor-help relative inline-block";
-    metrics.innerHTML = `<strong>${domainName}</strong> <span class="text-slate-400">(${country})</span><br/>Activity ${Number(signal.score_activity || 0).toFixed(1)} • Attention ${Number(signal.score_attention || 0).toFixed(1)}`;
+    metrics.innerHTML = `<strong>${escapeHtml(domainName)}</strong> <span class="text-slate-400">(${escapeHtml(country)})</span><br/>Activity ${scoreActivity.toFixed(1)} • Attention ${scoreAttention.toFixed(1)}`;
     metrics.setAttribute(
         "data-tooltip",
         "AI Confidence & Impact Scores: Calculated via rigorous LLM evaluation of source authority, factuality, recency, and trend relevance."
@@ -160,13 +165,13 @@ export function createSignalCard(signal, context = "scan") {
         starBtn.innerHTML = "⭐ Star";
         starBtn.className =
             "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-yellow-100 text-slate-600 hover:text-yellow-700 transition-colors";
-        starBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Starred");
+        starBtn.onclick = (e) => updateSignalStatus(e, sourceUrl, "Starred");
 
         const archiveBtn = document.createElement("button");
         archiveBtn.innerHTML = "🗑️ Archive";
         archiveBtn.className =
             "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-700 transition-colors";
-        archiveBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Archived");
+        archiveBtn.onclick = (e) => updateSignalStatus(e, sourceUrl, "Archived");
 
         actionWrap.append(starBtn, archiveBtn);
     } else {
@@ -174,12 +179,15 @@ export function createSignalCard(signal, context = "scan") {
         unarchiveBtn.innerHTML = "📦 Unarchive";
         unarchiveBtn.className =
             "text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-green-100 text-slate-600 hover:text-green-700 transition-colors";
-        unarchiveBtn.onclick = (e) => updateSignalStatus(e, signal.url, "Active");
+        unarchiveBtn.onclick = (e) => updateSignalStatus(e, sourceUrl, "Active");
         actionWrap.append(unarchiveBtn);
     }
 
     footer.append(metrics, actionWrap);
     card.append(headerWrap, title, summaryWrap, footer);
+
+    card.dataset.url = sourceUrl;
+
 
     if (context === "preview") {
         card.classList.add("cursor-pointer", "hover:border-nesta-blue", "transition-all");
@@ -469,15 +477,6 @@ export function renderClusterInsights(clusterInsights, container) {
 
     dashboardWrap.appendChild(gridWrap);
     container.insertBefore(dashboardWrap, container.firstChild);
-}
-
-function sanitizeUrl(url) {
-    if (!url) return "#";
-    const cleaned = String(url).trim();
-    if (/^https?:\/\//i.test(cleaned) || /^mailto:/i.test(cleaned)) {
-        return cleaned;
-    }
-    return "#";
 }
 
 function escapeAttribute(value) {
