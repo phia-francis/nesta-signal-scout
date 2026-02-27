@@ -284,6 +284,30 @@ class SheetService:
         except Exception as e:
             logging.error("Failed to save trend analysis to sheet: %s", e)
 
+    async def save_trends(self, themes: list[dict[str, Any]]) -> None:
+        """Append generated trend themes to the 'Trends' worksheet with UTC timestamp."""
+        if not themes:
+            return
+
+        worksheet = self._get_worksheet("Trends")
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        rows = [
+            [
+                timestamp,
+                theme.get("name") or theme.get("theme") or theme.get("title") or "Untitled Theme",
+                theme.get("count") or 0,
+                theme.get("summary") or theme.get("description") or "",
+            ]
+            for theme in themes
+        ]
+
+        await asyncio.to_thread(
+            worksheet.append_rows,
+            rows,
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+        )
+
     def _flush_queue_on_exit(self) -> None:
         """Best-effort queue flush during interpreter shutdown."""
         if not self._sync_queue:

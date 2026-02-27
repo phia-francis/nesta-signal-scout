@@ -28,6 +28,12 @@ const MODE_TITLES = {
     governance: "Governance & Policy Results",
 };
 
+const MODE_CONFIG = {
+    radar: { label: "Run Mini Radar", buttonColor: "bg-nesta-blue" },
+    research: { label: "Run Deep Research", buttonColor: "bg-nesta-purple" },
+    governance: { label: "Run Governance Scan", buttonColor: "bg-nesta-green" },
+};
+
 function toggleDatabaseModal(show) {
     const modal = document.getElementById("db-modal");
     const overlay = document.getElementById("db-overlay");
@@ -161,15 +167,36 @@ async function runScan() {
 }
 
 function switchMode(mode) {
-    state.currentMode = mode;
+    const selectedMode = MODE_CONFIG[mode] ? mode : "radar";
+    const selectedConfig = MODE_CONFIG[selectedMode];
+    state.currentMode = selectedMode;
+
     document.querySelectorAll(".mode-toggle").forEach((button) => {
-        const isActive = button.dataset.mode === mode;
+        const isActive = button.dataset.mode === selectedMode;
         button.classList.toggle("active", isActive);
-        button.classList.toggle("bg-nesta-navy", isActive);
-        button.classList.toggle("text-white", isActive);
-        button.classList.toggle("bg-slate-100", !isActive);
-        button.classList.toggle("text-slate-600", !isActive);
+
+        // Remove all dynamic mode colours before applying the active state.
+        button.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-green", "bg-nesta-navy");
+        if (isActive) {
+            button.classList.add(selectedConfig.buttonColor, "text-white");
+            button.classList.remove("bg-slate-100", "text-slate-600");
+        } else {
+            button.classList.add("bg-slate-100", "text-slate-600");
+            button.classList.remove("text-white");
+        }
     });
+
+    const scanButton = document.getElementById("scan-btn");
+    if (scanButton) {
+        // Keep scan CTA aligned with active mode and ensure colour classes never stack.
+        scanButton.classList.remove("bg-nesta-blue", "bg-nesta-purple", "bg-nesta-green");
+        scanButton.classList.add(selectedConfig.buttonColor);
+        scanButton.textContent = selectedConfig.label;
+    }
+
+    const feed = document.getElementById("radar-feed");
+    if (feed) feed.innerHTML = "";
+    state.radarSignals = [];
 
     const desc = document.getElementById("mode-description");
     if (desc) {
@@ -178,7 +205,7 @@ function switchMode(mode) {
             research: "<strong>Deep Research:</strong> AI-powered deep dive analysis.",
             governance: "<strong>Governance:</strong> Policy &amp; regulatory intelligence.",
         };
-        desc.innerHTML = descriptions[mode] ?? "";
+        desc.innerHTML = descriptions[selectedMode] ?? "";
     }
 }
 
@@ -196,8 +223,20 @@ function switchVisualMode(mode) {
         networkContainer.classList.add("hidden");
     }
 
-    document.getElementById("btn-view-grid")?.classList.toggle("bg-white", mode === "grid");
-    document.getElementById("btn-view-network")?.classList.toggle("bg-white", mode === "network");
+    const gridButton = document.getElementById("btn-view-grid");
+    const networkButton = document.getElementById("btn-view-network");
+    const applyViewButtonState = (button, isActive) => {
+        if (!button) return;
+        button.classList.remove("bg-nesta-navy", "text-white", "bg-slate-200", "text-slate-800", "bg-white");
+        if (isActive) {
+            button.classList.add("bg-nesta-navy", "text-white");
+        } else {
+            button.classList.add("bg-slate-200", "text-slate-800");
+        }
+    };
+
+    applyViewButtonState(gridButton, mode === "grid");
+    applyViewButtonState(networkButton, mode === "network");
 }
 
 async function runAutoCluster() {
@@ -226,6 +265,20 @@ async function runAutoCluster() {
             article.append(h4, paragraph);
             container.appendChild(article);
         });
+
+        try {
+            const trendResponse = await fetch(`${state.apiBaseUrl}/api/trends`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ themes: narratives.themes }),
+            });
+            if (!trendResponse.ok) {
+                throw new Error(`Failed to persist trends: HTTP ${trendResponse.status}`);
+            }
+        } catch (error) {
+            console.error("Trend persistence failed:", error);
+            showToast("Analysis generated, but trends could not be saved.", "error");
+        }
     }
 }
 
@@ -262,7 +315,8 @@ document.addEventListener("DOMContentLoaded", () => {
         onStar: async (signal) => handleTriage(signal, "Starred"),
     });
 
-    document.getElementById("start-tour-btn")?.addEventListener("click", () => {
+    document.getElementById("start-tour-btn")?.addEventListener("click", (e) => {
+        e.stopPropagation();
         import("./guide.js").then((module) => module.startTour());
     });
 
